@@ -1,0 +1,15 @@
+[Unit]
+Description=daemon to run the document compiler service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/doccomp
+
+# Prevents writes to /usr, /boot, and /ect
+ProtectSystem=full
+
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

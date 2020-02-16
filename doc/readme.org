@@ -1,0 +1,17 @@
+* Technical Elements
+| Element       | Building       | Description                                                      |
+|---------------+----------------+------------------------------------------------------------------|
+| build         | ~make~         | The output of all built files.                                   |
+| scripts       | N/A            | scripts/binaries used to help with building                      |
+| tests         | N/A            | scripts/binaries used to help with testing                       |
+
+* Examples
+** Building
+*** Debian dependencies
+See [[./control]].
+*** Building the damn thing
+If all is fine and dandy, run ~make~.
+** Packaging
+** Installing
+TODO
+* Developing
