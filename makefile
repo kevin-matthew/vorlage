@@ -31,18 +31,18 @@ $(GO_BIN): $(GO_FILES_ALL)
 $(GO_BIN_INSTALL):$(GO_BIN)
 	install --strip $(GO_BIN) -DT $(GO_BIN_INSTALL)
 
-bin:$(GO_BIN)
-bin-test: $(GO_FILES) $(GO_FILE_ALL)
+gosrc:$(GO_BIN)
+gosrc-test: $(GO_FILES) $(GO_FILE_ALL)
 	$(GOC) test $(GO_FILES)
 
-bin-install:$(GO_BIN_INSTALL)
+gosrc-install:$(GO_BIN_INSTALL)
 	mkdir -p $(OPERATION_VAR_DIRS)
 
-bin-remove:
+gosrc-remove:
 	-rm $(GO_BIN_INSTALL)
 	-rmdir $(OPERATION_VAR_DIRS)
 
-bin-clean:
+gosrc-clean:
 	-rm $(GO_BIN)
 
 
@@ -116,7 +116,7 @@ doc-remove:
 ######### System targets ########
 
 # default... what to run without any commands
-MASTER_TARGETS   = bin doc config
+MASTER_TARGETS   = gosrc doc config
 INSTALL_TARGETS := $(patsubst %, %-install, $(MASTER_TARGETS))
 REMOVE_TARGETS := $(patsubst %, %-uninstall, $(MASTER_TARGETS))
 CLEAN_TARGETS := $(patsubst %, %-clean, $(MASTER_TARGETS))
