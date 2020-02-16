@@ -1,0 +1,75 @@
+#+AUTHOR: kmarschke
+#+DATE: 2020-02-15
+
+* Introduction
+
+** Abstract
+Making a website? Use document compiler.
+
+Document compiler puts together text documnets by looking for specific
+macros within the text documents themselves (such as .html, .txt, .js,
+ect). Once compiled, the completed document is cached and can be
+served over a variety of channels (http, fcgi, cli, ect)
+
+** Purpose
+Here it is. Ellem has been working with HTTP/HTML for litterally
+decades and we have never loved doing it until now. 
+
+We've seen everything; php, node, react, webassembly, apache, nginx,
+coldfusion, dart, typescript, asp.net, drupal, squarespace,
+wordpress. Why have all these products and technologies been made?
+What problem is so big that there needs to have an endless amount of
+solutions to support it? The problem is simple:
+
+*HTTP sucks*.
+
+The entire planet has adopted a standard that was never in a million
+years supposed to be as widley used as it is now. HTML was made in a
+weekend by 1 man who had no advanced knowlege in computer
+engineering. HTTP was made by a small team trying to solve a problem
+they had between a team of 50 people. Javascript was made in 2 weeks
+and is named after another language to trick people in to using it.
+
+But now: Every photon of light transfered accrossed the fibre optic
+internet backbone in an attempt to deliever an HTML can be measured in
+actual pounds. This is a huge problem.
+
+* Goals
+What you can do with document compiler should be directly proportional
+with your technical skill set in software development.
+
+** Interpreting Procedures
+  - org-mode
+  - haml
+  - sass
+  - markdown
+** Arbitrary code interfaces
+  - Go
+  - python
+  - javascript
+  - PHP 
+
+
+* Document Example
+#+BEGIN_SRC
+#include 
+#define $myvar my var will be replaced with this sentence.
+#+END_SRC
+* Technical Aspects
+** Highlevel Proccess
+step 1: we get a request for a file
+step 2: is the file cached? if yes then go to step 7
+step 3: run all the "#include"
+step 4: run all the "#define"
+step 5: fill in all the variables ($asdf)
+step 6: save the outputted file to the chache
+step 7: run the 'preprocess' event
+step 8: run the "proccess function" with a paremters of filename, and http info
+step 9: is any undefined variables? if so, report an error.
+step 10: run the "postproccess" hook with a paremters of filename, and http info
+step 11: return the prccessed file.
+
+my only problem is this makes it hard, every file will have its
+personal execution, bvut all the exectuion is going to be in one place
+( see step 8b). Also, you should be able to define variables along
+with what they're cached too (such as a session)
