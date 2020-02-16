@@ -73,3 +73,48 @@ my only problem is this makes it hard, every file will have its
 personal execution, bvut all the exectuion is going to be in one place
 ( see step 8b). Also, you should be able to define variables along
 with what they're cached too (such as a session)
+
+* Using Macros
+ - A macro must start with the macro prefix '#'
+ - The macro prefix must be preceeded by an end-of-line '\n'
+ - The macro itself can either be 'include' or 'define'
+ - The macro's argument must be preceded by a space ' '. The argument
+   is trimmed for whitespace before it is used.
+ - The macro ends when another end-of-line is detected '\n'
+ - The number of bytes between the macro prefix '#' and the
+   end-of-line '\n' cannot exceed 2048 (MacroMaxLength).
+** ~#include~
+Includes another file, the included file may also have macros.
+** ~#define~
+The define takes 2 arguments, a variable name and a value.
+  
+[f f]f \n # d e f i n e  a e k f j a e f \n
+ f f[f \n]# d e f i n e  a e k f j a e f \n
+ f f f \n[# d]e f i n e  a e k f j a e f \n
+
+* Variables
+  - all variables must be prefixed with '$'
+  - all variables must be alphanumaric, all lowercase
+  - a precense of a dot '.' will set the variable as a processor
+    variable.
+  - if a variable is never defined an error will occour.
+** Normal variables ~$myvar~
+To define a normal variable, you must do so in a static document using
+a define macro as so: ~#define $myvar~. For example
+
+#+BEING_SRC
+#define $myname Kevin
+Hello my name is $myname.
+
+Best regards,
+  -$myname
+#+END_SRC
+Will compile to:
+#+BEGIN_SRC
+Hello my name is Kevin.
+
+Best regards,
+  -Kevin
+#+END_SRC
+** Processor variables ~$myproccessor.myvar~
+  - if undefined (by processor), an error will occour

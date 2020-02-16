@@ -11,7 +11,9 @@ type Definition interface {
 /*
  * A request is anything that consitutes a client asking for a compiled page.
  */
-type Request interface {} // this will probably stay an interface.
+type Request interface {
+	GetFilePath() string
+} // this will probably stay an interface.
 
 /*
  * The best way to describe this function is by reading through the steps
@@ -24,13 +26,17 @@ func HandleRequest(request Request,
 	doc := GetCached(request)
 	if doc == nil {
 
-		// step 3,4,5
-		reqdoc,err := LoadRequestedDocument(request)
+		// step 3,4
+		reqdoc, err := LoadRequestedDocument(request)
 		if err != nil {
 			erro := NewError("loading a requested document")
 			erro.SetBecause(err)
 			return docstream, erro
 		}
+
+		// step 5
+		// TODO:
+
 		// step 6
 		addToCache(reqdoc)
 		doc = &reqdoc
@@ -45,19 +51,19 @@ func HandleRequest(request Request,
 	}
 
 	// step 8
-	definitions,err := pageProcessor.Process(request)
+	definitions, err := pageProcessor.Process(request)
 	if err != nil {
 		erro := NewError("in processing")
 		erro.SetBecause(err)
 		return docstream, erro
 	}
 
-	for _,d := range definitions {
+	for _, d := range definitions {
 		doc.addDefinition(d)
 	}
 
 	// step 9
-	docstream,err = doc.complete()
+	docstream, err = doc.complete()
 	if err != nil {
 		erro := NewError("failed to open stream to document")
 		erro.SetBecause(err)
@@ -73,10 +79,5 @@ func HandleRequest(request Request,
 	}
 
 	// step 11
-	if err != nil {
-		erro := NewError("sending document")
-		erro.SetBecause(err)
-		return docstream, erro
-	}
-	return docstream,nil
+	return docstream, nil
 }
