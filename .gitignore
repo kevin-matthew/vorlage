@@ -13,23 +13,9 @@
 # Building
 !makefile
 
-# PHP projects
-!website/**/*.php
-!website/**/*.phtml
-!website/**/*.scss
-!website/**/*.haml
-!website/robots.txt
-!website/js/*.js
-#!etc/**/*.sql
-!website/ext/**/*.svg
-!scripts/*
-!api/**/*.go
-!wasm/**/*.go
-!ellemlabs-js/*.go
-!ellemlabs-js/*.js
-!ellemlabs-js/*.s
-# wasm
-!wasm/*.js
+!*.go
+
+# lock files
+.#
 
 
-.#*
