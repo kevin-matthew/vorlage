@@ -18,7 +18,7 @@ default: all
 #*********************************************************************
 
 GOC           = go
-APISRC        = $(MAKEDIR)/go
+APISRC        = $(MAKEDIR)/gosrc
 GO_FILES     := $(wildcard $(APISRC)/*.go)
 GO_FILES_ALL := $(shell find $(APISRC) -name \*.go -type f)
 GO_BIN        = $(BUILD_DIR)/$(PRODUCT)
@@ -67,7 +67,7 @@ $(CONF_INSTALL): config/$(PRODUCT).conf
 	install -m644 -D $< $@
 
 
-config: config/$(PRODUCT).nginx
+config:
 config-install:$(SERVICE_INSTALL) $(CONF_INSTALL)
 config-remove: 
 	-rm $(NGINX_INSTALL)
