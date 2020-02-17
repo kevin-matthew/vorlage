@@ -25,10 +25,19 @@ type DocumentStream struct {
 type NormalDefinition struct {
 	variable string
 	value    string
+	seeker   int
 }
 
 func (d NormalDefinition) GetName() string {
 	return d.variable
+}
+
+func (d NormalDefinition) Read(p []byte) (int, error) {
+	if d.seeker == len(d.value) {
+		return 0, io.EOF
+	}
+	d.seeker = copy(p, d.value[d.seeker:])
+	return d.seeker, nil
 }
 
 type Document struct {
@@ -47,7 +56,7 @@ type Document struct {
 	includePositions        []uint64
 	includeLengths          []uint
 
-	defines                []Definition
+	normalDefines          []NormalDefinition
 	definePositionsLineNum []uint // used for debugging
 	definePositions        []uint64
 	defineLengths          []uint
@@ -58,17 +67,16 @@ type Document struct {
 	allRecursiveNormalDefines []Definition
 }
 
-func LoadRequestedDocument(request Request) (doc Document, oerr *Error) {
-	path := request.GetFilePath()
+func LoadDocument(path string) (doc Document, oerr *Error) {
 	return loadDocumentFromPath(path, nil)
 }
 
-func (doc *Document) FindProcDefinitions() []uint {
-
+func (doc *Document) AddDefinition(definition Definition) {
+	doc.allRecursiveNormalDefines = append(doc.allRecursiveNormalDefines, definition)
 }
 
-func (doc *Document) AddDefinition(definitions Definition) {
-
+func (doc Document) GetFileName() string {
+	return doc.file.Name()
 }
 
 func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Error) {
@@ -93,7 +101,7 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 	if err != nil {
 		oerr.ErrStr = "failed to detect macros"
 		oerr.SetBecause(err)
-		doc.CloseRecursively()
+		doc.Close()
 		return doc, oerr
 	}
 
@@ -103,17 +111,17 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 	if err != nil {
 		oerr.ErrStr = "failed to run includes"
 		oerr.SetBecause(err)
-		doc.CloseRecursively()
+		doc.Close()
 		return doc, oerr
 	}
 
 	// step 4
-	Debugf("parsing %d defines '%s'", len(doc.definePositions), path)
+	Debugf("parsing %d normalDefines '%s'", len(doc.definePositions), path)
 	err = doc.runDefines()
 	if err != nil {
-		oerr.ErrStr = "failed to run defines"
+		oerr.ErrStr = "failed to run normalDefines"
 		oerr.SetBecause(err)
-		doc.CloseRecursively()
+		doc.Close()
 		return doc, oerr
 	}
 
@@ -131,7 +139,7 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 	if cerr != nil {
 		oerr.ErrStr = "failed to seek back to the beginning of the stream"
 		oerr.SetBecause(NewError(cerr.Error()))
-		doc.CloseRecursively()
+		doc.Close()
 		return doc, oerr
 	}
 
@@ -262,7 +270,7 @@ func (doc *Document) runIncludes() (oerr *Error) {
 // helper-function for loadDocumentFromPath
 func (doc *Document) runDefines() (oerr *Error) {
 	oerr = &Error{}
-	doc.defines = make([]NormalDefinition, len(doc.definePositions))
+	doc.normalDefines = make([]NormalDefinition, len(doc.definePositions))
 
 	// TODO: if we wanted to, we could make this for loop multithreaded.
 	for i, inc := range doc.definePositions {
@@ -311,7 +319,7 @@ func (doc *Document) runDefines() (oerr *Error) {
 
 		Debugf("%s: adding normal definition of '%s' = '%s'", oerr.Subject,
 			variableName, value)
-		doc.defines[i] = NormalDefinition{
+		doc.normalDefines[i] = NormalDefinition{
 			variable: variableName,
 			value:    value,
 		}
@@ -328,6 +336,13 @@ func (doc *Document) runDefines() (oerr *Error) {
 //
 // that being said, len(p) >= MacroMaxLength.
 func (doc *Document) Read(dest []byte) (int, error) {
+	return doc.ReadIgnore(dest, false)
+}
+
+// used for cacheing
+func (doc *Document) ReadIgnore(dest []byte, ignoreMissingDefinition bool) (
+	int,
+	error) {
 
 	// you may ask... what the hell is going on:
 	// - why is there read() AND Read()?
@@ -355,10 +370,11 @@ func (doc *Document) Read(dest []byte) (int, error) {
 
 	// do a normal read
 	return doc.curentlyReading.read(dest,
-		doc) // TODO: I'm really not sure this woorks...
+		doc, ignoreMissingDefinition) // TODO: I'm really not sure this woorks...
 }
 
-func (doc *Document) read(dest []byte, root *Document) (int, error) {
+func (doc *Document) read(dest []byte, root *Document,
+	ignoreMissing bool) (int, error) {
 	// before we do any reading, lets get the current position.
 	pos, cerr := doc.file.Seek(0, 1)
 	if cerr != nil {
@@ -491,11 +507,17 @@ func (doc *Document) read(dest []byte, root *Document) (int, error) {
 					break
 				} // for _,d := range root.getRecursiveDefinitions()
 				if !foundMatch {
-					// we didn't find a match, throw an error.
-					oerr := NewError(errNotDefined)
-					oerr.SetSubject(doc.file.Name() + ":" + strconv.Itoa(
-						int(doc.possibleVariablePositionsLineNum[i])))
-					return n, oerr
+					if ignoreMissing {
+						Debugf("ignore missing definition at %s:%d",
+							doc.file.Name(),
+							doc.possibleVariablePositionsLineNum[i])
+					} else {
+						// we didn't find a match, throw an error.
+						oerr := NewError(errNotDefined)
+						oerr.SetSubject(doc.file.Name() + ":" + strconv.Itoa(
+							int(doc.possibleVariablePositionsLineNum[i])))
+						return n, oerr
+					}
 				}
 				break
 			} // if cutOff == int64(incpos)
@@ -509,7 +531,7 @@ func (doc *Document) read(dest []byte, root *Document) (int, error) {
 	return n, nil
 }
 
-func (doc *Document) Close() error {
+func (doc *Document) close() error {
 	if doc.file == nil {
 		return nil
 	}
@@ -518,11 +540,13 @@ func (doc *Document) Close() error {
 	return doc.file.Close()
 }
 
-func (doc *Document) CloseRecursively() {
-	_ = doc.Close()
+// recursively closes
+func (doc *Document) Close() error {
+	_ = doc.close()
 	for _, d := range doc.includes {
-		d.CloseRecursively()
+		_ = d.Close()
 	}
+	return nil
 }
 
 // TODO: hopefully this works?
@@ -530,7 +554,10 @@ func (doc *Document) getRecursiveDefinitions() []Definition {
 	if doc.allRecursiveNormalDefines != nil {
 		return doc.allRecursiveNormalDefines
 	}
-	doc.allRecursiveNormalDefines = doc.defines
+	doc.allRecursiveNormalDefines = make([]Definition, len(doc.normalDefines))
+	for i := 0; i < len(doc.normalDefines); i++ {
+		doc.allRecursiveNormalDefines[i] = doc.normalDefines[i]
+	}
 	for _, d := range doc.includes {
 		childDefines := d.getRecursiveDefinitions()
 		for _, c := range childDefines {
@@ -597,20 +624,4 @@ func (doc *Document) scanMacroAtPosition(position uint64) (macro string,
 
 func (doc *Document) remainingDefinitions() []Definition {
 	return nil
-}
-
-func (doc *Document) complete() (stream DocumentStream, err *Error) {
-	remaining := doc.remainingDefinitions()
-	if len(remaining) != 0 {
-		err := NewError("variables were left undefined")
-		// build a nice little string of remaining definitinos
-		names := make([]string, len(remaining))
-		for i, d := range remaining {
-			names[i] = d.GetName()
-		}
-		subject := strings.Join(names, ", ")
-		err.SetSubject(subject)
-		return stream, err
-	}
-	return stream, errNotImplemented
 }
