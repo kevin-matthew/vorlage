@@ -17,7 +17,14 @@ func NewError(ErrStr string) *Error {
 }
 
 func (e *Error) Error() string {
-	return "not implemented"
+	ret := e.ErrStr
+	if e.Subject != "" {
+		ret += " (" + e.Subject + ")"
+	}
+	if e.Because != nil {
+		ret += e.Because.Error()
+	}
+	return ret
 }
 
 func (e *Error) SetSubject(subject string) {
