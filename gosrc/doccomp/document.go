@@ -3,6 +3,7 @@ package doccomp
 import (
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -43,6 +44,8 @@ func (d NormalDefinition) Read(p []byte) (int, error) {
 type Document struct {
 	file *os.File
 
+	path string
+
 	parent             *Document
 	curentlyReading    *Document // used for reading
 	curentlyReadingDef Definition
@@ -76,7 +79,7 @@ func (doc *Document) AddDefinition(definition Definition) {
 }
 
 func (doc Document) GetFileName() string {
-	return doc.file.Name()
+	return doc.path
 }
 
 func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Error) {
@@ -88,6 +91,7 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 	doc.VariableDetectionBuffer = make([]byte, len(VariablePrefix))
 	doc.curentlyReading = &doc
 	doc.parent = parent
+	doc.path = path
 	Debugf("opening file '%s'", path)
 	doc.file, cerr = os.Open(path)
 	if cerr != nil {
@@ -190,7 +194,7 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 			if i+len(EndOfLine)+len(DefineStr) <= n && string(
 				buffer[i:i+len(EndOfLine)+len(DefineStr)]) == EndOfLine+DefineStr {
 
-				Debugf("%s:%d: detected macro '%s'", doc.file.Name(),
+				Debugf("%s:%d: detected macro '%s'", doc.path,
 					linenum, DefineStr)
 				doc.definePositions =
 					append(doc.definePositions, allbytes+uint64(i+len(EndOfLine)))
@@ -201,7 +205,7 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 
 			// try to detect a '#include'
 			if i+len(IncludeStr) <= n && string(buffer[i:i+len(EndOfLine)+len(IncludeStr)]) == EndOfLine+IncludeStr {
-				Debugf("%s:%d: detected macro '%s'", doc.file.Name(),
+				Debugf("%s:%d: detected macro '%s'", doc.path,
 					linenum, IncludeStr)
 				doc.includePositions =
 					append(doc.includePositions, allbytes+uint64(i+len(EndOfLine)))
@@ -215,7 +219,7 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 				buffer[i:i+len(VariablePrefix)]) == VariablePrefix {
 
 				Debugf("%s:%d: detected possible variable",
-					doc.file.Name(),
+					doc.path,
 					linenum)
 				doc.possibleVariablePositions =
 					append(doc.possibleVariablePositions, allbytes+uint64(i))
@@ -235,7 +239,7 @@ func (doc *Document) runIncludes() (oerr *Error) {
 
 	// TODO: if we wanted to, we could make this for loop multithreaded.
 	for i, inc := range doc.includePositions {
-		oerr.SetSubject(doc.file.Name() + ":" + strconv.Itoa(int(doc.
+		oerr.SetSubject(doc.path + ":" + strconv.Itoa(int(doc.
 			includePositionsLineNum[i])))
 
 		// extract the include macro
@@ -249,13 +253,16 @@ func (doc *Document) runIncludes() (oerr *Error) {
 
 		// the first argument is a filename to include
 		filename := strings.TrimSpace(arg)
+		fullFileName := filepath.Dir(doc.path) + string(filepath.
+			Separator) + filename
 
 		// get the file and parse the file (recursively)
 		// TODO: detect circular dependencies (what if a file includes itself?)
 		// TODO: would it be a good idea to try to load files from the cache
 		// first?
-		Debugf("%s: including '%s'", oerr.Subject, filename)
-		includedDoc, err := loadDocumentFromPath(filename, doc)
+		Debugf("%s: including '%s'", oerr.Subject, fullFileName)
+
+		includedDoc, err := loadDocumentFromPath(fullFileName, doc)
 		if err != nil {
 			oerr.ErrStr = "failed to include document"
 			oerr.SetBecause(err)
@@ -274,7 +281,7 @@ func (doc *Document) runDefines() (oerr *Error) {
 
 	// TODO: if we wanted to, we could make this for loop multithreaded.
 	for i, inc := range doc.definePositions {
-		oerr.SetSubject(doc.file.Name() + ":" + strconv.Itoa(int(doc.
+		oerr.SetSubject(doc.path + ":" + strconv.Itoa(int(doc.
 			definePositionsLineNum[i])))
 
 		// extract the include macro
@@ -379,7 +386,7 @@ func (doc *Document) read(dest []byte, root *Document,
 	pos, cerr := doc.file.Seek(0, 1)
 	if cerr != nil {
 		oerr := NewError(errFailedToSeek)
-		oerr.SetSubject(doc.file.Name())
+		oerr.SetSubject(doc.path)
 		oerr.SetBecause(NewError(cerr.Error()))
 		return 0, oerr
 	}
@@ -395,7 +402,7 @@ func (doc *Document) read(dest []byte, root *Document,
 	}
 	if cerr != nil {
 		oerr := NewError(errFailedToReadBytes)
-		oerr.SetSubject(doc.file.Name())
+		oerr.SetSubject(doc.path)
 		oerr.SetBecause(NewError(cerr.Error()))
 		return n, oerr
 	}
@@ -419,7 +426,7 @@ func (doc *Document) read(dest []byte, root *Document,
 				_, cerr := doc.file.Seek(cutOff+int64(doc.includeLengths[i]), 0)
 				if cerr != nil {
 					oerr := NewError(errFailedToReadBytes)
-					oerr.SetSubject(doc.file.Name())
+					oerr.SetSubject(doc.path)
 					oerr.SetBecause(NewError(cerr.Error()))
 					return n, oerr
 				}
@@ -433,12 +440,12 @@ func (doc *Document) read(dest []byte, root *Document,
 
 				// skip over it. We already got everything we need out of it.
 				Debugf("Read() omitting #define at %s:%d",
-					doc.file.Name(),
+					doc.path,
 					doc.definePositionsLineNum[i])
 				_, cerr := doc.file.Seek(cutOff+int64(doc.defineLengths[i]), 0)
 				if cerr != nil {
 					oerr := NewError(errFailedToReadBytes)
-					oerr.SetSubject(doc.file.Name())
+					oerr.SetSubject(doc.path)
 					oerr.SetBecause(NewError(cerr.Error()))
 					return n, oerr
 				}
@@ -452,7 +459,7 @@ func (doc *Document) read(dest []byte, root *Document,
 		for i, incpos := range doc.possibleVariablePositions {
 			if cutOff == int64(incpos) {
 				Debugf("Read() came across a possible variable at %s:%d",
-					doc.file.Name(),
+					doc.path,
 					doc.possibleVariablePositionsLineNum[i])
 
 				// extract the possible variable name (possibleVariableName)
@@ -460,7 +467,7 @@ func (doc *Document) read(dest []byte, root *Document,
 				vn, cerr := doc.file.ReadAt(variableNameBuffer, cutOff)
 				if cerr != nil {
 					oerr := NewError(errFailedToReadBytes)
-					oerr.SetSubject(doc.file.Name())
+					oerr.SetSubject(doc.path)
 					oerr.SetBecause(NewError(cerr.Error()))
 					return n, oerr
 				}
@@ -485,7 +492,7 @@ func (doc *Document) read(dest []byte, root *Document,
 					foundMatch = true
 					Debugf("found definition for variable '%s' at  %s:%d",
 						actualVariableName,
-						doc.file.Name(),
+						doc.path,
 						doc.possibleVariablePositionsLineNum[i])
 					Debugf("switching Read() to look at variable '%s'",
 						actualVariableName)
@@ -500,7 +507,7 @@ func (doc *Document) read(dest []byte, root *Document,
 					_, cerr := doc.file.Seek(cutOff+int64(len(actualVariableName)), 0)
 					if cerr != nil {
 						oerr := NewError(errFailedToReadBytes)
-						oerr.SetSubject(doc.file.Name())
+						oerr.SetSubject(doc.path)
 						oerr.SetBecause(NewError(cerr.Error()))
 						return n, oerr
 					}
@@ -509,12 +516,12 @@ func (doc *Document) read(dest []byte, root *Document,
 				if !foundMatch {
 					if ignoreMissing {
 						Debugf("ignore missing definition at %s:%d",
-							doc.file.Name(),
+							doc.path,
 							doc.possibleVariablePositionsLineNum[i])
 					} else {
 						// we didn't find a match, throw an error.
 						oerr := NewError(errNotDefined)
-						oerr.SetSubject(doc.file.Name() + ":" + strconv.Itoa(
+						oerr.SetSubject(doc.path + ":" + strconv.Itoa(
 							int(doc.possibleVariablePositionsLineNum[i])))
 						return n, oerr
 					}
@@ -536,7 +543,7 @@ func (doc *Document) close() error {
 		return nil
 	}
 	Debugf("closing '%s'",
-		doc.file.Name())
+		doc.path)
 	return doc.file.Close()
 }
 
@@ -575,14 +582,14 @@ func (doc *Document) scanMacroAtPosition(position uint64) (macro string,
 	_, err := doc.file.Seek(int64(position), 0)
 	if err != nil {
 		oerr := NewError(errFailedToSeek)
-		oerr.SetSubject(doc.file.Name())
+		oerr.SetSubject(doc.path)
 		oerr.SetBecause(NewError(err.Error()))
 		return "", "", 0, oerr
 	}
 	n, err := doc.file.Read(doc.MacroReadBuffer)
 	if err != nil {
 		oerr := NewError(errFailedToReadBytes)
-		oerr.SetSubject(doc.file.Name())
+		oerr.SetSubject(doc.path)
 		oerr.SetBecause(NewError(err.Error()))
 		return "", "", 0, oerr
 	}
@@ -617,7 +624,7 @@ func (doc *Document) scanMacroAtPosition(position uint64) (macro string,
 	argument = string(doc.MacroReadBuffer[argumentPos:endOfLine])
 
 	Debugf("parsed '%s' macro in '%s' with argument '%s'", macro,
-		doc.file.Name(), argument)
+		doc.path, argument)
 
 	return macro, argument, uint(endOfLine), nil
 }
