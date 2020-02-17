@@ -6,15 +6,18 @@ import (
 	"testing"
 )
 
+
+
 func TestLoadDocument(t *testing.T) {
+
 	// change cwd to caller
 	//_, filename, _, _ := runtime.Caller(0)
 	// The ".." may change depending on you folder structure
 	//dir := path.Join(path.Dir(filename), "..")
-	err := os.Chdir("../../")
+	cerr := os.Chdir("../../")
 
-	if err != nil {
-		panic(err)
+	if cerr != nil {
+		panic(cerr)
 	}
 
 	d, err := LoadDocument("tests/documents/defines-and-includes.dc")
@@ -31,5 +34,6 @@ func TestLoadDocument(t *testing.T) {
 		return
 	}
 
-	print(res)
+	print(string(res))
+	t.Fail()
 }
