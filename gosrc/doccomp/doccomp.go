@@ -1,5 +1,7 @@
 package doccomp
 
+import "io"
+
 /*
  * This is a definition, they can be made either by using '#define' in a file or
  * if the page processor
@@ -25,27 +27,47 @@ type Request interface {
  * defined in the 'Highlevel Process' chapter in the readme.
  */
 func HandleRequest(request Request,
-	pageProcessor PageProcessor) (docstream DocumentStream, err *Error) {
+	cache Cache,
+	pageProcessor PageProcessor) (docstream io.ReadCloser, err *Error) {
 
-	// step 2
-	doc := GetCached(request)
-	if doc == nil {
+	shouldCache, cerr := cache.ShouldCache(request.GetFilePath())
+	if cerr != nil {
+		erro := NewError("querying should cache")
+		erro.SetSubject(request.GetFilePath())
+		erro.SetBecause(NewError(cerr.Error()))
+		return docstream, erro
+	}
 
-		// step 3,4
-		reqdoc, err := LoadRequestedDocument(request)
+	var reqdoc *Document
+	//step 2
+	if shouldCache {
+		//step 3,4
+		doc, err := LoadDocument(request.GetFilePath())
 		if err != nil {
 			erro := NewError("loading a requested document")
+			erro.SetSubject(request.GetFilePath())
 			erro.SetBecause(err)
 			return docstream, erro
 		}
 
-		// step 5
-		reqdoc.fillNormalDefinitions()
-		// TODO:
-
-		// step 6
-		addToCache(reqdoc)
-		doc = &reqdoc
+		//step 5,6
+		cerr := cache.AddToCache(doc)
+		if cerr != nil {
+			erro := NewError("adding a document to the cache")
+			erro.SetSubject(request.GetFilePath())
+			erro.SetBecause(NewError(cerr.Error()))
+			doc.Close()
+			return docstream, erro
+		}
+		reqdoc = &doc
+	} else {
+		reqdoc, cerr = cache.GetFromCache(request.GetFilePath())
+		if cerr != nil {
+			erro := NewError("adding a document to the cache")
+			erro.SetSubject(request.GetFilePath())
+			erro.SetBecause(NewError(cerr.Error()))
+			return docstream, erro
+		}
 	}
 
 	// step 7
@@ -53,6 +75,7 @@ func HandleRequest(request Request,
 	if err != nil {
 		erro := NewError("in pre-processing")
 		erro.SetBecause(err)
+		reqdoc.Close()
 		return docstream, erro
 	}
 
@@ -61,29 +84,25 @@ func HandleRequest(request Request,
 	if err != nil {
 		erro := NewError("in processing")
 		erro.SetBecause(err)
+		reqdoc.Close()
 		return docstream, erro
 	}
 
 	for _, d := range definitions {
-		doc.addDefinition(d)
+		reqdoc.AddDefinition(d)
 	}
+	docstream = reqdoc
 
 	// step 9
-	docstream, err = doc.complete()
-	if err != nil {
-		erro := NewError("failed to open stream to document")
-		erro.SetBecause(err)
-		return docstream, erro
-	}
-
-	// step 10
 	err = pageProcessor.Postprocess(request)
 	if err != nil {
 		erro := NewError("in post-processing")
 		erro.SetBecause(err)
+		reqdoc.Close()
 		return docstream, erro
 	}
 
-	// step 11
+	// step 10,11
+	docstream = reqdoc
 	return docstream, nil
 }

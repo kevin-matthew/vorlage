@@ -65,9 +65,9 @@ step 5: fill in all the variables ($asdf)
 step 6: save the outputted file to the chache
 step 7: run the 'preprocess' event
 step 8: run the "proccess function" with a paremters of filename, and http info
-step 9: is any undefined variables? if so, report an error.
-step 10: run the "postproccess" hook with a paremters of filename, and http info
-step 11: return the prccessed file.
+step 9: run the "postproccess" hook with a paremters of filename, and http info
+step 10: return a readercloser that a service can use to serve the page
+step 11: if there's any undefined variables, report an error.
 
 my only problem is this makes it hard, every file will have its
 personal execution, bvut all the exectuion is going to be in one place
@@ -98,7 +98,8 @@ The define takes 2 arguments, a variable name and a value.
   - a precense of a dot '.' will set the variable as a processor
     variable.
   - if a variable is never defined an error will occour.
-  - the maximum length of a variable name will be 32 (including the '$' prefix)
+  - the maximum length of a variable name will be 32 (including the
+    '$' prefix)
 ** Normal variables ~$myvar~
 To define a normal variable, you must do so in a static document using
 a define macro as so: ~#define $myvar~. For example
