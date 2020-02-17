@@ -51,6 +51,7 @@ func HandleRequest(request Request,
 		}
 
 		//step 5,6
+		Debugf("storing '%s' in cache", request.GetFilePath())
 		cerr := cache.AddToCache(doc)
 		if cerr != nil {
 			erro := NewError("adding a document to the cache")
@@ -59,8 +60,10 @@ func HandleRequest(request Request,
 			doc.Close()
 			return docstream, erro
 		}
+
 		reqdoc = &doc
 	} else {
+		Debugf("pulling '%s' from cache", request.GetFilePath())
 		reqdoc, cerr = cache.GetFromCache(request.GetFilePath())
 		if cerr != nil {
 			erro := NewError("adding a document to the cache")
@@ -71,6 +74,7 @@ func HandleRequest(request Request,
 	}
 
 	// step 7
+	Debugf("pre-processing document '%s'", request.GetFilePath())
 	err = pageProcessor.Preprocess(request)
 	if err != nil {
 		erro := NewError("in pre-processing")
@@ -80,6 +84,7 @@ func HandleRequest(request Request,
 	}
 
 	// step 8
+	Debugf("processing document '%s'", request.GetFilePath())
 	definitions, err := pageProcessor.Process(request)
 	if err != nil {
 		erro := NewError("in processing")
@@ -94,6 +99,7 @@ func HandleRequest(request Request,
 	docstream = reqdoc
 
 	// step 9
+	Debugf("post-processing document '%s'", request.GetFilePath())
 	err = pageProcessor.Postprocess(request)
 	if err != nil {
 		erro := NewError("in post-processing")
