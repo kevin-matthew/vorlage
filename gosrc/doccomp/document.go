@@ -60,10 +60,18 @@ type Document struct {
 
 func LoadRequestedDocument(request Request) (doc Document, oerr *Error) {
 	path := request.GetFilePath()
-	return LoadDocumentFromPath(path, nil)
+	return loadDocumentFromPath(path, nil)
 }
 
-func LoadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Error) {
+func (doc *Document) FindProcDefinitions() []uint {
+
+}
+
+func (doc *Document) AddDefinition(definitions Definition) {
+
+}
+
+func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Error) {
 	oerr = &Error{}
 	oerr.SetSubject(path)
 
@@ -130,7 +138,7 @@ func LoadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 	return doc, nil
 }
 
-// helper-function for LoadDocumentFromPath
+// helper-function for loadDocumentFromPath
 // quickly goes through the document and detects where macros as well as where
 // variables could possibly be
 func (doc *Document) detectMacrosPositions() (oerr *Error) {
@@ -212,7 +220,7 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 	return nil
 }
 
-// helper-function for LoadDocumentFromPath
+// helper-function for loadDocumentFromPath
 func (doc *Document) runIncludes() (oerr *Error) {
 	oerr = &Error{}
 	doc.includes = make([]Document, len(doc.includePositions))
@@ -239,7 +247,7 @@ func (doc *Document) runIncludes() (oerr *Error) {
 		// TODO: would it be a good idea to try to load files from the cache
 		// first?
 		Debugf("%s: including '%s'", oerr.Subject, filename)
-		includedDoc, err := LoadDocumentFromPath(filename, doc)
+		includedDoc, err := loadDocumentFromPath(filename, doc)
 		if err != nil {
 			oerr.ErrStr = "failed to include document"
 			oerr.SetBecause(err)
@@ -251,7 +259,7 @@ func (doc *Document) runIncludes() (oerr *Error) {
 	return nil
 }
 
-// helper-function for LoadDocumentFromPath
+// helper-function for loadDocumentFromPath
 func (doc *Document) runDefines() (oerr *Error) {
 	oerr = &Error{}
 	doc.defines = make([]NormalDefinition, len(doc.definePositions))
@@ -346,11 +354,11 @@ func (doc *Document) Read(dest []byte) (int, error) {
 	}
 
 	// do a normal read
-	return doc.curentlyReading.read(dest, doc) // TODO: I'm really not sure this woorks...
+	return doc.curentlyReading.read(dest,
+		doc) // TODO: I'm really not sure this woorks...
 }
 
 func (doc *Document) read(dest []byte, root *Document) (int, error) {
-
 	// before we do any reading, lets get the current position.
 	pos, cerr := doc.file.Seek(0, 1)
 	if cerr != nil {
@@ -367,9 +375,8 @@ func (doc *Document) read(dest []byte, root *Document) (int, error) {
 		// the parents could all still have work to do. so lets pass it back
 		// up to the parent.
 		root.curentlyReading = doc.parent
-		return 0, io.EOF
+		return root.Read(dest) // TODO: this is really weird...
 	}
-
 	if cerr != nil {
 		oerr := NewError(errFailedToReadBytes)
 		oerr.SetSubject(doc.file.Name())
@@ -531,6 +538,7 @@ func (doc *Document) getRecursiveDefinitions() []Definition {
 				allRecursiveNormalDefines, c)
 		}
 	}
+	return doc.allRecursiveNormalDefines
 }
 
 // helper-function for runIncludes and runDefines
@@ -585,10 +593,6 @@ func (doc *Document) scanMacroAtPosition(position uint64) (macro string,
 		doc.file.Name(), argument)
 
 	return macro, argument, uint(endOfLine), nil
-}
-
-func (doc *Document) addDefinition(definitions Definition) {
-
 }
 
 func (doc *Document) remainingDefinitions() []Definition {
