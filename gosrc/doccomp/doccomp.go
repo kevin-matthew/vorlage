@@ -5,6 +5,11 @@ package doccomp
  * if the page processor
  */
 type Definition interface {
+
+	// must return 0,EOF when complete.
+	Read(p []byte) (int, error)
+
+	// ie: '$myvar'
 	GetName() string
 }
 
@@ -35,6 +40,7 @@ func HandleRequest(request Request,
 		}
 
 		// step 5
+		reqdoc.fillNormalDefinitions()
 		// TODO:
 
 		// step 6

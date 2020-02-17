@@ -14,6 +14,7 @@ const IncludeStr = "#include"
 const EndOfLine = "\n"
 const VariablePrefix = "$"
 const MacroMaxLength = 2048
+const MaxVariableLength = 32
 
 const DocumentReadBlock = len(EndOfLine)*2 + len(
 	DefineStr)*len(IncludeStr)*256
@@ -26,38 +27,51 @@ type NormalDefinition struct {
 	value    string
 }
 
+func (d NormalDefinition) GetName() string {
+	return d.variable
+}
+
 type Document struct {
 	file *os.File
 
-	includes []Document
-	defines  []NormalDefinition
+	parent             *Document
+	curentlyReading    *Document // used for reading
+	curentlyReadingDef Definition
 
-	MacroReadBuffer []byte
+	MacroReadBuffer         []byte
+	VariableDetectionBuffer []byte // used before every Read(
+	// ) to see if there's variables
 
+	includes                []Document
 	includePositionsLineNum []uint // used for debugging
 	includePositions        []uint64
 	includeLengths          []uint
 
+	defines                []Definition
 	definePositionsLineNum []uint // used for debugging
 	definePositions        []uint64
 	defineLengths          []uint
 
 	possibleVariablePositionsLineNum []uint // used for debugging
 	possibleVariablePositions        []uint64
+
+	allRecursiveNormalDefines []Definition
 }
 
 func LoadRequestedDocument(request Request) (doc Document, oerr *Error) {
 	path := request.GetFilePath()
-	return LoadDocumentFromPath(path)
+	return LoadDocumentFromPath(path, nil)
 }
 
-func LoadDocumentFromPath(path string) (doc Document, oerr *Error) {
+func LoadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Error) {
 	oerr = &Error{}
 	oerr.SetSubject(path)
 
 	var cerr error
 	doc.MacroReadBuffer = make([]byte, MacroMaxLength)
-
+	doc.VariableDetectionBuffer = make([]byte, len(VariablePrefix))
+	doc.curentlyReading = &doc
+	doc.parent = parent
 	Debugf("opening file '%s'", path)
 	doc.file, cerr = os.Open(path)
 	if cerr != nil {
@@ -71,6 +85,7 @@ func LoadDocumentFromPath(path string) (doc Document, oerr *Error) {
 	if err != nil {
 		oerr.ErrStr = "failed to detect macros"
 		oerr.SetBecause(err)
+		doc.CloseRecursively()
 		return doc, oerr
 	}
 
@@ -80,6 +95,7 @@ func LoadDocumentFromPath(path string) (doc Document, oerr *Error) {
 	if err != nil {
 		oerr.ErrStr = "failed to run includes"
 		oerr.SetBecause(err)
+		doc.CloseRecursively()
 		return doc, oerr
 	}
 
@@ -89,6 +105,7 @@ func LoadDocumentFromPath(path string) (doc Document, oerr *Error) {
 	if err != nil {
 		oerr.ErrStr = "failed to run defines"
 		oerr.SetBecause(err)
+		doc.CloseRecursively()
 		return doc, oerr
 	}
 
@@ -101,6 +118,14 @@ func LoadDocumentFromPath(path string) (doc Document, oerr *Error) {
 	if oerr != nil {
 		return doc,oerr
 	}*/
+
+	_, cerr = doc.file.Seek(0, 0)
+	if cerr != nil {
+		oerr.ErrStr = "failed to seek back to the beginning of the stream"
+		oerr.SetBecause(NewError(cerr.Error()))
+		doc.CloseRecursively()
+		return doc, oerr
+	}
 
 	return doc, nil
 }
@@ -131,7 +156,7 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 		}
 		if err != nil {
 			oerr := &Error{}
-			oerr.ErrStr = "failed to read bytes from stream"
+			oerr.ErrStr = errFailedToReadBytes
 			oerr.SetBecause(NewError(err.Error()))
 			return oerr
 		}
@@ -140,14 +165,14 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 		for i := 0; i < n; i++ {
 
 			// if we cross a newline, increment linenum
-			if i+len(EndOfLine) < n && string(buffer[i:i+len(
+			if i+len(EndOfLine) <= n && string(buffer[i:i+len(
 				EndOfLine)]) == EndOfLine {
 				linenum++
 			}
 
 			// try to detect a '#define'
-			if i+len(EndOfLine)+len(DefineStr) < n && string(
-				buffer[i+len(EndOfLine):i+len(DefineStr)]) == DefineStr {
+			if i+len(EndOfLine)+len(DefineStr) <= n && string(
+				buffer[i:i+len(EndOfLine)+len(DefineStr)]) == EndOfLine+DefineStr {
 
 				Debugf("%s:%d: detected macro '%s'", doc.file.Name(),
 					linenum, DefineStr)
@@ -159,9 +184,7 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 			}
 
 			// try to detect a '#include'
-			if i+len(IncludeStr) < n && string(buffer[i+len(EndOfLine):i+len(
-				IncludeStr)]) == IncludeStr {
-
+			if i+len(IncludeStr) <= n && string(buffer[i:i+len(EndOfLine)+len(IncludeStr)]) == EndOfLine+IncludeStr {
 				Debugf("%s:%d: detected macro '%s'", doc.file.Name(),
 					linenum, IncludeStr)
 				doc.includePositions =
@@ -172,7 +195,7 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 			}
 
 			// simply dectect a '$'
-			if i+len(VariablePrefix) < n && string(
+			if i+len(VariablePrefix) <= n && string(
 				buffer[i:i+len(VariablePrefix)]) == VariablePrefix {
 
 				Debugf("%s:%d: detected possible variable",
@@ -192,6 +215,7 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 // helper-function for LoadDocumentFromPath
 func (doc *Document) runIncludes() (oerr *Error) {
 	oerr = &Error{}
+	doc.includes = make([]Document, len(doc.includePositions))
 
 	// TODO: if we wanted to, we could make this for loop multithreaded.
 	for i, inc := range doc.includePositions {
@@ -215,13 +239,13 @@ func (doc *Document) runIncludes() (oerr *Error) {
 		// TODO: would it be a good idea to try to load files from the cache
 		// first?
 		Debugf("%s: including '%s'", oerr.Subject, filename)
-		includedDoc, err := LoadDocumentFromPath(filename)
+		includedDoc, err := LoadDocumentFromPath(filename, doc)
 		if err != nil {
 			oerr.ErrStr = "failed to include document"
 			oerr.SetBecause(err)
 			return oerr
 		}
-		doc.includes = append(doc.includes, includedDoc)
+		doc.includes[i] = includedDoc
 	}
 
 	return nil
@@ -230,6 +254,7 @@ func (doc *Document) runIncludes() (oerr *Error) {
 // helper-function for LoadDocumentFromPath
 func (doc *Document) runDefines() (oerr *Error) {
 	oerr = &Error{}
+	doc.defines = make([]NormalDefinition, len(doc.definePositions))
 
 	// TODO: if we wanted to, we could make this for loop multithreaded.
 	for i, inc := range doc.definePositions {
@@ -264,35 +289,248 @@ func (doc *Document) runDefines() (oerr *Error) {
 			return oerr
 		}
 
-		// extract the 'myvar' and the 'hello' while ignoreing extra whitespace
+		// extract the '$myvar' (variableName) and the 'hello'
+		// (value) from '$myvar hello' (trimmedArg)
 		var variableName, value string
 		for j := len(VariablePrefix) + 1; j < len(trimmedArg); j++ {
-			if j+len(MacroArgument) < len(trimmedArg) && trimmedArg[j:j+len(
+			if j+len(MacroArgument) <= len(trimmedArg) && trimmedArg[j:j+len(
 				MacroArgument)] == MacroArgument {
 
-				variableName = strings.TrimSpace(trimmedArg[len(
-					VariablePrefix)+1 : j])
+				variableName = strings.TrimSpace(trimmedArg[:j])
 				value = strings.TrimSpace(trimmedArg[j:])
 			}
 		}
 
 		Debugf("%s: adding normal definition of '%s' = '%s'", oerr.Subject,
 			variableName, value)
-		doc.defines = append(doc.defines, NormalDefinition{
+		doc.defines[i] = NormalDefinition{
 			variable: variableName,
 			value:    value,
-		})
+		}
 	}
 	return nil
 }
 
-func (doc *Document) fillDefinitions() {
+// if n < len(p) it's probably because you were about to read a macro,
+// simply read again and you'll read the expanded macro. In other words,
+// any time there's a macro in the file, read is forced to start there.
+//
+// if you hit a variable than, then n will be < len(p).
+//your next read will read the contents of the variable.
+//
+// that being said, len(p) >= MacroMaxLength.
+func (doc *Document) Read(dest []byte) (int, error) {
 
-	//allDefines := doc.getRecursiveDefinitions()
+	// you may ask... what the hell is going on:
+	// - why is there read() AND Read()?
+	// - what does doc.currentlyReading mean?
+	//
+	// The code is laid out like this because of the fact that there's
+	// '#include's. Once an '#include' is read, doc.currentlyReading swtiches
+	// to the document that was included by that '#include'. Furthermore,
+	// that included document can also have documents IT includes, thus,
+	// currentlyReading can be pointing to a document that doesn't even exist
+	// in doc.Includes (ie, it could point to doc.Includes[3].Includes[1])
+	if doc.curentlyReadingDef != nil {
+		n, err := doc.curentlyReadingDef.Read(dest)
+		if err != nil && err != io.EOF {
+			return n, err
+		}
+
+		// if the variable is all done being read...
+		if err == io.EOF {
+			// ... lets set it to not currenlt being read anymore
+			doc.curentlyReadingDef = nil
+			// and continue on with a normal read...
+		}
+	}
+
+	// do a normal read
+	return doc.curentlyReading.read(dest, doc) // TODO: I'm really not sure this woorks...
 }
 
+func (doc *Document) read(dest []byte, root *Document) (int, error) {
+
+	// before we do any reading, lets get the current position.
+	pos, cerr := doc.file.Seek(0, 1)
+	if cerr != nil {
+		oerr := NewError(errFailedToSeek)
+		oerr.SetSubject(doc.file.Name())
+		oerr.SetBecause(NewError(cerr.Error()))
+		return 0, oerr
+	}
+
+	n, cerr := doc.file.Read(dest)
+	if cerr == io.EOF {
+		// so we've reached the end of the file.
+		// HOWEVER: the file we reached the end of could be any file... and
+		// the parents could all still have work to do. so lets pass it back
+		// up to the parent.
+		root.curentlyReading = doc.parent
+		return 0, io.EOF
+	}
+
+	if cerr != nil {
+		oerr := NewError(errFailedToReadBytes)
+		oerr.SetSubject(doc.file.Name())
+		oerr.SetBecause(NewError(cerr.Error()))
+		return n, oerr
+	}
+	endpos := pos + int64(n)
+
+	// set cutOff to the next detected #define, #include, or possible variable
+	var cutOff int64
+	for cutOff = pos; cutOff < endpos; cutOff++ {
+		// we hit an #include
+		for i, incpos := range doc.includePositions {
+			if cutOff == int64(incpos) {
+				// next time they call read, it will be reading the file
+				// that was included by the '#include'
+				Debugf("directing Read() to access '%s'",
+					doc.includes[i].file.Name())
+				root.curentlyReading = &doc.includes[i]
+
+				// before we let the child doc start reading, lets skip the
+				// #include macro so when the child sets currently reading
+				// back to doc, we don't read the same #include twice.
+				_, cerr := doc.file.Seek(cutOff+int64(doc.includeLengths[i]), 0)
+				if cerr != nil {
+					oerr := NewError(errFailedToReadBytes)
+					oerr.SetSubject(doc.file.Name())
+					oerr.SetBecause(NewError(cerr.Error()))
+					return n, oerr
+				}
+				break
+			}
+		}
+
+		// we hit a #define... just skip over it.
+		for i, incpos := range doc.definePositions {
+			if cutOff == int64(incpos) {
+
+				// skip over it. We already got everything we need out of it.
+				Debugf("Read() omitting #define at %s:%d",
+					doc.file.Name(),
+					doc.definePositionsLineNum[i])
+				_, cerr := doc.file.Seek(cutOff+int64(doc.defineLengths[i]), 0)
+				if cerr != nil {
+					oerr := NewError(errFailedToReadBytes)
+					oerr.SetSubject(doc.file.Name())
+					oerr.SetBecause(NewError(cerr.Error()))
+					return n, oerr
+				}
+				break
+			}
+		}
+
+		// we hit a possible $variable position
+		// and the next time they read,
+		//they'll be reading the definitions Read() function
+		for i, incpos := range doc.possibleVariablePositions {
+			if cutOff == int64(incpos) {
+				Debugf("Read() came across a possible variable at %s:%d",
+					doc.file.Name(),
+					doc.possibleVariablePositionsLineNum[i])
+
+				// extract the possible variable name (possibleVariableName)
+				variableNameBuffer := make([]byte, MaxVariableLength)
+				vn, cerr := doc.file.ReadAt(variableNameBuffer, cutOff)
+				if cerr != nil {
+					oerr := NewError(errFailedToReadBytes)
+					oerr.SetSubject(doc.file.Name())
+					oerr.SetBecause(NewError(cerr.Error()))
+					return n, oerr
+				}
+				possibleVariableName := string(variableNameBuffer[:vn])
+
+				var foundMatch = false
+				for _, d := range root.getRecursiveDefinitions() {
+					// first off, lets make it easy, trim down the possible variable
+					// name to be the same length as an actual one
+					actualVariableName := d.GetName()
+					tuncPossibleVariableName := possibleVariableName
+					if len(possibleVariableName) > len(actualVariableName) {
+						tuncPossibleVariableName = possibleVariableName[:len(
+							actualVariableName)]
+					}
+
+					if tuncPossibleVariableName != actualVariableName {
+						// didn't find it yet.
+						continue
+					}
+
+					foundMatch = true
+					Debugf("found definition for variable '%s' at  %s:%d",
+						actualVariableName,
+						doc.file.Name(),
+						doc.possibleVariablePositionsLineNum[i])
+					Debugf("switching Read() to look at variable '%s'",
+						actualVariableName)
+
+					// this will be used back in the original Read() function
+					// to then read from the definition.
+					root.curentlyReadingDef = d
+
+					// before we let the child doc start reading, lets skip the
+					// #include macro so when the child sets currently reading
+					// back to doc, we don't read the same #include twice.
+					_, cerr := doc.file.Seek(cutOff+int64(len(actualVariableName)), 0)
+					if cerr != nil {
+						oerr := NewError(errFailedToReadBytes)
+						oerr.SetSubject(doc.file.Name())
+						oerr.SetBecause(NewError(cerr.Error()))
+						return n, oerr
+					}
+					break
+				} // for _,d := range root.getRecursiveDefinitions()
+				if !foundMatch {
+					// we didn't find a match, throw an error.
+					oerr := NewError(errNotDefined)
+					oerr.SetSubject(doc.file.Name() + ":" + strconv.Itoa(
+						int(doc.possibleVariablePositionsLineNum[i])))
+					return n, oerr
+				}
+				break
+			} // if cutOff == int64(incpos)
+		} // for i,incpos := range doc.possibleVariablePositions
+	} // for cutOff = pos; cutOff < endpos; cutOff++
+
+	// sense we are going to force the Read function to be called again,
+	// let's cut their buffer short so they don't read any info that
+	// was deliberatley skipped using Seek.
+	n = int(cutOff - pos)
+	return n, nil
+}
+
+func (doc *Document) Close() error {
+	if doc.file == nil {
+		return nil
+	}
+	Debugf("closing '%s'",
+		doc.file.Name())
+	return doc.file.Close()
+}
+
+func (doc *Document) CloseRecursively() {
+	_ = doc.Close()
+	for _, d := range doc.includes {
+		d.CloseRecursively()
+	}
+}
+
+// TODO: hopefully this works?
 func (doc *Document) getRecursiveDefinitions() []Definition {
-	//ret := make
+	if doc.allRecursiveNormalDefines != nil {
+		return doc.allRecursiveNormalDefines
+	}
+	doc.allRecursiveNormalDefines = doc.defines
+	for _, d := range doc.includes {
+		childDefines := d.getRecursiveDefinitions()
+		for _, c := range childDefines {
+			doc.allRecursiveNormalDefines = append(doc.
+				allRecursiveNormalDefines, c)
+		}
+	}
 }
 
 // helper-function for runIncludes and runDefines
@@ -301,14 +539,14 @@ func (doc *Document) scanMacroAtPosition(position uint64) (macro string,
 	argument string, length uint, oerr *Error) {
 	_, err := doc.file.Seek(int64(position), 0)
 	if err != nil {
-		oerr := NewError("cannot seek file")
+		oerr := NewError(errFailedToSeek)
 		oerr.SetSubject(doc.file.Name())
 		oerr.SetBecause(NewError(err.Error()))
 		return "", "", 0, oerr
 	}
 	n, err := doc.file.Read(doc.MacroReadBuffer)
 	if err != nil {
-		oerr := NewError("cannot read file")
+		oerr := NewError(errFailedToReadBytes)
 		oerr.SetSubject(doc.file.Name())
 		oerr.SetBecause(NewError(err.Error()))
 		return "", "", 0, oerr

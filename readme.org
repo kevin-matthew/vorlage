@@ -98,6 +98,7 @@ The define takes 2 arguments, a variable name and a value.
   - a precense of a dot '.' will set the variable as a processor
     variable.
   - if a variable is never defined an error will occour.
+  - the maximum length of a variable name will be 32 (including the '$' prefix)
 ** Normal variables ~$myvar~
 To define a normal variable, you must do so in a static document using
 a define macro as so: ~#define $myvar~. For example

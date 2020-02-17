@@ -38,3 +38,9 @@ func (e *Error) Output() {
 }
 
 var errNotImplemented = &Error{ErrStr: "not implemented"}
+
+const (
+	errFailedToReadBytes = "failed to read bytes from stream"
+	errFailedToSeek      = "failed to seek through file"
+	errNotDefined        = "a variable was left undefined"
+)
