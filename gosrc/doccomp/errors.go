@@ -22,7 +22,7 @@ func (e *Error) Error() string {
 		ret += " (" + e.Subject + ")"
 	}
 	if e.Because != nil {
-		ret += e.Because.Error()
+		ret += ": " + e.Because.Error()
 	}
 	return ret
 }
