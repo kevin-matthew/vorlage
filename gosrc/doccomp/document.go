@@ -36,9 +36,11 @@ type Document struct {
 
 	includePositionsLineNum []uint // used for debugging
 	includePositions        []uint64
+	includeLengths          []uint
 
 	definePositionsLineNum []uint // used for debugging
 	definePositions        []uint64
+	defineLengths          []uint
 
 	possibleVariablePositionsLineNum []uint // used for debugging
 	possibleVariablePositions        []uint64
@@ -197,12 +199,13 @@ func (doc *Document) runIncludes() (oerr *Error) {
 			includePositionsLineNum[i])))
 
 		// extract the include macro
-		_, arg, err := doc.scanMacroAtPosition(inc)
+		_, arg, length, err := doc.scanMacroAtPosition(inc)
 		if err != nil {
 			oerr.ErrStr = "failed to parse"
 			oerr.SetBecause(err)
 			return oerr
 		}
+		doc.includeLengths[i] = length
 
 		// the first argument is a filename to include
 		filename := strings.TrimSpace(arg)
@@ -234,12 +237,13 @@ func (doc *Document) runDefines() (oerr *Error) {
 			definePositionsLineNum[i])))
 
 		// extract the include macro
-		_, arg, err := doc.scanMacroAtPosition(inc)
+		_, arg, length, err := doc.scanMacroAtPosition(inc)
 		if err != nil {
 			oerr.ErrStr = "failed to parse"
 			oerr.SetBecause(err)
 			return oerr
 		}
+		doc.defineLengths[i] = length
 
 		trimmedArg := strings.TrimSpace(arg)
 
@@ -282,23 +286,32 @@ func (doc *Document) runDefines() (oerr *Error) {
 	return nil
 }
 
+func (doc *Document) fillDefinitions() {
+
+	//allDefines := doc.getRecursiveDefinitions()
+}
+
+func (doc *Document) getRecursiveDefinitions() []Definition {
+	//ret := make
+}
+
 // helper-function for runIncludes and runDefines
 // makes use of doc.MacroReadBuffer
 func (doc *Document) scanMacroAtPosition(position uint64) (macro string,
-	argument string, oerr *Error) {
+	argument string, length uint, oerr *Error) {
 	_, err := doc.file.Seek(int64(position), 0)
 	if err != nil {
 		oerr := NewError("cannot seek file")
 		oerr.SetSubject(doc.file.Name())
 		oerr.SetBecause(NewError(err.Error()))
-		return "", "", oerr
+		return "", "", 0, oerr
 	}
 	n, err := doc.file.Read(doc.MacroReadBuffer)
 	if err != nil {
 		oerr := NewError("cannot read file")
 		oerr.SetSubject(doc.file.Name())
 		oerr.SetBecause(NewError(err.Error()))
-		return "", "", oerr
+		return "", "", 0, oerr
 	}
 	var endOfLine int = 0
 	var argumentPos int = 0
@@ -322,7 +335,7 @@ func (doc *Document) scanMacroAtPosition(position uint64) (macro string,
 	}
 	if endOfLine == n {
 		oerr := NewError("no end-of-line detected")
-		return "", "", oerr
+		return "", "", 0, oerr
 	}
 
 	// now we just seperate the macro from the argument. don't trim, be very
@@ -333,19 +346,19 @@ func (doc *Document) scanMacroAtPosition(position uint64) (macro string,
 	Debugf("parsed '%s' macro in '%s' with argument '%s'", macro,
 		doc.file.Name(), argument)
 
-	return macro, argument, nil
+	return macro, argument, uint(endOfLine), nil
 }
 
-func (d *Document) addDefinition(definitions Definition) {
+func (doc *Document) addDefinition(definitions Definition) {
 
 }
 
-func (d *Document) remainingDefinitions() []Definition {
+func (doc *Document) remainingDefinitions() []Definition {
 	return nil
 }
 
-func (d *Document) complete() (stream DocumentStream, err *Error) {
-	remaining := d.remainingDefinitions()
+func (doc *Document) complete() (stream DocumentStream, err *Error) {
+	remaining := doc.remainingDefinitions()
 	if len(remaining) != 0 {
 		err := NewError("variables were left undefined")
 		// build a nice little string of remaining definitinos
