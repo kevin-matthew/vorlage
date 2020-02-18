@@ -76,13 +76,17 @@ with what they're cached too (such as a session)
 
 * Using Macros
  - A macro must start with the macro prefix '#'
- - The macro prefix must be preceeded by an end-of-line '\n'
+ - The macro prefix must be preceeded by an end-of-line '\n' or
+   begining of file.
  - The macro itself can either be 'include' or 'define'
  - The macro's argument must be preceded by a space ' '. The argument
    is trimmed for whitespace before it is used.
- - The macro ends when another end-of-line is detected '\n'
+ - The macro ends when another end-of-line is detected '\n' or end of file
  - The number of bytes between the macro prefix '#' and the
-   end-of-line '\n' cannot exceed 2048 (MacroMaxLength).
+   end-of-line '\n' cannot exceed 1024 (MacroMaxLength).
+ - When a macro is ran, the newline '\n' before and after it (if
+   present) are removed.
+ - 
 ** ~#include~
 Includes another file, the included file may also have macros.
 ** ~#define~
