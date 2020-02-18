@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-
-
 func TestLoadDocument(t *testing.T) {
 
 	// change cwd to caller
@@ -34,6 +32,20 @@ func TestLoadDocument(t *testing.T) {
 		return
 	}
 
-	print(string(res))
-	t.Fail()
+	finalFile, cerr := ioutil.ReadFile(
+		"tests/documents/final-defines-and-includes.txt")
+	if cerr != nil {
+		t.Log(cerr.Error())
+		t.Fail()
+		return
+	}
+
+	if string(res) != string(finalFile) {
+		t.Log("defines-and-includes.dc does not match final-defines-and-includes.txt")
+		t.Log("defines-and-includes:")
+		t.Log("'''" + string(res) + "'''")
+		t.Log("final-defines-and-includes.txt:")
+		t.Log("'''" + string(finalFile) + "'''")
+		t.Fail()
+	}
 }
