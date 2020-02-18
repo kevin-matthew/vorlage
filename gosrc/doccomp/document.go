@@ -102,7 +102,7 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 
 	cwd, _ := os.Getwd()
 	Debugf("opening file '%s' from %s", path, cwd)
-	doc.file, cerr = os.Open(path)
+	doc.file, cerr = os.OpenFile(path, os.O_RDONLY, 0)
 	if cerr != nil {
 		oerr.ErrStr = "failed to open file stream"
 		oerr.SetBecause(NewError(cerr.Error()))
@@ -114,7 +114,7 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 	if err != nil {
 		oerr.ErrStr = "failed to detect macros"
 		oerr.SetBecause(err)
-		doc.Close()
+		_ = doc.Close()
 		return doc, oerr
 	}
 
@@ -124,7 +124,7 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 	if err != nil {
 		oerr.ErrStr = "failed parsing #include in file"
 		oerr.SetBecause(err)
-		doc.Close()
+		_ = doc.Close()
 		return doc, oerr
 	}
 
@@ -134,7 +134,7 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 	if err != nil {
 		oerr.ErrStr = "failed parsing #defines in file"
 		oerr.SetBecause(err)
-		doc.Close()
+		_ = doc.Close()
 		return doc, oerr
 	}
 
@@ -152,7 +152,7 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 	if cerr != nil {
 		oerr.ErrStr = "failed to seek back to the beginning of the stream"
 		oerr.SetBecause(NewError(cerr.Error()))
-		doc.Close()
+		_ = doc.Close()
 		return doc, oerr
 	}
 
@@ -616,6 +616,8 @@ func (doc *Document) getRecursiveDefinitions() []Definition {
 }
 
 // helper-function for loadDocumentFromPath
+// returns non-nill if ancestor has path. What then returns is a 'stack'
+// of what is included by what.
 func (doc *Document) ancestorHasPath(filepath string) *string {
 	// todo: what if one of the inlcudes is a symlink? It can be tricked
 	// into a circular dependency
