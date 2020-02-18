@@ -20,9 +20,6 @@ const MaxVariableLength = 32
 const DocumentReadBlock = len(EndOfLine)*2 + len(
 	DefineStr)*len(IncludeStr)*256
 
-type DocumentStream struct {
-}
-
 type NormalDefinition struct {
 	variable string
 	value    string
