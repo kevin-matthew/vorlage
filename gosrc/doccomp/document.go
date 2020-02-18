@@ -157,7 +157,8 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 func (doc *Document) detectMacrosPositions() (oerr *Error) {
 	var n int
 	var allbytes uint64
-	var linenum uint // used for debugging
+	var linenum uint = 1 // used for debugging
+	var onNewLine = true
 
 	// make a new buffer
 	buffer := make([]byte, DocumentReadBlock)
@@ -182,38 +183,8 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 		// loop through all bytes in the buffer.
 		for i := 0; i < n; i++ {
 
-			// if we cross a newline, increment linenum
-			if i+len(EndOfLine) <= n && string(buffer[i:i+len(
-				EndOfLine)]) == EndOfLine {
-				linenum++
-			}
-
-			// try to detect a '#define'
-			if i+len(EndOfLine)+len(DefineStr) <= n && string(
-				buffer[i:i+len(EndOfLine)+len(DefineStr)]) == EndOfLine+DefineStr {
-
-				Debugf("%s:%d: detected macro '%s'", doc.path,
-					linenum, DefineStr)
-				doc.definePositions =
-					append(doc.definePositions, allbytes+uint64(i+len(EndOfLine)))
-				doc.definePositionsLineNum = append(doc.
-					definePositionsLineNum, linenum)
-				continue
-			}
-
-			// try to detect a '#include'
-			if i+len(IncludeStr) <= n && (string(buffer[i:i+len(
-				EndOfLine)+len(IncludeStr)]) == EndOfLine+IncludeStr) {
-				Debugf("%s:%d: detected macro '%s'", doc.path,
-					linenum, IncludeStr)
-				doc.includePositions =
-					append(doc.includePositions, allbytes+uint64(i+len(EndOfLine)))
-				doc.includePositionsLineNum = append(doc.
-					includePositionsLineNum, linenum)
-				continue
-			}
-
-			// simply dectect a '$'
+			// before we even care about being a new line or not,
+			// lets detect if we see a variable.
 			if i+len(VariablePrefix) <= n && string(
 				buffer[i:i+len(VariablePrefix)]) == VariablePrefix {
 
@@ -224,10 +195,48 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 					append(doc.possibleVariablePositions, allbytes+uint64(i))
 				doc.possibleVariablePositionsLineNum = append(doc.
 					possibleVariablePositionsLineNum, linenum)
-				continue
+			}
+
+			// if we're on a fresh line (either right after a '\n' or
+			// it's at the very start of the file
+			if onNewLine {
+
+				// try to detect a '#define'
+				if i+len(DefineStr) <= n && string(
+					buffer[i:i+len(DefineStr)]) == DefineStr {
+
+					Debugf("%s:%d: detected macro '%s'", doc.path,
+						linenum, DefineStr)
+					doc.definePositions =
+						append(doc.definePositions, allbytes+uint64(i))
+					doc.definePositionsLineNum = append(doc.
+						definePositionsLineNum, linenum)
+				}
+
+				// try to detect a '#include'
+				if i+len(IncludeStr) <= n && string(
+					buffer[i:i+len(IncludeStr)]) == IncludeStr {
+
+					Debugf("%s:%d: detected macro '%s'", doc.path,
+						linenum, IncludeStr)
+					doc.includePositions =
+						append(doc.includePositions, allbytes+uint64(i))
+					doc.includePositionsLineNum = append(doc.
+						includePositionsLineNum, linenum)
+				}
+			}
+
+			// if we cross a newline, increment linenum
+			if i+len(EndOfLine) <= n && string(buffer[i:i+len(
+				EndOfLine)]) == EndOfLine {
+				onNewLine = true
+				linenum++
+			} else {
+				onNewLine = false
 			}
 		}
-		// keep track of all bytes we've read so far, we'll need this later.
+
+		// keep track of total number of bytes we've read so far
 		allbytes += uint64(n)
 	}
 	return nil
@@ -309,7 +318,8 @@ func (doc *Document) runDefines() (oerr *Error) {
 			return oerr
 		}
 
-		// make sure we see the 'myvar' in '$myvar'
+		// make sure we see the 'm' in '$myvar'... otherwise we're missing
+		// the variable name.
 		if len(trimmedArg) < len(VariablePrefix)+1 {
 			oerr.ErrStr = "variable name is missing"
 			return oerr
@@ -324,6 +334,7 @@ func (doc *Document) runDefines() (oerr *Error) {
 
 				variableName = strings.TrimSpace(trimmedArg[:j])
 				value = strings.TrimSpace(trimmedArg[j:])
+				break
 			}
 		}
 
@@ -620,21 +631,35 @@ func (doc *Document) scanMacroAtPosition(position uint64) (macro string,
 	// aswell.
 	for endOfLine = 0; endOfLine < n; endOfLine++ {
 
+		// grab the start of the argument
+		// ie: '#define   $myvar asdf  ' we grab '  $myvar asdf  '
 		if argumentPos == 0 && endOfLine+len(MacroArgument) < n &&
 			string(doc.MacroReadBuffer[endOfLine:endOfLine+len(
 				MacroArgument)]) == MacroArgument {
 			argumentPos = endOfLine
 		}
 
+		// grab the end of the line
+
 		if endOfLine+len(EndOfLine) <= n &&
 			string(doc.MacroReadBuffer[endOfLine:endOfLine+len(
 				EndOfLine)]) == EndOfLine {
+
+			// first see if we can get to '\n'...
 			break
 		}
 	}
 	if endOfLine == n {
-		oerr := NewError("no end-of-line detected")
-		return "", "", 0, oerr
+		// ...or we just see if we're at the end of the file
+		if n < len(doc.MacroReadBuffer) {
+			// do nothing, 'n' is the proper end of the line.
+			// (logic left like this for readability)
+		} else {
+			// however, if we didn't detect a new line, then that means
+			// that this macro is too long.
+			oerr := NewError("no end-of-line detected (macro too long?)")
+			return "", "", 0, oerr
+		}
 	}
 
 	// now we just seperate the macro from the argument. don't trim, be very
@@ -646,8 +671,4 @@ func (doc *Document) scanMacroAtPosition(position uint64) (macro string,
 		doc.path, argument)
 
 	return macro, argument, uint(endOfLine), nil
-}
-
-func (doc *Document) remainingDefinitions() []Definition {
-	return nil
 }
