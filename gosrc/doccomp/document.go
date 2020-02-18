@@ -92,7 +92,7 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 	doc.parent = parent
 	doc.path = path
 
-	cwd,_ := os.Getwd()
+	cwd, _ := os.Getwd()
 	Debugf("opening file '%s' from %s", path, cwd)
 	doc.file, cerr = os.Open(path)
 	if cerr != nil {
@@ -168,9 +168,6 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 		// load bytes into the buffer
 		n, err := doc.file.Read(buffer)
 
-
-
-
 		// all errors except for EOF should kill the function
 		if err == io.EOF {
 			break
@@ -206,7 +203,7 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 
 			// try to detect a '#include'
 			if i+len(IncludeStr) <= n && (string(buffer[i:i+len(
-				EndOfLine)+len(IncludeStr)]) == EndOfLine+IncludeStr)  {
+				EndOfLine)+len(IncludeStr)]) == EndOfLine+IncludeStr) {
 				Debugf("%s:%d: detected macro '%s'", doc.path,
 					linenum, IncludeStr)
 				doc.includePositions =
@@ -416,7 +413,7 @@ func (doc *Document) read(dest []byte, root *Document,
 
 		// if we don't have a parent, then we're done-done.
 		if doc.parent == nil {
-			return 0,io.EOF
+			return 0, io.EOF
 		}
 		return root.Read(dest) // TODO: this is really weird...
 	}
@@ -450,7 +447,7 @@ func (doc *Document) read(dest []byte, root *Document,
 					oerr.SetBecause(NewError(cerr.Error()))
 					return n, oerr
 				}
-				break
+				goto ret
 			}
 		}
 
@@ -469,7 +466,7 @@ func (doc *Document) read(dest []byte, root *Document,
 					oerr.SetBecause(NewError(cerr.Error()))
 					return n, oerr
 				}
-				break
+				goto ret
 			}
 		}
 
@@ -485,7 +482,7 @@ func (doc *Document) read(dest []byte, root *Document,
 				// extract the possible variable name (possibleVariableName)
 				variableNameBuffer := make([]byte, MaxVariableLength)
 				vn, cerr := doc.file.ReadAt(variableNameBuffer, cutOff)
-				if cerr != nil && cerr != io.EOF{
+				if cerr != nil && cerr != io.EOF {
 					oerr := NewError(errFailedToReadBytes)
 					oerr.SetSubject(doc.path + ":" + strconv.Itoa(int(doc.
 						possibleVariablePositionsLineNum[i])) + "@" + strconv.Itoa(int(cutOff)))
@@ -547,7 +544,7 @@ func (doc *Document) read(dest []byte, root *Document,
 						return n, oerr
 					}
 				}
-				break
+				goto ret
 			} // if cutOff == int64(incpos)
 		} // for i,incpos := range doc.possibleVariablePositions
 	} // for cutOff = pos; cutOff < endpos; cutOff++
@@ -555,6 +552,7 @@ func (doc *Document) read(dest []byte, root *Document,
 	// sense we are going to force the Read function to be called again,
 	// let's cut their buffer short so they don't read any info that
 	// was deliberatley skipped using Seek.
+ret:
 	n = int(cutOff - pos)
 	return n, nil
 }
