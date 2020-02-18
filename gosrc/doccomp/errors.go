@@ -1,8 +1,6 @@
 package doccomp
 
 import (
-	"fmt"
-	"os"
 	"strconv"
 )
 
@@ -40,8 +38,18 @@ func (e *Error) SetBecause(because *Error) {
 	e.Because = because
 }
 
-func (e *Error) Output() {
-	_, _ = fmt.Fprintf(os.Stderr, "%s\n", e.Error())
+// highlights the last error (the root error) on the stack.
+func (e *Error) ErrorHighlight() string {
+	ret := e.ErrStr
+	if e.Subject != "" {
+		ret += " (" + e.Subject + ")"
+	}
+	if e.Because != nil {
+		ret += ": " + e.Because.ErrorHighlight()
+	} else {
+		return "\033[1;31m" + ret + "\033[0m"
+	}
+	return ret
 }
 
 var errNotImplemented = &Error{ErrStr: "not implemented"}
