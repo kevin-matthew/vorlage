@@ -1,0 +1,7 @@
+#define $asdf SAMPLEVAR
+Looks like if #define is at the begining of the file it does not work.
+
+#define $myvar another variable
+I'm about to inclue a sample here we go
+#include sample.txt
+#include one-variable.dc

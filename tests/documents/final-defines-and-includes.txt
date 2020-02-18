@@ -1,0 +1,7 @@
+Looks like if #define is at the begining of the file it does not work.
+
+I'm about to inclue a sample here we go
+this is a simple document.
+
+Very simple. Nothing special.
+Hi, here im in one-variable.dc and my variable is SAMPLEVAR.

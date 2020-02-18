@@ -20,3 +20,6 @@
 
 # REALLY ignore that build folder
 build/**/*
+
+# test files
+!tests/**/*
