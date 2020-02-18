@@ -20,7 +20,7 @@ func TestLoadDocument(t *testing.T) {
 
 	d, err := LoadDocument("tests/documents/defines-and-includes.dc")
 	if err != nil {
-		t.Log(err.Error())
+		t.Log(err.ErrorHighlight())
 		t.Fail()
 		return
 	}
@@ -47,5 +47,33 @@ func TestLoadDocument(t *testing.T) {
 		t.Log("final-defines-and-includes.txt:")
 		t.Log("'''" + string(finalFile) + "'''")
 		t.Fail()
+		return
 	}
+	cerr = d.Close()
+	if cerr != nil {
+		t.Log("failed to close document: " + cerr.Error())
+		t.Fail()
+		return
+	}
+
+	// now we break it
+
+	// circular dep error
+	d, err = LoadDocument("tests/documents/include-self.dc")
+	_ = d.Close()
+	if err == nil {
+		t.Log("include-self.dc did not raise a cirular dependcie error")
+		t.Fail()
+		return
+	}
+	t.Log("when testing circular dependices (1) got: " + err.ErrorHighlight())
+	d, err = LoadDocument("tests/documents/include-cycle-1.dc")
+	_ = d.Close()
+	if err == nil {
+		t.Log("tests/documents/include-cycle-1." +
+			"dc did not raise a cirular dependcie error")
+		t.Fail()
+		return
+	}
+	t.Log("when testing circular dependices (2) got: " + err.ErrorHighlight())
 }

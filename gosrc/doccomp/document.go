@@ -84,6 +84,7 @@ func (doc Document) GetFileName() string {
 
 func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Error) {
 	oerr = &Error{}
+	oerr.SetSubject(path)
 
 	var cerr error
 	doc.MacroReadBuffer = make([]byte, MacroMaxLength)
@@ -91,6 +92,13 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 	doc.curentlyReading = &doc
 	doc.parent = parent
 	doc.path = path
+
+	sourceerr := doc.ancestorHasPath(path)
+	if sourceerr != nil {
+		oerr.ErrStr = "circular inclusion"
+		oerr.SetSubject(*sourceerr)
+		return doc, oerr
+	}
 
 	cwd, _ := os.Getwd()
 	Debugf("opening file '%s' from %s", path, cwd)
@@ -114,7 +122,7 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 	Debugf("parsing %d includes '%s'", len(doc.includePositions), path)
 	err = doc.runIncludes()
 	if err != nil {
-		oerr.ErrStr = "failed to run includes"
+		oerr.ErrStr = "failed parsing #include in file"
 		oerr.SetBecause(err)
 		doc.Close()
 		return doc, oerr
@@ -124,7 +132,7 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 	Debugf("parsing %d normalDefines '%s'", len(doc.definePositions), path)
 	err = doc.runDefines()
 	if err != nil {
-		oerr.ErrStr = "failed to run normalDefines"
+		oerr.ErrStr = "failed parsing #defines in file"
 		oerr.SetBecause(err)
 		doc.Close()
 		return doc, oerr
@@ -586,7 +594,9 @@ func (doc *Document) Close() error {
 	return nil
 }
 
-// TODO: hopefully this works?
+// generate all definitions that are detected in all documents below this one.
+// it stores the answer and subseqent calls will always return the initial
+// result.
 func (doc *Document) getRecursiveDefinitions() []Definition {
 	if doc.allRecursiveNormalDefines != nil {
 		return doc.allRecursiveNormalDefines
@@ -603,6 +613,47 @@ func (doc *Document) getRecursiveDefinitions() []Definition {
 		}
 	}
 	return doc.allRecursiveNormalDefines
+}
+
+// helper-function for loadDocumentFromPath
+func (doc *Document) ancestorHasPath(filepath string) *string {
+	// todo: what if one of the inlcudes is a symlink? It can be tricked
+	// into a circular dependency
+
+	if doc.parent != nil {
+		if doc.parent.path == filepath {
+			stack := doc.path + " -> " + filepath
+			return &stack
+		}
+		perr := doc.parent.ancestorHasPath(filepath)
+		if perr != nil {
+			//oerr := NewError(perr.Error() + ": " + "which includes")
+			//oerr.SetSubject(doc.parent.path)
+			//oerr.SetBecause(perr)
+			stack := doc.path + " -> " + *perr
+			return &stack
+		}
+	}
+	return nil
+
+	/*Debugf("does %s == %s?", doc.path, filepath)
+	if doc.path == filepath {
+		Debugf("yes it does!")
+		oerr := NewError("including")
+		oerr.SetSubject(doc.path)
+		return oerr
+	}
+	for _,inc := range doc.includes {
+		ooerr := inc.ancestorHasPath(filepath)
+		if ooerr != nil {
+			oerr := NewError("including")
+			oerr.SetSubject(doc.path)
+			oerr.SetBecause(ooerr)
+			return oerr
+		}
+	}
+	return  nil*/
+
 }
 
 // helper-function for runIncludes and runDefines
