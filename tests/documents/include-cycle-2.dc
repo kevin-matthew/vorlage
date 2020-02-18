@@ -1,0 +1,2 @@
+this is step 2 in recursive include
+#include include-cycle-3.dc

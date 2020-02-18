@@ -1,0 +1,2 @@
+Recursive include:
+#include include-cycle-2.dc
