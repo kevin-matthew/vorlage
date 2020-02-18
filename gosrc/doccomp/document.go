@@ -14,7 +14,7 @@ const DefineStr = "#define"
 const IncludeStr = "#include"
 const EndOfLine = "\n"
 const VariablePrefix = "$"
-const MacroMaxLength = 2048
+const MacroMaxLength = 1024
 const MaxVariableLength = 32
 
 const DocumentReadBlock = len(EndOfLine)*2 + len(
@@ -641,11 +641,11 @@ func (doc *Document) scanMacroAtPosition(position uint64) (macro string,
 
 		// grab the end of the line
 
-		if endOfLine+len(EndOfLine) <= n &&
-			string(doc.MacroReadBuffer[endOfLine:endOfLine+len(
-				EndOfLine)]) == EndOfLine {
-
-			// first see if we can get to '\n'...
+		// first see if we can get to '\n'...
+		if endOfLine+len(EndOfLine) <= n && string(doc.
+			MacroReadBuffer[endOfLine:endOfLine+len(EndOfLine)]) == EndOfLine {
+			// cut out the end of the line
+			endOfLine += len(EndOfLine)
 			break
 		}
 	}
