@@ -20,6 +20,9 @@ type SourceFile interface {
 	// n will sometimes be < len(p) but that does not mean it's the end of the
 	// file. Only when 0, io.EOF is returned will it be the end of the file.
 	Read(p []byte) (int, error)
+
+	// must be called when conversion is done.
+	Close() error
 }
 
 type DocumentConverter interface {
@@ -35,6 +38,7 @@ type DocumentConverter interface {
 	/*
 	 * Convert the file and return the TargetFile. If Error
 	 * is non-nil, the document's loading is stopped completely.
+	 * note that the SourceFile:Close MUST be called
 	 */
 	ConvertFile(SourceFile) (TargetFile, error)
 
