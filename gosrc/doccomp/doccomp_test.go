@@ -18,7 +18,7 @@ func TestLoadDocument(t *testing.T) {
 		panic(cerr)
 	}
 
-	d, err := LoadDocument("tests/documents/defines-and-includes.dc")
+	d, err := LoadDocument("tests/documents/defines-and-prepends.dc")
 	if err != nil {
 		t.Log(err.ErrorHighlight())
 		t.Fail()
@@ -33,7 +33,7 @@ func TestLoadDocument(t *testing.T) {
 	}
 
 	finalFile, cerr := ioutil.ReadFile(
-		"tests/documents/final-defines-and-includes.txt")
+		"tests/documents/final-defines-and-prepends.txt")
 	if cerr != nil {
 		t.Log(cerr.Error())
 		t.Fail()
@@ -41,10 +41,10 @@ func TestLoadDocument(t *testing.T) {
 	}
 
 	if string(res) != string(finalFile) {
-		t.Log("defines-and-includes.dc does not match final-defines-and-includes.txt")
-		t.Log("defines-and-includes:")
+		t.Log("defines-and-prepends.dc does not match final-defines-and-prepends.txt")
+		t.Log("defines-and-prepends:")
 		t.Log("'''" + string(res) + "'''")
-		t.Log("final-defines-and-includes.txt:")
+		t.Log("final-defines-and-prepends.txt:")
 		t.Log("'''" + string(finalFile) + "'''")
 		t.Fail()
 		return

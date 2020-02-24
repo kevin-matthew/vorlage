@@ -1,6 +1,7 @@
 package doccomp
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -9,21 +10,44 @@ import (
 )
 
 //const EndOfLine   = "\n#"
-const MacroArgument = " " //todo: just rename this to 'macrospace'
+const MacroArgument = ' ' //todo: just rename this to 'macrospace'
+const MacroPrefix = "#"
 const DefineStr = "#define"
-const IncludeStr = "#include"
+const PrependStr = "#prepend"
+const AppendStr = "#append"
 const EndOfLine = "\n"
 const VariablePrefix = "$"
 const MacroMaxLength = 1024
 const MaxVariableLength = 32
 
-const DocumentReadBlock = len(EndOfLine)*2 + len(
-	DefineStr)*len(IncludeStr)*256
+const DocumentReadBlock = len(MacroPrefix)*3 + len(
+	DefineStr)*len(PrependStr)*len(AppendStr)*256
 
 type NormalDefinition struct {
 	variable string
 	value    string
 	seeker   int
+}
+
+func CreateNormalDefinition(variable string, value string) (NormalDefinition,
+	*Error) {
+	ret := NormalDefinition{
+		variable: variable,
+		value:    value,
+	}
+	if !bytesAreString([]byte(VariablePrefix), variable, 0) {
+		err := NewError("#define variable does not start with '$'")
+		err.SetSubject(variable)
+		return ret, err
+	}
+
+	if len(variable) == len(VariablePrefix) {
+		return ret, NewError("variable is blank")
+	}
+	if value == "" {
+		return ret, NewError("value is blank")
+	}
+	return ret, nil
 }
 
 func (d NormalDefinition) GetName() string {
@@ -36,6 +60,17 @@ func (d *NormalDefinition) Read(p []byte) (int, error) {
 	}
 	d.seeker = copy(p, d.value[d.seeker:])
 	return d.seeker, nil
+}
+
+type macoPos struct {
+	args    []string
+	charPos uint64
+	length  uint
+	linenum uint
+}
+
+func (m macoPos) ToString() string {
+	return fmt.Sprintf("line %s", m.linenum)
 }
 
 type Document struct {
@@ -53,15 +88,17 @@ type Document struct {
 	VariableDetectionBuffer []byte // used before every Read(
 	// ) to see if there's variables
 
-	includes                []Document
-	includePositionsLineNum []uint // used for debugging
-	includePositions        []uint64
-	includeLengths          []uint
+	macros   []macoPos
+	included []Document
 
-	normalDefines          []NormalDefinition
-	definePositionsLineNum []uint // used for debugging
-	definePositions        []uint64
-	defineLengths          []uint
+	prepends    []*Document // points to somewhere in included
+	prependsPos []*macoPos  // points to somewhere in macros
+
+	appends   []*Document // points to somewhere in included
+	appendPos []*macoPos  // points to somewhere in macros
+
+	normalDefines []NormalDefinition
+	normalPos     []*macoPos // points to somewhere in macros
 
 	possibleVariablePositionsLineNum []uint // used for debugging
 	possibleVariablePositions        []uint64
@@ -69,37 +106,9 @@ type Document struct {
 	allRecursiveNormalDefines []Definition
 }
 
-type sourceFile struct {
-	doc       *Document
-	hasClosed bool
-}
-
-// reads the source file while excluding all #defines
-func (s sourceFile) Read(p []byte) (int, error) {
-	if s.hasClosed {
-		err := Error{
-			ErrStr:  "attempting to read file after it has been closed",
-			Subject: s.doc.path,
-		}
-		return 0, err
-	}
-	return s.doc.read(p, s.doc, true, true)
-
-}
-
-// reads the source file without the #includes and #defines
-func (s sourceFile) Close() error {
-	_, cerr := s.doc.file.Seek(0, 0)
-	if cerr != nil {
-		return cerr
-	}
-	s.hasClosed = true
-	return nil
-}
-
 /*
  * Opens a document and recursively opens all the documents referenced by
- * #includes. For every document that is opened,
+ * #prepends. For every document that is opened,
  * the converters are first consulted (via converters[i].ShouldConvert) in
  * the order they are in the array. The first converter to return true will
  * be used. If no converters return true, the document is not converted and will
@@ -138,63 +147,6 @@ func loadDocumentFromPath(path string, converters []DocumentConverter,
 		return doc, oerr
 	}
 
-	// we need to open the raw file regardless if it needs converting
-	// because we don't want to send the macros through the converter...
-	Debugf("opening file '%s' as plain text", path)
-
-	// wait...
-
-	// build up a struct that can be used as the ReadCloser interface
-	// that ConvertFile needs.
-	sourceFile := sourceFile{
-		doc:       &doc,
-		hasClosed: false,
-	}
-	// attempt to find a converter wanting to convert this file
-	for _, c := range converters {
-		// ask each one if they'd like to conver this particular file
-		should, serr := c.ShouldConvert(doc.path)
-		if serr != nil {
-			oerr.ErrStr = "querying converter"
-			oerr.SetSubject(c.GetDescription())
-			oerr.SetBecause(NewError(serr.Error()))
-			return doc, oerr
-		}
-
-		// if one of them says they'd like to convert it, let them.
-		if should {
-			Debugf("open file '%s' with converter '%s'",
-				path,
-				c.GetDescription())
-
-			// let the converter do its thing.
-			doc.targetfile, serr = c.ConvertFile(sourceFile)
-			if serr != nil {
-				oerr.ErrStr = "using converter"
-				oerr.SetSubject(c.GetDescription())
-				oerr.SetBecause(NewError(serr.Error()))
-				return doc, oerr
-			}
-
-			// if the converter did not explicity 'close' the file, then we'll
-			// assume it never finished its job and that's an error.
-			if sourceFile.hasClosed == false {
-				oerr.ErrStr = "converted did not close file"
-				oerr.SetSubject(c.GetDescription() + " converting " + doc.path)
-				return doc, oerr
-			}
-
-			// which ever is the first one to convert it, gets it.
-			break
-		}
-	}
-
-	// if no converted chose to convert the requested file, then
-	// just use the file itself.
-	if doc.targetfile == nil {
-		doc.targetfile = doc.file
-	}
-
 	// now that the file is open (and converting), lets detect all macros in it
 	Debugf("detecting macros in '%s'", path)
 	err := doc.detectMacrosPositions()
@@ -205,24 +157,62 @@ func loadDocumentFromPath(path string, converters []DocumentConverter,
 		return doc, oerr
 	}
 
-	// step 3
-	Debugf("parsing %d includes '%s'", len(doc.includePositions), path)
-	err = doc.runIncludes()
+	Debugf("interpreting macros in '%s'", path)
+	err = doc.processMacros()
 	if err != nil {
-		oerr.ErrStr = "failed parsing #include in file"
+		oerr.ErrStr = "failed to interpret macros"
 		oerr.SetBecause(err)
 		_ = doc.Close()
 		return doc, oerr
 	}
 
+	relDir := filepath.Dir(doc.path) + string(filepath.Separator)
+
+	// step 3
+
+	// #prepends
+	Debugf("prepending %d documents to '%s'", len(doc.prepends), path)
+	for _, i := range doc.prependsPos {
+		pdoc, err := loadDocumentFromPath(relDir+i.args[1], doc.converters, &doc)
+		if err != nil {
+			oerr.ErrStr = "cannot prepend document to self"
+			oerr.SetBecause(err)
+			_ = doc.Close()
+			return doc, oerr
+		}
+		doc.included = append(doc.included,
+			pdoc) // todo: remove duplicate files
+		doc.prepends = append(doc.prepends, &doc.included[len(doc.included)-1])
+	}
+
+	// #appends
+	Debugf("appending %d documents to '%s'", len(doc.appendPos), path)
+	for _, i := range doc.appendPos {
+		adoc, err := loadDocumentFromPath(relDir+i.args[1], doc.converters,
+			&doc)
+		if err != nil {
+			oerr.ErrStr = "cannot append document to self"
+			oerr.SetBecause(err)
+			_ = doc.Close()
+			return doc, oerr
+		}
+		doc.included = append(doc.included, adoc)
+		doc.appends = append(doc.appends, &doc.included[len(doc.included)-1])
+	}
+
 	// step 4
-	Debugf("parsing %d normalDefines '%s'", len(doc.definePositions), path)
-	err = doc.runDefines()
-	if err != nil {
-		oerr.ErrStr = "failed parsing #defines in file"
-		oerr.SetBecause(err)
-		_ = doc.Close()
-		return doc, oerr
+	// #defines
+	Debugf("parsing %d normalDefines '%s'", len(doc.normalPos), path)
+	for _, d := range doc.normalPos {
+		def, err := CreateNormalDefinition(d.args[1], d.args[2])
+		if err != nil {
+			oerr.ErrStr = "cannot parse definition"
+			oerr.SetSubjectf("%s %s", path, d.ToString())
+			oerr.SetBecause(err)
+			_ = doc.Close()
+			return doc, oerr
+		}
+		doc.normalDefines = append(doc.normalDefines, def)
 	}
 
 	// step 5
@@ -246,23 +236,70 @@ func loadDocumentFromPath(path string, converters []DocumentConverter,
 	return doc, nil
 }
 
+func bytesAreString(buff []byte, str string, offset int) bool {
+	return offset+len(str) <= len(buff) &&
+		string(buff[offset:offset+len(str)]) == str
+}
+
+// helper-function for detectMacrosPositions
+// simply looks at the buffer and scans a macro out of it. It returns the
+// length of the line, and any possible error. If 0 length is returned,
+// no more macros are left to scan.
+// todo: capture sequencies ie: #include "this argument is in double quotes.txt"
+func scanMaco(buffer []byte, charsource int64,
+	linenum uint) (pos macoPos, oerr *Error) {
+
+	// first off, do we even have a valid macro?
+	if !bytesAreString(buffer, MacroPrefix, 0) {
+		// no this isn't a macro... so we're done looking for macros.
+		return pos, nil
+	}
+
+	// get length
+	pos.linenum = linenum
+	pos.charPos = uint64(charsource)
+	pos.length = uint(len(MacroPrefix)) // we skip scanning the macro prefix
+	for ; pos.length < uint(len(buffer)); pos.length++ {
+		// grab the end of the line
+
+		// first see if we can get to '\n'...
+		if bytesAreString(buffer, EndOfLine, int(pos.length)) {
+			// cut out the end of the line
+			pos.length += uint(len(EndOfLine))
+			break
+		}
+	}
+	if pos.length <= uint(len(MacroPrefix)) {
+		oerr = &Error{}
+		oerr.ErrStr = "macro prefix detected but nothing defined"
+		oerr.SetSubjectf(pos.ToString())
+		return pos, oerr
+	}
+
+	// todo: what if macro is to long
+	//append(pos.args, )
+	tmp := strings.Split(string(buffer[:pos.length]), string(MacroArgument))
+	pos.args = []string{}
+	for _, t := range tmp {
+		if t != "" {
+			pos.args = append(pos.args, t)
+		}
+	}
+	return pos, nil
+}
+
 // helper-function for loadDocumentFromPath
 // quickly goes through the document and detects where macros as well as where
 // variables could possibly be
 func (doc *Document) detectMacrosPositions() (oerr *Error) {
-	var n int
-	var allbytes uint64
-	var linenum uint = 1 // used for debugging
-	var onNewLine = true
-
-	// make a new buffer
-	buffer := make([]byte, DocumentReadBlock)
+	var linenum uint // used for debugging
+	var at int64
 
 	// loop through the hole file until we hit the end
-	for n != len(buffer) {
-
+	for {
+		linenum++
 		// load bytes into the buffer
-		n, err := doc.file.Read(buffer)
+		n, err := doc.file.ReadAt(doc.MacroReadBuffer, at)
 
 		// all errors except for EOF should kill the function
 		if err == io.EOF {
@@ -275,169 +312,54 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 			return oerr
 		}
 
-		// loop through all bytes in the buffer.
-		for i := 0; i < n; i++ {
-
-			// before we even care about being a new line or not,
-			// lets detect if we see a variable.
-			if i+len(VariablePrefix) <= n && string(
-				buffer[i:i+len(VariablePrefix)]) == VariablePrefix {
-
-				Debugf("%s:%d: detected possible variable",
-					doc.path,
-					linenum)
-				doc.possibleVariablePositions =
-					append(doc.possibleVariablePositions, allbytes+uint64(i))
-				doc.possibleVariablePositionsLineNum = append(doc.
-					possibleVariablePositionsLineNum, linenum)
-			}
-
-			// if we're on a fresh line (either right after a '\n' or
-			// it's at the very start of the file
-			if onNewLine {
-
-				// try to detect a '#define'
-				if i+len(DefineStr) <= n && string(
-					buffer[i:i+len(DefineStr)]) == DefineStr {
-
-					Debugf("%s:%d: detected macro '%s'", doc.path,
-						linenum, DefineStr)
-					doc.definePositions =
-						append(doc.definePositions, allbytes+uint64(i))
-					doc.definePositionsLineNum = append(doc.
-						definePositionsLineNum, linenum)
-				}
-
-				// try to detect a '#include'
-				if i+len(IncludeStr) <= n && string(
-					buffer[i:i+len(IncludeStr)]) == IncludeStr {
-
-					Debugf("%s:%d: detected macro '%s'", doc.path,
-						linenum, IncludeStr)
-					doc.includePositions =
-						append(doc.includePositions, allbytes+uint64(i))
-					doc.includePositionsLineNum = append(doc.
-						includePositionsLineNum, linenum)
-				}
-			}
-
-			// if we cross a newline, increment linenum
-			if i+len(EndOfLine) <= n && string(buffer[i:i+len(
-				EndOfLine)]) == EndOfLine {
-				onNewLine = true
-				linenum++
-			} else {
-				onNewLine = false
-			}
+		pos, oerr := scanMaco(doc.MacroReadBuffer[:n], at, linenum)
+		if oerr != nil {
+			return oerr
 		}
 
-		// keep track of total number of bytes we've read so far
-		allbytes += uint64(n)
+		Debugf("detected macro '%s' in %s", pos.args[0], doc.path)
+		doc.macros = append(doc.macros, pos)
+
+		if pos.length == 0 {
+			Debugf("finished detecting macros in '%s'", doc.path)
+			return nil
+		}
+		at += int64(pos.length)
 	}
 	return nil
 }
 
-// helper-function for loadDocumentFromPath
-func (doc *Document) runIncludes() (oerr *Error) {
-	oerr = &Error{}
-	doc.includes = make([]Document, len(doc.includePositions))
-	doc.includeLengths = make([]uint, len(doc.includePositions))
-
-	// TODO: if we wanted to, we could make this for loop multithreaded.
-	for i, inc := range doc.includePositions {
-		oerr.SetSubject(doc.path + ":" + strconv.Itoa(int(doc.
-			includePositionsLineNum[i])))
-
-		// extract the include macro
-		_, arg, length, err := doc.scanMacroAtPosition(inc)
-		if err != nil {
-			oerr.ErrStr = "failed to parse"
-			oerr.SetBecause(err)
-			return oerr
-		}
-		doc.includeLengths[i] = length
-
-		// the first argument is a filename to include
-		filename := strings.TrimSpace(arg)
-		fullFileName := filepath.Dir(doc.path) + string(filepath.
-			Separator) + filename
-
-		// get the file and parse the file (recursively)
-		// TODO: detect circular dependencies (what if a file includes itself?)
-		// TODO: would it be a good idea to try to load files from the cache
-		// first?
-		Debugf("%s: including '%s'", oerr.Subject, fullFileName)
-
-		includedDoc, err := loadDocumentFromPath(fullFileName, doc)
-		if err != nil {
-			oerr.ErrStr = "failed to include document"
-			oerr.SetBecause(err)
-			return oerr
-		}
-		doc.includes[i] = includedDoc
-	}
-
-	return nil
-}
-
-// helper-function for loadDocumentFromPath
-func (doc *Document) runDefines() (oerr *Error) {
-	oerr = &Error{}
-	doc.normalDefines = make([]NormalDefinition, len(doc.definePositions))
-	doc.defineLengths = make([]uint, len(doc.definePositions))
-
-	// TODO: if we wanted to, we could make this for loop multithreaded.
-	for i, inc := range doc.definePositions {
-		oerr.SetSubject(doc.path + ":" + strconv.Itoa(int(doc.
-			definePositionsLineNum[i])))
-
-		// extract the include macro
-		_, arg, length, err := doc.scanMacroAtPosition(inc)
-		if err != nil {
-			oerr.ErrStr = "failed to parse"
-			oerr.SetBecause(err)
-			return oerr
-		}
-		doc.defineLengths[i] = length
-
-		trimmedArg := strings.TrimSpace(arg)
-
-		// the following comments will be talking in the context of the
-		// following example: #define $myvar hello
-
-		// make sure we see the '$' in #define $myvar hello
-		if len(trimmedArg) < len(VariablePrefix) || trimmedArg[0:len(
-			VariablePrefix)] != VariablePrefix {
-			oerr.ErrStr = "variable to define is missing the prefix '" +
-				"" + VariablePrefix + "'"
-			return oerr
-		}
-
-		// make sure we see the 'm' in '$myvar'... otherwise we're missing
-		// the variable name.
-		if len(trimmedArg) < len(VariablePrefix)+1 {
-			oerr.ErrStr = "variable name is missing"
-			return oerr
-		}
-
-		// extract the '$myvar' (variableName) and the 'hello'
-		// (value) from '$myvar hello' (trimmedArg)
-		var variableName, value string
-		for j := len(VariablePrefix) + 1; j < len(trimmedArg); j++ {
-			if j+len(MacroArgument) <= len(trimmedArg) && trimmedArg[j:j+len(
-				MacroArgument)] == MacroArgument {
-
-				variableName = strings.TrimSpace(trimmedArg[:j])
-				value = strings.TrimSpace(trimmedArg[j:])
-				break
+func (doc *Document) processMacros() (oerr *Error) {
+	doc.normalPos = []*macoPos{}
+	doc.prependsPos = []*macoPos{}
+	doc.appendPos = []*macoPos{}
+	for i := 0; i < len(doc.macros); i++ {
+		m := &(doc.macros[i])
+		switch m.args[0] {
+		case DefineStr:
+			if len(m.args) < 3 {
+				oerr := NewError("#define missing arguments")
+				oerr.SetSubject(m.ToString())
+				return oerr
 			}
-		}
-
-		Debugf("%s: adding normal definition of '%s' = '%s'", oerr.Subject,
-			variableName, value)
-		doc.normalDefines[i] = NormalDefinition{
-			variable: variableName,
-			value:    value,
+			doc.normalPos = append(doc.normalPos, m)
+			break
+		case PrependStr:
+			if len(m.args) < 2 {
+				oerr := NewError("#prepend missing arguments")
+				oerr.SetSubject(m.ToString())
+				return oerr
+			}
+			doc.prependsPos = append(doc.prependsPos, m)
+			break
+		case AppendStr:
+			if len(m.args) < 2 {
+				oerr := NewError("#append missing arguments")
+				oerr.SetSubject(m.ToString())
+				return oerr
+			}
+			doc.appendPos = append(doc.appendPos, m)
+			break
 		}
 	}
 	return nil
@@ -468,7 +390,7 @@ func (doc *Document) ReadIgnore(dest []byte,
 	// The code is laid out like this because of the fact that there's
 	// '#include's. Once an '#include' is read, doc.currentlyReading swtiches
 	// to the document that was included by that '#include'. Furthermore,
-	// that included document can also have documents IT includes, thus,
+	// that included document can also have documents IT prepends, thus,
 	// currentlyReading can be pointing to a document that doesn't even exist
 	// in doc.Includes (ie, it could point to doc.Includes[3].Includes[1])
 	if doc.curentlyReadingDef != nil {
@@ -497,6 +419,10 @@ func (doc *Document) ReadIgnore(dest []byte,
 	// woorks...
 }
 
+// todo: remove the 'ignore' bools... we need to have some way to communicate
+// processor vars to the processor. Maybe they should be passed in via Read?
+// hmmmm.... or something like that. or perhaps 'add proccessor' instead of
+// 'add definition'.... AH YES. Let's do that.
 func (doc *Document) read(dest []byte, root *Document,
 	ignoreIncludes bool,
 	ignoreMissing bool) (int, error) {
@@ -538,7 +464,7 @@ func (doc *Document) read(dest []byte, root *Document,
 	var cutOff int64
 	for cutOff = pos; cutOff < endpos; cutOff++ {
 		// we hit an #include
-		for i, incpos := range doc.includePositions {
+		for i, incpos := range doc.prependPositions {
 			if cutOff == int64(incpos) {
 
 				// if we're ignoring macros then don't bother opening up
@@ -547,14 +473,14 @@ func (doc *Document) read(dest []byte, root *Document,
 					// next time they call read, it will be reading the file
 					// that was included by the '#include'
 					Debugf("directing Read() to access '%s'",
-						doc.includes[i].path)
-					root.curentlyReading = &doc.includes[i]
+						doc.prepends[i].path)
+					root.curentlyReading = &doc.prepends[i]
 				}
 
 				// before we let the child doc start reading, lets skip the
 				// #include macro so when the child sets currently reading
 				// back to doc, we don't read the same #include twice.
-				_, cerr := doc.file.Seek(cutOff+int64(doc.includeLengths[i]), 0)
+				_, cerr := doc.file.Seek(cutOff+int64(doc.prependLengths[i]), 0)
 				if cerr != nil {
 					oerr := NewError(errFailedToReadBytes)
 					oerr.SetSubject(doc.path + ":#inlcude")
@@ -683,7 +609,7 @@ func (doc *Document) close() error {
 // recursively closes
 func (doc *Document) Close() error {
 	_ = doc.close()
-	for _, d := range doc.includes {
+	for _, d := range doc.prepends {
 		_ = d.Close()
 	}
 	return nil
@@ -700,7 +626,7 @@ func (doc *Document) getRecursiveDefinitions() []Definition {
 	for i := 0; i < len(doc.normalDefines); i++ {
 		doc.allRecursiveNormalDefines[i] = &doc.normalDefines[i]
 	}
-	for _, d := range doc.includes {
+	for _, d := range doc.prepends {
 		childDefines := d.getRecursiveDefinitions()
 		for _, c := range childDefines {
 			doc.allRecursiveNormalDefines = append(doc.
@@ -724,7 +650,7 @@ func (doc *Document) ancestorHasPath(filepath string) *string {
 		}
 		perr := doc.parent.ancestorHasPath(filepath)
 		if perr != nil {
-			//oerr := NewError(perr.Error() + ": " + "which includes")
+			//oerr := NewError(perr.Error() + ": " + "which prepends")
 			//oerr.SetSubject(doc.doc.path)
 			//oerr.SetBecause(perr)
 			stack := doc.path + " -> " + *perr
@@ -740,7 +666,7 @@ func (doc *Document) ancestorHasPath(filepath string) *string {
 		oerr.SetSubject(doc.path)
 		return oerr
 	}
-	for _,inc := range doc.includes {
+	for _,inc := range doc.prepends {
 		ooerr := inc.ancestorHasPath(filepath)
 		if ooerr != nil {
 			oerr := NewError("including")
@@ -751,72 +677,4 @@ func (doc *Document) ancestorHasPath(filepath string) *string {
 	}
 	return  nil*/
 
-}
-
-// helper-function for runIncludes and runDefines
-// makes use of doc.MacroReadBuffer
-func (doc *Document) scanMacroAtPosition(position uint64) (macro string,
-	argument string, length uint, oerr *Error) {
-	_, err := doc.file.Seek(int64(position), 0)
-	if err != nil {
-		oerr := NewError(errFailedToSeek)
-		oerr.SetSubject("@ char" + strconv.Itoa(int(position)))
-		oerr.SetBecause(NewError(err.Error()))
-		return "", "", 0, oerr
-	}
-	n, err := doc.file.Read(doc.MacroReadBuffer)
-	if err != nil {
-		oerr := NewError(errFailedToReadBytes)
-		oerr.SetSubject("@ char" + strconv.Itoa(int(position)))
-		oerr.SetBecause(NewError(err.Error()))
-		return "", "", 0, oerr
-	}
-	var endOfLine int = 0
-	var argumentPos int = 0
-
-	// we see where the end of the line is.
-	// and to be efficent we'll also grab where the argument start is
-	// aswell.
-	for endOfLine = 0; endOfLine < n; endOfLine++ {
-
-		// grab the start of the argument
-		// ie: '#define   $myvar asdf  ' we grab '  $myvar asdf  '
-		if argumentPos == 0 && endOfLine+len(MacroArgument) < n &&
-			string(doc.MacroReadBuffer[endOfLine:endOfLine+len(
-				MacroArgument)]) == MacroArgument {
-			argumentPos = endOfLine
-		}
-
-		// grab the end of the line
-
-		// first see if we can get to '\n'...
-		if endOfLine+len(EndOfLine) <= n && string(doc.
-			MacroReadBuffer[endOfLine:endOfLine+len(EndOfLine)]) == EndOfLine {
-			// cut out the end of the line
-			endOfLine += len(EndOfLine)
-			break
-		}
-	}
-	if endOfLine == n {
-		// ...or we just see if we're at the end of the file
-		if n < len(doc.MacroReadBuffer) {
-			// do nothing, 'n' is the proper end of the line.
-			// (logic left like this for readability)
-		} else {
-			// however, if we didn't detect a new line, then that means
-			// that this macro is too long.
-			oerr := NewError("no end-of-line detected (macro too long?)")
-			return "", "", 0, oerr
-		}
-	}
-
-	// now we just seperate the macro from the argument. don't trim, be very
-	// litterall
-	macro = string(doc.MacroReadBuffer[0:argumentPos])
-	argument = string(doc.MacroReadBuffer[argumentPos:endOfLine])
-
-	Debugf("parsed '%s' macro in '%s' with argument '%s'", macro,
-		doc.path, argument)
-
-	return macro, argument, uint(endOfLine), nil
 }

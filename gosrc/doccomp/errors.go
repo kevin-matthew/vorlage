@@ -1,6 +1,7 @@
 package doccomp
 
 import (
+	"fmt"
 	"strconv"
 )
 
@@ -27,6 +28,10 @@ func (e Error) Error() string {
 
 func (e *Error) SetSubject(subject string) {
 	e.Subject = subject
+}
+
+func (e *Error) SetSubjectf(format string, args ...interface{}) {
+	e.Subject = fmt.Sprintf(format, args...)
 }
 
 func (e *Error) SetSubjectInt(subject int) {
