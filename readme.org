@@ -78,8 +78,8 @@ with what they're cached too (such as a session)
  - A macro must start with the macro prefix '#'
  - The macro prefix must be preceeded by an end-of-line '\n' or
    begining of file.
- - The macro itself can either be 'include' or 'define'
- - The macro's argument must be preceded by a space ' '. The argument
+ - The macro itself can either be =prepend=, =append= or =define=
+ - The macro's argument must be preceded by a space. The argument
    is trimmed for whitespace before it is used.
  - The macro ends when another end-of-line is detected '\n' or end of file
  - The number of bytes between the macro prefix '#' and the
@@ -87,15 +87,25 @@ with what they're cached too (such as a session)
  - When a macro is ran, the newline '\n' before and after it (if
    present) are removed.
  - 
-** ~#include~
+** ~#prepend~, ~#append~
 Includes another file, the included file may also have macros.
  - If a circular dependcy is detected, the document will not compile.
+
+
 ** ~#define~
 The define takes 2 arguments, a variable name and a value.
-  
-[f f]f \n # d e f i n e  a e k f j a e f \n
- f f[f \n]# d e f i n e  a e k f j a e f \n
- f f f \n[# d]e f i n e  a e k f j a e f \n
+
+** Example
+
+#+BEING_SRC text
+#prepend header.html
+#append footer.html
+#append morefooter.org
+#define title ASDF
+
+
+This is the main document
+#+END_SRC
 
 * Variables
   - all variables must be prefixed with '$'
