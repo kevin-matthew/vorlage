@@ -38,7 +38,8 @@ type DocumentConverter interface {
 	/*
 	 * Convert the file and return the TargetFile. If Error
 	 * is non-nil, the document's loading is stopped completely.
-	 * note that the SourceFile:Close MUST be called
+	 * note that the SourceFile:Close MUST be called before this function
+	 * returns.
 	 */
 	ConvertFile(SourceFile) (TargetFile, error)
 

@@ -14,7 +14,7 @@ func NewError(ErrStr string) *Error {
 	return &Error{ErrStr: ErrStr}
 }
 
-func (e *Error) Error() string {
+func (e Error) Error() string {
 	ret := e.ErrStr
 	if e.Subject != "" {
 		ret += " (" + e.Subject + ")"
@@ -39,7 +39,7 @@ func (e *Error) SetBecause(because *Error) {
 }
 
 // highlights the last error (the root error) on the stack.
-func (e *Error) ErrorHighlight() string {
+func (e Error) ErrorHighlight() string {
 	ret := e.ErrStr
 	if e.Subject != "" {
 		ret += " (" + e.Subject + ")"

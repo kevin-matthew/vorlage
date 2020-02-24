@@ -39,7 +39,9 @@ func (d *NormalDefinition) Read(p []byte) (int, error) {
 }
 
 type Document struct {
-	file *os.File
+	file       *os.File
+	targetfile TargetFile
+	converters []DocumentConverter
 
 	path string
 
@@ -67,8 +69,45 @@ type Document struct {
 	allRecursiveNormalDefines []Definition
 }
 
-func LoadDocument(path string) (doc Document, oerr *Error) {
-	return loadDocumentFromPath(path, nil)
+type sourceFile struct {
+	doc       *Document
+	hasClosed bool
+}
+
+// reads the source file while excluding all #defines
+func (s sourceFile) Read(p []byte) (int, error) {
+	if s.hasClosed {
+		err := Error{
+			ErrStr:  "attempting to read file after it has been closed",
+			Subject: s.doc.path,
+		}
+		return 0, err
+	}
+	return s.doc.read(p, s.doc, true, true)
+
+}
+
+// reads the source file without the #includes and #defines
+func (s sourceFile) Close() error {
+	_, cerr := s.doc.file.Seek(0, 0)
+	if cerr != nil {
+		return cerr
+	}
+	s.hasClosed = true
+	return nil
+}
+
+/*
+ * Opens a document and recursively opens all the documents referenced by
+ * #includes. For every document that is opened,
+ * the converters are first consulted (via converters[i].ShouldConvert) in
+ * the order they are in the array. The first converter to return true will
+ * be used. If no converters return true, the document is not converted and will
+ * be read as normal (via io.OpenFile).
+ */
+func LoadDocument(path string, converters []DocumentConverter) (doc Document,
+	oerr *Error) {
+	return loadDocumentFromPath(path, converters, nil)
 }
 
 func (doc *Document) AddDefinition(definition Definition) {
@@ -79,7 +118,8 @@ func (doc Document) GetFileName() string {
 	return doc.path
 }
 
-func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Error) {
+func loadDocumentFromPath(path string, converters []DocumentConverter,
+	parent *Document) (doc Document, oerr *Error) {
 	oerr = &Error{}
 	oerr.SetSubject(path)
 
@@ -89,6 +129,7 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 	doc.curentlyReading = &doc
 	doc.parent = parent
 	doc.path = path
+	doc.converters = converters
 
 	sourceerr := doc.ancestorHasPath(path)
 	if sourceerr != nil {
@@ -97,15 +138,64 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 		return doc, oerr
 	}
 
-	cwd, _ := os.Getwd()
-	Debugf("opening file '%s' from %s", path, cwd)
-	doc.file, cerr = os.OpenFile(path, os.O_RDONLY, 0)
-	if cerr != nil {
-		oerr.ErrStr = "failed to open file stream"
-		oerr.SetBecause(NewError(cerr.Error()))
-		return doc, oerr
+	// we need to open the raw file regardless if it needs converting
+	// because we don't want to send the macros through the converter...
+	Debugf("opening file '%s' as plain text", path)
+
+	// wait...
+
+	// build up a struct that can be used as the ReadCloser interface
+	// that ConvertFile needs.
+	sourceFile := sourceFile{
+		doc:       &doc,
+		hasClosed: false,
+	}
+	// attempt to find a converter wanting to convert this file
+	for _, c := range converters {
+		// ask each one if they'd like to conver this particular file
+		should, serr := c.ShouldConvert(doc.path)
+		if serr != nil {
+			oerr.ErrStr = "querying converter"
+			oerr.SetSubject(c.GetDescription())
+			oerr.SetBecause(NewError(serr.Error()))
+			return doc, oerr
+		}
+
+		// if one of them says they'd like to convert it, let them.
+		if should {
+			Debugf("open file '%s' with converter '%s'",
+				path,
+				c.GetDescription())
+
+			// let the converter do its thing.
+			doc.targetfile, serr = c.ConvertFile(sourceFile)
+			if serr != nil {
+				oerr.ErrStr = "using converter"
+				oerr.SetSubject(c.GetDescription())
+				oerr.SetBecause(NewError(serr.Error()))
+				return doc, oerr
+			}
+
+			// if the converter did not explicity 'close' the file, then we'll
+			// assume it never finished its job and that's an error.
+			if sourceFile.hasClosed == false {
+				oerr.ErrStr = "converted did not close file"
+				oerr.SetSubject(c.GetDescription() + " converting " + doc.path)
+				return doc, oerr
+			}
+
+			// which ever is the first one to convert it, gets it.
+			break
+		}
 	}
 
+	// if no converted chose to convert the requested file, then
+	// just use the file itself.
+	if doc.targetfile == nil {
+		doc.targetfile = doc.file
+	}
+
+	// now that the file is open (and converting), lets detect all macros in it
 	Debugf("detecting macros in '%s'", path)
 	err := doc.detectMacrosPositions()
 	if err != nil {
@@ -147,7 +237,7 @@ func loadDocumentFromPath(path string, parent *Document) (doc Document, oerr *Er
 
 	_, cerr = doc.file.Seek(0, 0)
 	if cerr != nil {
-		oerr.ErrStr = "failed to seek back to the beginning of the stream"
+		oerr.ErrStr = errFailedToSeek
 		oerr.SetBecause(NewError(cerr.Error()))
 		_ = doc.Close()
 		return doc, oerr
@@ -366,7 +456,8 @@ func (doc *Document) Read(dest []byte) (int, error) {
 }
 
 // used for cacheing
-func (doc *Document) ReadIgnore(dest []byte, ignoreMissingDefinition bool) (
+func (doc *Document) ReadIgnore(dest []byte,
+	ignoreMissingDefinition bool) (
 	int,
 	error) {
 
@@ -402,10 +493,12 @@ func (doc *Document) ReadIgnore(dest []byte, ignoreMissingDefinition bool) (
 
 	// do a normal read
 	return doc.curentlyReading.read(dest,
-		doc, ignoreMissingDefinition) // TODO: I'm really not sure this woorks...
+		doc, false, ignoreMissingDefinition) // TODO: I'm really not sure this
+	// woorks...
 }
 
 func (doc *Document) read(dest []byte, root *Document,
+	ignoreIncludes bool,
 	ignoreMissing bool) (int, error) {
 	// before we do any reading, lets get the current position.
 	pos, cerr := doc.file.Seek(0, 1)
@@ -424,10 +517,10 @@ func (doc *Document) read(dest []byte, root *Document,
 		// so we've reached the end of the file.
 		// HOWEVER: the file we reached the end of could be any file... and
 		// the parents could all still have work to do. so lets pass it back
-		// up to the parent.
+		// up to the doc.
 		root.curentlyReading = doc.parent
 
-		// if we don't have a parent, then we're done-done.
+		// if we don't have a doc, then we're done-done.
 		if doc.parent == nil {
 			return 0, io.EOF
 		}
@@ -447,11 +540,16 @@ func (doc *Document) read(dest []byte, root *Document,
 		// we hit an #include
 		for i, incpos := range doc.includePositions {
 			if cutOff == int64(incpos) {
-				// next time they call read, it will be reading the file
-				// that was included by the '#include'
-				Debugf("directing Read() to access '%s'",
-					doc.includes[i].file.Name())
-				root.curentlyReading = &doc.includes[i]
+
+				// if we're ignoring macros then don't bother opening up
+				// the include
+				if !ignoreIncludes {
+					// next time they call read, it will be reading the file
+					// that was included by the '#include'
+					Debugf("directing Read() to access '%s'",
+						doc.includes[i].path)
+					root.curentlyReading = &doc.includes[i]
+				}
 
 				// before we let the child doc start reading, lets skip the
 				// #include macro so when the child sets currently reading
@@ -627,7 +725,7 @@ func (doc *Document) ancestorHasPath(filepath string) *string {
 		perr := doc.parent.ancestorHasPath(filepath)
 		if perr != nil {
 			//oerr := NewError(perr.Error() + ": " + "which includes")
-			//oerr.SetSubject(doc.parent.path)
+			//oerr.SetSubject(doc.doc.path)
 			//oerr.SetBecause(perr)
 			stack := doc.path + " -> " + *perr
 			return &stack

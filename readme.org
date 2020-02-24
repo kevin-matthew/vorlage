@@ -89,6 +89,7 @@ with what they're cached too (such as a session)
  - 
 ** ~#include~
 Includes another file, the included file may also have macros.
+ - If a circular dependcy is detected, the document will not compile.
 ** ~#define~
 The define takes 2 arguments, a variable name and a value.
   
