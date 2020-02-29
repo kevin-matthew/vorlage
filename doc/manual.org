@@ -1,0 +1,306 @@
+#+TITLE: The Document Compiler manual and specification
+#+AUTHOR: Kevin Marschke <kmarshcke@ellem.ai>
+
+* Introduction
+This is a reference manual for the Document Compiler. For more
+information and other documents, see [[https://ellem.ai/d-document-compiler][ellem.ai/d-document-compiler]].
+
+Making a website? Use document compiler.
+
+Document compiler puts together text documnets by looking for specific
+macros within the text documents themselves (such as .html, .txt, .js,
+ect). Once compiled, the completed document is cached and can be
+served over a variety of channels (http, fcgi, cli, ect).
+** Example
+Observe these three files:
+
+*header.html*
+#+NAME: header.html
+#+BEGIN_SRC html
+<html>
+<body>
+<head><title>$(Title)</title></head>
+#+END_SRC
+
+*footer.html*
+#+NAME: footer.html
+#+BEGIN_SRC html
+</body>
+</html>
+#+END_SRC
+
+*myproc.go* (which is compiled into *myproc.a*)
+#+NAME: myproc.go
+#+BEGIN_SRC go
+// ...
+func SendVariables() map[strings]string {
+    return map[string]string{
+        "MyIP": getMyIP()
+    }
+}
+// ...
+#+END_SRC
+
+*index.html*
+#+NAME: index.html
+#+BEGIN_SRC html
+#prepend header.html
+#append footer.html
+#define $(MyName) Kevin
+#define $(Title) Home Page
+
+<p>Hello, my name is $(MyName).</p>
+<p>My IP is $(myproc.MyIP)!</p>
+#+END_SRC
+
+Executing ~doccomp index.html~ will output the following:
+#+NAME: output-example
+#+BEGIN_SRC html
+<html>
+<body>
+<head><title>Home Page</title></head>
+<p>Hello, my name is Kevin.</p>
+<p>My IP is 127.0.0.1!</p>
+</body>
+</html>
+#+END_SRC
+** Purpose
+Here it is. Ellem has been working with HTTP/HTML for litterally
+decades and we have never loved doing it until now. 
+
+We've seen everything; php, node, react, webassembly, apache, nginx,
+coldfusion, dart, typescript, asp.net, drupal, squarespace,
+wordpress. Why have all these products and technologies been made?
+What problem is so big that there needs to have an endless amount of
+solutions to support it? The problem is simple:
+
+*HTTP sucks*.
+
+The entire planet has adopted a standard that was never in a million
+years supposed to be as widley used as it is now. HTML was made in a
+weekend by 1 man who had no advanced knowlege in computer
+engineering. HTTP was made by a small team trying to solve a problem
+they had between a team of 50 people. Javascript was made in 2 weeks
+and is named after another language to trick people in to using it.
+
+But now: Every photon of light transfered accrossed the fibre optic
+internet backbone in an attempt to deliever an HTML can be measured in
+actual pounds. This is a huge problem.
+
+* Components
+There's four distinct components to the Document Compiler:
+*[[Documents]]*, *[[Variables]]*, *[[Macros]]*, and *[[Processors]]*. Documents are
+simply files such as text files, HTML files, ect. Macros are used to
+append and prepend documents, as well as define variables. Variables
+are symbols found in the document that will be replaced with arbitrary
+text when the document is compiled. Finally, Processors are used to
+integrate complex formation of what is known as [[Processed]] variables.
+* Documents
+Documents are UTF-8 encoded files. The text is not canonicalized, so a
+single accented code point is distinct from the same character
+constructed from combining an accent and a letter; those are treated
+as two code points.
+
+All documents are considered to have *[[Input Formats]]* as well their
+desired *[[Target Formats]]*. These formats are arbitrary, however, only a
+certain amount of formats are supported by Document Compiler. These
+input formats and target formats will change from version to
+version. In regards to Document Compiler v1.0.0, the supported formats
+are listed below as well as their file extension (which will become
+important later).
+** Input Fomrats
+ - [[https://html.spec.whatwg.org/multipage/][html]] (.html)
+ - [[https://orgmode.org/][org-mode]] (.org)
+ - [[http://haml.info/][haml]] (.haml)
+ - [[https://daringfireball.net/projects/markdown/syntax][markdown]] (.md)
+** Target Formats
+ - [[https://html.spec.whatwg.org/multipage/][html]] (.html)
+
+** Converters
+* Variables
+Inside of a Document, there exists Variables. Once the document is
+compiled, these variables are replaced with arbitrary text regarded as
+the variable's *Definition*. Variables come in 2 flavors: *[[Normal]]* and
+*[[Processed]]*, both of them are eventually replaced with their
+respective Definitions, the only difference is how these their
+Definitions are defined.
+
+At the core of everything, a variable is identified by a unique string
+of text. However, this string of text must follow a particular syntax
+to be valid. The syntax is as follows:
+
+
+ 1. A variable must begin with =$(= called a *Variable Prefix*,
+ 2. followed by UTF-8 alphanumaric string /unless/ it is a
+    Processed-type to which a dot (=.=) is also present called a
+    *Variable Name*, and;
+ 3. finally end with =)= called a *Variable Suffix*
+
+Note that the Document Compiler will first attempt to locate Variable
+Prefixes and Suffix pairs, only after that it will then determain the
+validity of the variable name. This means if you've used an undefined
+and/or misformatted Variable Name, then an Document Compiler will fail
+to compile the Document and return an error.
+
+** Normal
+Normal Variables are defined by using the [[#define]] macro, this define
+macro can be in the requested Document itself, or a Document that has
+been either prepended or appended to that requested Document.
+
+For example, =$(MyName)=, is a Normal Variable, and =MyName= is the
+Variable Name.
+
+** Processed
+Processed Variables are tangitably different from Normal variables
+because their Variable Name has a dot (=.=) seperating the
+later-discussed *[[Processor Name]]* and the name fimiluar with the the
+Processor called the *Processor-Variable Name*.
+
+For example, =$(myproc.BlobPosts)= is a Processed variable, =myproc=
+is the Processor Name, and =BlobPosts= is the Processor-Variable Name.
+
+* Macros
+Macros are actions to perform during the compolation of a
+Document. The variety of avaialbe Macros is limited by design. The
+presense of Macros are completely removed from the Document(s) after
+they are compiled. The identity of a Macro must follow this syntax:
+
+ 1. Must be either at the very start of the Document or be directly
+    after by another Macro,
+ 2. must start with =#= called a *Macro Prefix*,
+ 3. followed by a UTF-8 alpha string called the *Maco Name*
+ 4. followed by arbitrary text called *Arguments*... of which each one
+    is preceeded by a space (char code =0x20=) and optionally wrapped
+    in double quotation marks (char code =0x22=),
+ 5. will be ended with 1 newline (char code 0x10), and;
+ 6. optionally be followed by a carriage return (=0x0D=) character.
+
+As mentioned before, there's a very limited amount of avaialbe Macros:
+
+ - [[#define]]
+ - [[#append]]
+ - [[#prepend]]
+
+** #define
+This macro defines a [[Normal]] Variable. It has 2 arguments, the first
+argument being the Normal Variable and the second being what it will
+be defined as. Note that the first argument must be the entirety of
+the Normal Variable and not just the Variable Name, this means the
+=#define= will include the Variable Prefix =$(= and Variable
+Suffix =)=. For example
+
+#+BEGIN_SRC html
+#define $(Name) Kevin
+
+Hello, my name is $(Name)
+#+END_SRC
+
+Note that if =#define= attempts to define an previously defined
+variable, the Document will not be compiled and will return an error.
+
+** #append
+Append includes a Document (the includee) that, when compiled, be
+outputted /after/ the includer. The includee's Macros will
+be processed the instant the #append is evaluated.
+
+Note that if a [[Circular Dependancy]] is detected, the Document will not
+compile and an error outputted.
+
+** #prepend
+Append includes a Document (the includee) that, when compiled, be
+outputted /before/ the includer. The includee's Macros will
+be processed the instant the #prepend is evaluated.
+
+Note that if a [[Circular Dependancy]] is detected, the Document will not
+compile and an error outputted.
+
+
+* Processors
+Processors provide you with the ability to perform arbitrary code
+execution when a Document is requested. Under normal (non-erroneous)
+operation, a given Processor has only one duty and that is to define
+[[Processed][variables that will be dependant on that given processor]]. Thus that
+when the Document is compiled, Processors can dynamiaclly populate
+these Processed Variables acrossed page request. However, under
+non-normal (erroneous) operation, a given Processor can cancel a
+Document's Compilation with a given error. Concluseivly, Processors
+allow a Document to interact with an unlimited amount of applications
+such as databases, authentication, logging, auditing, searching, ect.
+
+To add a Processor to your Document, Document Compiler must detect the
+relevant *[[Processor File]]* in the relvant *[[Storage]]*. Once that is done,
+the Processor can then define Processor-Variable Names in which will
+be defined by that Processor onces the Variables are requested.
+
+Note, Processors are technical in nature. An increase depenedency on
+them will lead to difficult-to-edit documents that defeats entire
+purpose of Document Compiler.
+
+** Processor Name
+A Processor Name is valid if and only if that name is alphanumaric
+lowercase. The Processor Name should be a short word simular to a
+package name. For example, =abc=, =123=, =abc123= are all valid
+Processor Names and =AbC=, =?dD=, =f f= are not. The Processor Name
+will be retireved by Document Compiler when scanning through the
+Processor [[Storage]].
+
+** Processor File
+A processor file contains native code that contains the proper
+exports. Support for types of processor files will varity as Document
+Compile gains maturaty. As of now, the following supported file types
+(and formats) are supported with 'myproc' as the given processor name.
+
+ - libmyproc.so - ELF 64-bit LSB shared object
+ - myproc.a - current ar archive with ELF 64-bit LSB relocatable
+   objects
+ - (in later versions) myproc.dll
+
+The Processor File must have the following exports to be properly
+integrated into the Document Compiler:
+
+
+* TODO Should I force them to have exports or should I force them to use mine?
+
+#+BEGIN_SRC c
+doccomp_
+#+END_SRC
+
+** TODO Storage
+
+
+* TODO Technical Elaboration 
+** Circular Dependancies
+A Circluar Dependancy is an error that occours when a Document
+(/Document A/) includes another Document (/Document B/) in which
+includes the includer document (/Document A/). This includes a
+Document trying to inlcude itself. An example is shown below.
+
+*Parent.html*
+#+BEGIN_SRC html
+#append Child.html
+
+...
+#+END_SRC
+
+
+
+*Child.html*
+#+BEGIN_SRC html
+#append GrandChild.html
+
+...
+#+END_SRC
+
+
+*GrandChild.html*
+#+BEGIN_SRC html
+#append Parent.html
+
+...
+#+END_SRC
+
+You see that? =Parent.html= includes =Child.html= which includes
+=GrandChild.html= which /then/ include =Parent.html=. Thus,
+=Parent.html= is indirectly including itself, this is a circular
+dependancy and will cause an error.
+
