@@ -1,6 +1,6 @@
-#+TITLE: The Document Compiler manual and specification
+#+TITLE: The Document Compiler Manual
 #+AUTHOR: Kevin Marschke <kmarshcke@ellem.ai>
-
+Copyright \copy 2020 Ellem, Inc., all rights reserved.
 * Introduction
 This is a reference manual for the Document Compiler. For more
 information and other documents, see [[https://ellem.ai/d-document-compiler][ellem.ai/d-document-compiler]].
@@ -95,6 +95,28 @@ append and prepend documents, as well as define variables. Variables
 are symbols found in the document that will be replaced with arbitrary
 text when the document is compiled. Finally, Processors are used to
 integrate complex formation of what is known as [[Processed]] variables.
+
+Note that additional, more technical components such as caching, how
+Documents are requested, and how documents are served will not be
+covered in this manual. This manual is strictly for those wanting to
+use the Document Compiler, not develop for it.
+
+** Loading Process
+ 1. First a file path is requested by the user through Document
+    Compiler known as the "Root Document",
+ 2. Document Compiler loads the file found at that path,
+ 3. the Document Compiler then evalutes all available [[#define]] Macros,
+    adding it to the Root Document,
+ 4. then evaluates all available [[#append]] and [[#prepend]] Macros in order
+    of apperance, for each file path evaluated, steps 2-4 are repeated
+    for that file path
+ 5. all (recursively) included documents includeing the Root document
+    will be searched for the presence of Variables,
+ 6. all [[Normal]] Variables will be replaced with their respective
+    definitions,
+ 7. [[Processors]] will then define all [[Process][Procces Variables]], and;
+ 8. finally The entiretly of the document is outputted.
+
 * Documents
 Documents are UTF-8 encoded files. The text is not canonicalized, so a
 single accented code point is distinct from the same character
@@ -228,9 +250,9 @@ allow a Document to interact with an unlimited amount of applications
 such as databases, authentication, logging, auditing, searching, ect.
 
 To add a Processor to your Document, Document Compiler must detect the
-relevant *[[Processor File]]* in the relvant *[[Storage]]*. Once that is done,
-the Processor can then define Processor-Variable Names in which will
-be defined by that Processor onces the Variables are requested.
+relevant *[[Processor File]]* in the relvant *[[Library Path]]*. Once that is
+done, the Processor can then define Processor-Variable Names in which
+will be defined by that Processor onces the Variables are requested.
 
 Note, Processors are technical in nature. An increase depenedency on
 them will lead to difficult-to-edit documents that defeats entire
@@ -250,25 +272,41 @@ exports. Support for types of processor files will varity as Document
 Compile gains maturaty. As of now, the following supported file types
 (and formats) are supported with 'myproc' as the given processor name.
 
- - libmyproc.so - ELF 64-bit LSB shared object
+ - libmyproc.so - ELF 64-bit LSB shared object (see [[http://tldp.org/HOWTO/Program-Library-HOWTO/shared-libraries.html][here]])
  - myproc.a - current ar archive with ELF 64-bit LSB relocatable
    objects
+ - myproc.go.a - current ar archive with compiled with Golang
  - (in later versions) myproc.dll
 
-The Processor File must have the following exports to be properly
-integrated into the Document Compiler:
-
-
-* TODO Should I force them to have exports or should I force them to use mine?
-
-#+BEGIN_SRC c
-doccomp_
+#+BEGIN_SRC golang
+// TODO: write the golang interface.
 #+END_SRC
 
-** TODO Storage
+#+BEGIN_SRC c
+// TODO: write the c interface
+#+END_SRC
 
+** Library Path
+Processor Files must be placed somewhere in the filesystem. Finding
+these files behaves a lot like system libraries in that they're found
+by transversion enviroment paths (such as =LD_LIBRARY_PATH=). As
+Document Compiler starts up, it will scan through what is known as
+*Library Directories* to prepre the use of relevant Processor
+Files. There can be 0, 1, or many Library Directories. But regardless
+of how many, all of them are stored in what is the call Document
+Compiler's *Library Path*. This Library Path is a string containing a
+list of Library Directories delimited by a colon.
+
+For example, =/usr/lib/doccomp:~/.doccomp:.= means that when Document
+Compiler tries to find a Processor named =foo= it will search for it
+in =/usr/lib/doccomp=, =~/.doccomp=, =.= (the working directory). The
+first match is what is used.
+
+It should be noted that the Document Compiler's Library Path is NOT
+stored in the envrioment. It is stored in the [[Configuration]].
 
 * TODO Technical Elaboration 
+** Configuration
 ** Circular Dependancies
 A Circluar Dependancy is an error that occours when a Document
 (/Document A/) includes another Document (/Document B/) in which
@@ -303,4 +341,7 @@ You see that? =Parent.html= includes =Child.html= which includes
 =GrandChild.html= which /then/ include =Parent.html=. Thus,
 =Parent.html= is indirectly including itself, this is a circular
 dependancy and will cause an error.
+
+
+
 
