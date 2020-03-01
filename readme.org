@@ -1,6 +1,31 @@
 #+AUTHOR: kmarschke
 #+DATE: 2020-02-15
 
+Current issue: well there's 2. First off, when it comes to seeing who
+calls what, my first instinct was to force the processor to implement
+(and export) certain function symbols. However, this is uncommon
+practice, and I'm starting to figure out why. I should allow the
+Processor files import a doccom 'header' file and be linked to a
+doccomp shared object. So when doccomp is executed, it loads that same
+shared object and calls the functions needed to get all the Processors
+as well as acess them.
+
+All of this in the context of "C" isn't a bad idae, howeer this is Go
+we're talking about and will prove to be somewhat troublesome.
+
+However this technique would be more practicle.... and would only
+developers to be handed a "doccomp.h" as well as a "doccomp.go" for
+them to implmenet. Instructions would need be provided. The
+"doccomp.go" would need further research.
+
+Finally, if we allow them to import header ifles, and call functions
+on their own behalf... we can later add more functionaility without
+breaking backwards compatability such as fcgi variables and caching.
+
+Going forward I should ignore the possibile use of "C" as that all
+seems to be figured out when we get done with the go-side of
+implemntation.
+
 * Introduction
 
 ** Abstract
