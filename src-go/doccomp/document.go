@@ -69,14 +69,22 @@ type macoPos struct {
 	linenum uint
 }
 
+type variablePos struct {
+	variableName string
+	charPos uint64
+	length  uint
+	linenum uint // used for debugging
+	colnum  uint // used for debugging
+}
+
 func (m macoPos) ToString() string {
 	return fmt.Sprintf("line %s", m.linenum)
 }
 
 type Document struct {
 	file       *os.File
-	targetfile TargetFile
-	converters []DocumentConverter
+	converters  []DocumentConverter
+	proccessors []PageProcessor
 
 	path string
 
@@ -119,8 +127,8 @@ func LoadDocument(path string, converters []DocumentConverter) (doc Document,
 	return loadDocumentFromPath(path, converters, nil)
 }
 
-func (doc *Document) AddDefinition(definition Definition) {
-	doc.allRecursiveNormalDefines = append(doc.allRecursiveNormalDefines, definition)
+func (doc *Document) AddProcessor(processor PageProcessor) {
+	doc.proccessors = append(doc.proccessors, processor)
 }
 
 func (doc Document) GetFileName() string {
@@ -650,31 +658,9 @@ func (doc *Document) ancestorHasPath(filepath string) *string {
 		}
 		perr := doc.parent.ancestorHasPath(filepath)
 		if perr != nil {
-			//oerr := NewError(perr.Error() + ": " + "which prepends")
-			//oerr.SetSubject(doc.doc.path)
-			//oerr.SetBecause(perr)
 			stack := doc.path + " -> " + *perr
 			return &stack
 		}
 	}
 	return nil
-
-	/*Debugf("does %s == %s?", doc.path, filepath)
-	if doc.path == filepath {
-		Debugf("yes it does!")
-		oerr := NewError("including")
-		oerr.SetSubject(doc.path)
-		return oerr
-	}
-	for _,inc := range doc.prepends {
-		ooerr := inc.ancestorHasPath(filepath)
-		if ooerr != nil {
-			oerr := NewError("including")
-			oerr.SetSubject(doc.path)
-			oerr.SetBecause(ooerr)
-			return oerr
-		}
-	}
-	return  nil*/
-
 }
