@@ -275,15 +275,36 @@ Compile gains maturaty. As of now, the following supported file types
  - libmyproc.so - ELF 64-bit LSB shared object (see [[http://tldp.org/HOWTO/Program-Library-HOWTO/shared-libraries.html][here]])
  - myproc.a - current ar archive with ELF 64-bit LSB relocatable
    objects
- - myproc.go.a - current ar archive with compiled with Golang
- - (in later versions) myproc.dll
+ - myproc.go.a - go pluging made using ~go build -buildmode=plugin~
 
+*Required exports for myproc.go.a*
 #+BEGIN_SRC golang
-// TODO: write the golang interface.
+
 #+END_SRC
 
+*Required exports for myproc.a and libmyproc.so*
 #+BEGIN_SRC c
-// TODO: write the c interface
+struct doccomp_read_variable_return
+{
+    int bytesRead;
+    int isEOF; // bool
+    const char *error;
+    int *cache_ndex; // TODO
+    int  cache_index_len; // TODO
+};
+
+const char *
+doccomp_get_description();
+
+const char **
+doccomp_get_variable_names();
+
+struct doccomp_read_variable_return 
+doccomp_read_variable(
+    , requestArray // THIS IS WHAT NEED TO BE FIGURED
+    , const char *variable
+    , void *buffer
+    , int buffer_len);
 #+END_SRC
 
 ** Library Path
