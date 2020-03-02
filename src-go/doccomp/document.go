@@ -75,7 +75,9 @@ type macoPos struct {
 }
 
 type variablePos struct {
-	dotIndex int // if 0 then it does not exist.
+	fullName     string
+	variableName string
+	processorName string // if "" then it is not a processed variable
 	charPos uint64
 	length  uint
 	linenum uint // used for debugging
@@ -87,17 +89,24 @@ func (m macoPos) ToString() string {
 }
 
 func (v variablePos) ToString() string {
-	return fmt.Sprintf("line %s", v.linenum)
+	return fmt.Sprintf("'%s', line %d, col %d", v.fullName, v.linenum, v.colnum)
 }
 
 type Document struct {
 	file       *os.File
-	converters  []DocumentConverter
-	proccessors []Processor
+	converters  []*DocumentConverter
+	proccessorLoader ProcessorLoader
 
 	path string
 
+	root               *Document
 	parent             *Document
+
+	allDefinitions   *[]Definition // if root != nil,
+	 // then this points to the root's allDefinitions
+	allIncluded     *[]*Document // if root != nil,
+	// then this points to the root's allIncluded
+
 	curentlyReading    *Document // used for reading
 	curentlyReadingDef Definition
 
@@ -106,23 +115,18 @@ type Document struct {
 	// ) to see if there's variables
 
 	macros   []macoPos
-	included []Document
 
-	prepends    []*Document // points to somewhere in included
+
+	prepends    []*Document // points to somewhere in allIncluded
 	prependsPos []*macoPos  // points to somewhere in macros
 
-	appends   []*Document // points to somewhere in included
+	appends   []*Document // points to somewhere in allIncluded
 	appendPos []*macoPos  // points to somewhere in macros
 
-	normalDefines []NormalDefinition
+	normalDefines []*NormalDefinition // points to somewhere in allDefines
 	normalPos     []*macoPos // points to somewhere in macros
 
-	possibleVariablePositionsLineNum []uint // used for debugging
-	possibleVariablePositions        []uint64
-
 	variablePos []variablePos
-
-	allRecursiveNormalDefines []Definition
 }
 
 /*
@@ -133,21 +137,22 @@ type Document struct {
  * be used. If no converters return true, the document is not converted and will
  * be read as normal (via io.OpenFile).
  */
-func LoadDocument(path string, converters []DocumentConverter) (doc Document,
+func LoadDocument(path string, converters []*DocumentConverter,
+	proccessorLoader ProcessorLoader) (doc Document,
 	oerr *Error) {
-	return loadDocumentFromPath(path, converters, nil)
-}
-
-func (doc *Document) AddProcessor(processor Processor) {
-	doc.proccessors = append(doc.proccessors, processor)
+	return loadDocumentFromPath(path, converters, proccessorLoader, nil, nil)
 }
 
 func (doc Document) GetFileName() string {
 	return doc.path
 }
 
-func loadDocumentFromPath(path string, converters []DocumentConverter,
-	parent *Document) (doc Document, oerr *Error) {
+func loadDocumentFromPath(path string,
+		converters []*DocumentConverter,
+		proccessorLoader ProcessorLoader,
+		parent *Document,
+		root *Document) (doc Document, oerr *Error) {
+
 	oerr = &Error{}
 	oerr.SetSubject(path)
 
@@ -156,8 +161,21 @@ func loadDocumentFromPath(path string, converters []DocumentConverter,
 	doc.VariableDetectionBuffer = make([]byte, len(VariablePrefix))
 	doc.curentlyReading = &doc
 	doc.parent = parent
+	doc.root   = root
 	doc.path = path
+	doc.proccessorLoader = proccessorLoader
 	doc.converters = converters
+
+	// see the document struct's instructions about 'allIncluded' and
+	// 'allDefinitions'
+	if doc.root != nil {
+		doc.allDefinitions = doc.root.allDefinitions
+		doc.allIncluded    = doc.root.allIncluded
+	} else {
+		doc.root = &doc
+		doc.allDefinitions = &[]Definition{}
+		doc.allIncluded    = &[]*Document{}
+	}
 
 	sourceerr := doc.ancestorHasPath(path)
 	if sourceerr != nil {
@@ -195,42 +213,35 @@ func loadDocumentFromPath(path string, converters []DocumentConverter,
 		return doc, oerr
 	}
 
-	relDir := filepath.Dir(doc.path) + string(filepath.Separator)
+
 
 	// step 3
 
-	// #prepends
+	// run #prepends
 	Debugf("prepending %d documents to '%s'", len(doc.prepends), path)
 	for _, i := range doc.prependsPos {
-		pdoc, err := loadDocumentFromPath(relDir+i.args[1], doc.converters, &doc)
+		err = doc.runPrepend(*i)
 		if err != nil {
-			oerr.ErrStr = "cannot prepend document to self"
+			oerr.ErrStr = "failed to prepend document to self"
 			oerr.SetBecause(err)
 			_ = doc.Close()
 			return doc, oerr
 		}
-		doc.included = append(doc.included,
-			pdoc) // todo: remove duplicate files
-		doc.prepends = append(doc.prepends, &doc.included[len(doc.included)-1])
 	}
 
-	// #appends
+	// run #appends
 	Debugf("appending %d documents to '%s'", len(doc.appendPos), path)
 	for _, i := range doc.appendPos {
-		adoc, err := loadDocumentFromPath(relDir+i.args[1], doc.converters,
-			&doc)
+		err = doc.runAppend(*i)
 		if err != nil {
-			oerr.ErrStr = "cannot append document to self"
+			oerr.ErrStr = "failed to append document to self"
 			oerr.SetBecause(err)
 			_ = doc.Close()
 			return doc, oerr
 		}
-		doc.included = append(doc.included, adoc)
-		doc.appends = append(doc.appends, &doc.included[len(doc.included)-1])
 	}
 
-	// step 4
-	// #defines
+	// normal definitions (#define)
 	Debugf("parsing %d normalDefines '%s'", len(doc.normalPos), path)
 	for _, d := range doc.normalPos {
 		def, err := CreateNormalDefinition(d.args[1], d.args[2])
@@ -241,22 +252,72 @@ func loadDocumentFromPath(path string, converters []DocumentConverter,
 			_ = doc.Close()
 			return doc, oerr
 		}
-		doc.normalDefines = append(doc.normalDefines, def)
+
+		err = doc.addDefinition(&def)
+		if err != nil {
+			oerr.ErrStr = "failed to add normal definition"
+			oerr.SetSubjectf("%s %s", path, d.ToString())
+			oerr.SetBecause(err)
+			_ = doc.Close()
+			return doc, oerr
+		}
 	}
 
+	// processed definitions
+	for _, p := range doc.variablePos {
 
+		// if it has a non-empty processor name, then its a processor variable
+		// otherwise ignore it
+		if p.processorName == "" {
+			continue
+		}
 
+		pros, err := doc.proccessorLoader.GetProcessor(p.processorName)
+		if err != nil {
+			oerr.ErrStr = "failed to get processor for variable"
+			oerr.SetSubjectf("%s %s", path, p.ToString())
+			oerr.SetBecause(err)
+			_ = doc.Close()
+			return doc, oerr
+		}
 
+		// check to make sure the processor will actually define it.
+		var i int
+		var procVar string
+		var procVars = pros.GetVariableNames()
+		for i = 0; i < len(procVars); i ++ {
+			procVar = procVars[i]
+			if procVar == p.variableName {
+				break
+			}
+		}
+		if i == len(procVars) {
+			oerr.ErrStr = "processor does not define variable"
+			oerr.SetSubjectf("%s %s", path, p.ToString())
+			_ = doc.Close()
+			return doc, oerr
+		}
 
-	// step 5
-	// step 5 must be put into the doccomp.go file. as this functino
-	// is recursive and all recursive calls must be complete in order to fill
-	// variables.
-	/*Debugf("filling normal variables in '%s'", len(doc.definePositions), path)
-	oerr = doc.fillNormalVariables()
-	if oerr != nil {
-		return doc,oerr
-	}*/
+		// okay, now demand it defines it
+		def, err := pros.DefineVariable(p.variableName)
+		if err != nil {
+			oerr.ErrStr = "processor failed to define variable"
+			oerr.SetSubjectf("%s %s", path, p.ToString())
+			oerr.SetBecause(err)
+			_ = doc.Close()
+			return doc, oerr
+		}
+
+		err = doc.addDefinition(def)
+		if err != nil {
+			oerr.ErrStr = "failed to add normal definition"
+			//oerr.SetSubjectf("%s %s", path, d.ToString())
+			oerr.SetBecause(err)
+			_ = doc.Close()
+			return doc, oerr
+		}
+	}
+
 
 	_, cerr = doc.file.Seek(0, 0)
 	if cerr != nil {
@@ -265,7 +326,6 @@ func loadDocumentFromPath(path string, converters []DocumentConverter,
 		_ = doc.Close()
 		return doc, oerr
 	}
-
 	return doc, nil
 }
 
@@ -401,13 +461,19 @@ func scanVariable(buffer []byte, charsource uint64,
 
 	dotIndex = strings.Index(string(buffer[:length]),
 		VariableProcessorSeporator)
+	if dotIndex == -1 {
+		dotIndex = 0
+	}
 	
 	pos = &variablePos{
-		dotIndex:     dotIndex,
-		charPos:      charsource,
-		length:       uint(length),
-		linenum:      linenum,
-		colnum:       colnum,
+		fullName:      string(buffer[:length]),
+		variableName:  string(buffer[len(VariablePrefix):length-len(VariableSuffix)]),
+		processorName: string(buffer[len(VariablePrefix):len(
+			VariablePrefix)+dotIndex]),
+		charPos:       charsource,
+		length:        uint(length),
+		linenum:       linenum,
+		colnum:        colnum,
 	}
 	return pos, nil
 }
@@ -535,6 +601,46 @@ func (doc *Document) processMacros() (oerr *Error) {
 	return nil
 }
 
+func (doc *Document) runPrepend(macoPos) *Error {
+	relDir := filepath.Dir(doc.path) + string(filepath.Separator)
+	pdoc, err := loadDocumentFromPath(relDir+i.args[1], doc.converters,
+		&doc, doc.root)
+	if err != nil {
+		oerr.ErrStr = "cannot prepend document to self"
+		oerr.SetBecause(err)
+		_ = doc.Close()
+		return doc, oerr
+	}
+	doc.allIncluded = append(doc.allIncluded,
+		pdoc) // todo: remove duplicate files
+	doc.prepends = append(doc.prepends, &doc.allIncluded[len(doc.allIncluded)-1])
+}
+
+func (doc *Document) runAppend(macoPos) *Error {
+	adoc, err := loadDocumentFromPath(relDir+i.args[1], doc.converters,
+		&doc)
+	if err != nil {
+		oerr.ErrStr = "cannot append document to self"
+		oerr.SetBecause(err)
+		_ = doc.Close()
+		return doc, oerr
+	}
+	doc.allIncluded = append(doc.allIncluded, adoc)
+	doc.appends = append(doc.appends, &doc.allIncluded[len(doc.allIncluded)-1])
+}
+
+func (doc *Document) addDefinition(definition Definition) *Error {
+	def, err := CreateNormalDefinition(d.args[1], d.args[2])
+	if err != nil {
+		oerr.ErrStr = "cannot parse definition"
+		oerr.SetSubjectf("%s %s", path, d.ToString())
+		oerr.SetBecause(err)
+		_ = doc.Close()
+		return doc, oerr
+	}
+	doc.normalDefines = append(doc.normalDefines, def)
+}
+
 // if n < len(p) it's probably because you were about to read a macro,
 // simply read again and you'll read the expanded macro. In other words,
 // any time there's a macro in the file, read is forced to start there.
@@ -559,8 +665,8 @@ func (doc *Document) ReadIgnore(dest []byte,
 	//
 	// The code is laid out like this because of the fact that there's
 	// '#include's. Once an '#include' is read, doc.currentlyReading swtiches
-	// to the document that was included by that '#include'. Furthermore,
-	// that included document can also have documents IT prepends, thus,
+	// to the document that was allIncluded by that '#include'. Furthermore,
+	// that allIncluded document can also have documents IT prepends, thus,
 	// currentlyReading can be pointing to a document that doesn't even exist
 	// in doc.Includes (ie, it could point to doc.Includes[3].Includes[1])
 	if doc.curentlyReadingDef != nil {
@@ -641,7 +747,7 @@ func (doc *Document) read(dest []byte, root *Document,
 				// the include
 				if !ignoreIncludes {
 					// next time they call read, it will be reading the file
-					// that was included by the '#include'
+					// that was allIncluded by the '#include'
 					Debugf("directing Read() to access '%s'",
 						doc.prepends[i].path)
 					root.curentlyReading = &doc.prepends[i]
@@ -792,10 +898,12 @@ func (doc *Document) getRecursiveDefinitions() []Definition {
 	if doc.allRecursiveNormalDefines != nil {
 		return doc.allRecursiveNormalDefines
 	}
+
 	doc.allRecursiveNormalDefines = make([]Definition, len(doc.normalDefines))
 	for i := 0; i < len(doc.normalDefines); i++ {
 		doc.allRecursiveNormalDefines[i] = &doc.normalDefines[i]
 	}
+
 	for _, d := range doc.prepends {
 		childDefines := d.getRecursiveDefinitions()
 		for _, c := range childDefines {
@@ -808,7 +916,7 @@ func (doc *Document) getRecursiveDefinitions() []Definition {
 
 // helper-function for loadDocumentFromPath
 // returns non-nill if ancestor has path. What then returns is a 'stack'
-// of what is included by what.
+// of what is allIncluded by what.
 func (doc *Document) ancestorHasPath(filepath string) *string {
 	// todo: what if one of the inlcudes is a symlink? It can be tricked
 	// into a circular dependency

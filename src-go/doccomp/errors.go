@@ -26,6 +26,8 @@ func (e Error) Error() string {
 	return ret
 }
 
+// only set subject to a variable that was passed through the arguments of
+//the scope.
 func (e *Error) SetSubject(subject string) {
 	e.Subject = subject
 }

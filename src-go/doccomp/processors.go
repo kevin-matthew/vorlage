@@ -14,13 +14,22 @@ type RequestData struct {
 }
 
 
+type ProcessorLoader interface {
+	// GetProcessor should be ready to be called multiple times with the same
+	// argument. So it's best to cache the Processors.
+	GetProcessor(name string) (Processor, *Error)
+}
+
 //TODO: I don't think 'arbitrarycode' is a good name
 type Processor interface {
 	GetName() string // not present in the processor itself
 	GetDescription() string
-	GetVariableNames() []string // returns a list of Processor-Variable Names
-
-	ReadVariable(variable string, p []byte) (bytesRead int, err error)
+	GetVariableNames() []string // returns a list of Processor-Variable
+	// Names. Note this may be called multiple times so it's best to make the
+	//list as static as possible.
+	DefineVariable(variable string) (Definition,
+		*Error)// will be called only after
+	// the 'variable' string was found in GetVariableNames.
 }
 
 // todo: use package 'C' as well as dlopen to dymiaclly load all archive.
