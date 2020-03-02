@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
+	"regexp"
 	"strings"
 )
 
@@ -16,9 +16,14 @@ const DefineStr = "#define"
 const PrependStr = "#prepend"
 const AppendStr = "#append"
 const EndOfLine = "\n"
-const VariablePrefix = "$"
+const VariablePrefix = "$("
+const VariableSuffix = ")"
+const VariableProcessorSeporator = "."
+const VariableRegexp = `^(?:[a-z0-9]+\.)?[a-zA-Z0-9]+$`
 const MacroMaxLength = 1024
 const MaxVariableLength = 32
+
+var variableRegexpProc = regexp.MustCompile(VariableRegexp)
 
 const DocumentReadBlock = len(MacroPrefix)*3 + len(
 	DefineStr)*len(PrependStr)*len(AppendStr)*256
@@ -70,7 +75,7 @@ type macoPos struct {
 }
 
 type variablePos struct {
-	variableName string
+	dotIndex int // if 0 then it does not exist.
 	charPos uint64
 	length  uint
 	linenum uint // used for debugging
@@ -81,10 +86,14 @@ func (m macoPos) ToString() string {
 	return fmt.Sprintf("line %s", m.linenum)
 }
 
+func (v variablePos) ToString() string {
+	return fmt.Sprintf("line %s", v.linenum)
+}
+
 type Document struct {
 	file       *os.File
 	converters  []DocumentConverter
-	proccessors []PageProcessor
+	proccessors []Processor
 
 	path string
 
@@ -111,6 +120,8 @@ type Document struct {
 	possibleVariablePositionsLineNum []uint // used for debugging
 	possibleVariablePositions        []uint64
 
+	variablePos []variablePos
+
 	allRecursiveNormalDefines []Definition
 }
 
@@ -127,7 +138,7 @@ func LoadDocument(path string, converters []DocumentConverter) (doc Document,
 	return loadDocumentFromPath(path, converters, nil)
 }
 
-func (doc *Document) AddProcessor(processor PageProcessor) {
+func (doc *Document) AddProcessor(processor Processor) {
 	doc.proccessors = append(doc.proccessors, processor)
 }
 
@@ -164,6 +175,16 @@ func loadDocumentFromPath(path string, converters []DocumentConverter,
 		_ = doc.Close()
 		return doc, oerr
 	}
+
+
+	err = doc.detectVariables()
+	if err != nil {
+		oerr.ErrStr = "failed to detect variables"
+		oerr.SetBecause(err)
+		_ = doc.Close()
+		return doc, oerr
+	}
+	Debugf("detected '%d' variable uses in '%s'", len(doc.variablePos), path)
 
 	Debugf("interpreting macros in '%s'", path)
 	err = doc.processMacros()
@@ -223,6 +244,10 @@ func loadDocumentFromPath(path string, converters []DocumentConverter,
 		doc.normalDefines = append(doc.normalDefines, def)
 	}
 
+
+
+
+
 	// step 5
 	// step 5 must be put into the doccomp.go file. as this functino
 	// is recursive and all recursive calls must be complete in order to fill
@@ -247,6 +272,144 @@ func loadDocumentFromPath(path string, converters []DocumentConverter,
 func bytesAreString(buff []byte, str string, offset int) bool {
 	return offset+len(str) <= len(buff) &&
 		string(buff[offset:offset+len(str)]) == str
+}
+
+func (doc *Document) detectVariables() *Error {
+	var linenum uint = 1 // used for debugging
+	var colnum uint      // used to generate colnum (for debuggin)
+
+	_, cerr := doc.file.Seek(0, 0)
+	if cerr != nil {
+		oerr := NewError(errFailedToSeek)
+		oerr.SetBecause(NewError(cerr.Error()))
+		_ = doc.Close()
+		return oerr
+	}
+
+	var at int64
+	var lastBuffer = false
+
+	// loop through the hole file until we hit the end
+	for !lastBuffer {
+		// load bytes into the buffer
+		n, err := doc.file.ReadAt(doc.VariableDetectionBuffer,at)
+		lastBuffer = err == io.EOF
+		if err != nil && err != io.EOF {
+			oerr := &Error{}
+			oerr.ErrStr = errFailedToReadBytes
+			oerr.SetBecause(NewError(err.Error()))
+			return oerr
+		}
+
+
+		// if this buffer starts with a '$' we can then try to interpret a
+		// variable
+		if doc.VariableDetectionBuffer[0] == VariablePrefix[0] {
+			pos, serr := scanVariable(doc.VariableDetectionBuffer,
+				uint64(at),
+				linenum,
+				colnum)
+			if serr != nil {
+				// failed to parse. send it up.
+				return serr
+			}
+			if pos != nil {
+				// success, we've found a variable.
+				doc.variablePos = append(doc.variablePos, *pos)
+				Debugf("found variable '%s' at '%s'",
+					string(doc.VariableDetectionBuffer[pos.charPos:pos.
+					charPos+uint64(pos.length)]),
+					pos.ToString())
+			} else {
+				// this buffer did contain a valid variable. Oh well, let
+				// just move on. (else statement left for this comment's
+				// readability)
+			}
+		}
+
+		// find the next availabe '$' (aside from the '0' index which we just
+		// checked above) and force the next/itoration to start
+		// where that '$' was found or just move the entire buffer if nothing
+		// was found. This also increments linenum if if finds and newlines.
+		var scannedBytes = 0; colnum++ // increment column num because we
+		// skip it in the for-loop.
+		for scannedBytes = 1; scannedBytes < n; scannedBytes++ {
+			if doc.VariableDetectionBuffer[scannedBytes] == '\n' {
+				colnum = 1
+				linenum++
+			}
+			if doc.VariableDetectionBuffer[scannedBytes] == VariablePrefix[0] {
+				break
+			}
+			colnum++
+		}
+		at += int64(scannedBytes)
+	}
+	return nil
+}
+
+// helper-function for detectVariables
+// looks at the buffer and trys to parse a variable out of it. The variable must
+// start at the very beginning of the buffer.
+// If VariablePrefix and VariableSuffix was not found, this will NOT result
+// in an error.
+func scanVariable(buffer []byte, charsource uint64,
+	linenum uint, colnum uint) (pos *variablePos, oerr *Error) {
+
+	if len(buffer) < len(VariablePrefix) + len(VariableSuffix) {
+		// this buffer isn't big enough to even consider the possibility
+		// of having a variable.
+		return nil, nil
+	}
+
+	var length,j,dotIndex int
+	for length = 0; length < len(VariablePrefix); length++ {
+		if buffer[length] != VariablePrefix[length] {
+			// no valid prefix, no variable to be found here!
+			return nil, nil
+		}
+	}
+
+
+	for ; length < len(buffer); length++ {
+		// keep scanning through until we find the VariableSuffix
+
+		if length + len(VariableSuffix) >= len(buffer) {
+			// The VariableSuffix was not found in this buffer.
+			oerr = NewError(errVariableTooLong)
+			oerr.SetSubjectf("line %d", linenum)
+			return nil, oerr
+		}
+
+
+		for j = 0; j < len(VariableSuffix); j++ {
+			if buffer[length+j] != VariableSuffix[j] {
+				break
+			}
+		}
+		if j < len(VariableSuffix) {
+			length = length +j
+			break
+		}
+	}
+
+	if !variableRegexpProc.Match(buffer[:length]) {
+		oerr = NewError(errVariableName)
+		oerr.SetSubjectf("'%s' at line %d", string(buffer[:length]), linenum)
+		return nil,oerr
+	}
+
+	dotIndex = strings.Index(string(buffer[:length]),
+		VariableProcessorSeporator)
+	
+	pos = &variablePos{
+		dotIndex:     dotIndex,
+		charPos:      charsource,
+		length:       uint(length),
+		linenum:      linenum,
+		colnum:       colnum,
+	}
+	return pos, nil
 }
 
 // helper-function for detectMacrosPositions
@@ -302,18 +465,17 @@ func scanMaco(buffer []byte, charsource int64,
 func (doc *Document) detectMacrosPositions() (oerr *Error) {
 	var linenum uint // used for debugging
 	var at int64
+	var lastBuffer bool
 
 	// loop through the hole file until we hit the end
-	for {
+	for !lastBuffer {
 		linenum++
 		// load bytes into the buffer
 		n, err := doc.file.ReadAt(doc.MacroReadBuffer, at)
 
 		// all errors except for EOF should kill the function
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
+		lastBuffer = err == io.EOF
+		if err != nil && err != io.EOF {
 			oerr := &Error{}
 			oerr.ErrStr = errFailedToReadBytes
 			oerr.SetBecause(NewError(err.Error()))

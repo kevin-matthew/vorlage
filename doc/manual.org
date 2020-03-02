@@ -164,6 +164,8 @@ validity of the variable name. This means if you've used an undefined
 and/or misformatted Variable Name, then an Document Compiler will fail
 to compile the Document and return an error.
 
+Note that no Variable can exceed 32 characters (=MaxVariableLength=).
+
 ** Normal
 Normal Variables are defined by using the [[#define]] macro, this define
 macro can be in the requested Document itself, or a Document that has
