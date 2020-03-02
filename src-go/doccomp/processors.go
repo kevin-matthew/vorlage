@@ -27,7 +27,7 @@ type Processor interface {
 	GetVariableNames() []string // returns a list of Processor-Variable
 	// Names. Note this may be called multiple times so it's best to make the
 	//list as static as possible.
-	DefineVariable(variable string) (Definition,
+	DefineVariable(procVariableName string) (Definition,
 		*Error)// will be called only after
 	// the 'variable' string was found in GetVariableNames.
 }

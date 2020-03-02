@@ -65,6 +65,7 @@ const (
 	errFailedToReadBytes = "failed to read bytes from stream"
 	errFailedToSeek      = "failed to seek through file"
 	errNotDefined        = "a variable was left undefined"
+	errAlreadyDefined    = "variable has already been defined"
 	errVariableTooLong   = "variable too long"
 	errVariableName      = "variable has an invalid name"
 )

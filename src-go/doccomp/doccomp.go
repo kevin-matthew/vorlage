@@ -11,8 +11,8 @@ type Definition interface {
 	// must return 0,EOF when complete.
 	Read(p []byte) (int, error)
 
-	// ie: '$myvar'
-	GetName() string
+	// returns the fulle variable name ie '$(myvar)'
+	GetFullName() string
 }
 
 /*

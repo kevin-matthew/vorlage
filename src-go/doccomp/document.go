@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 )
 
 //const EndOfLine   = "\n#"
@@ -55,7 +56,7 @@ func CreateNormalDefinition(variable string, value string) (NormalDefinition,
 	return ret, nil
 }
 
-func (d NormalDefinition) GetName() string {
+func (d NormalDefinition) GetFullName() string {
 	return d.variable
 }
 
@@ -76,7 +77,8 @@ type macoPos struct {
 
 type variablePos struct {
 	fullName     string
-	variableName string
+	variableName string // this will be the Processor-Variable Name if
+	// processorName is not ""
 	processorName string // if "" then it is not a processed variable
 	charPos uint64
 	length  uint
@@ -94,6 +96,7 @@ func (v variablePos) ToString() string {
 
 type Document struct {
 	file       *os.File
+	fileInode  uint64
 	converters  []*DocumentConverter
 	proccessorLoader ProcessorLoader
 
@@ -184,6 +187,24 @@ func loadDocumentFromPath(path string,
 		return doc, oerr
 	}
 
+	file,serr := os.Open(path)
+	if serr != nil {
+		oerr.ErrStr = "failed to open file"
+		oerr.SetBecause(NewError(serr.Error()))
+		_ = doc.Close()
+		return doc, oerr
+	}
+	doc.file = file
+	var stat syscall.Stat_t
+	serr = syscall.Stat(path, &stat)
+	if serr != nil {
+		oerr.ErrStr = "failed to get inode for file"
+		oerr.SetBecause(NewError(cerr.Error()))
+		_ = doc.Close()
+		return doc, oerr
+	}
+	doc.fileInode = stat.Ino
+
 	// now that the file is open (and converting), lets detect all macros in it
 	Debugf("detecting macros in '%s'", path)
 	err := doc.detectMacrosPositions()
@@ -213,32 +234,34 @@ func loadDocumentFromPath(path string,
 		return doc, oerr
 	}
 
-
-
-	// step 3
-
 	// run #prepends
-	Debugf("prepending %d documents to '%s'", len(doc.prepends), path)
-	for _, i := range doc.prependsPos {
-		err = doc.runPrepend(*i)
+	Debugf("prepending %d documents to '%s'", len(doc.prependsPos), path)
+	doc.prepends = make([]*Document, len(doc.prependsPos))
+	for i := 0; i < len(doc.prependsPos); i++ {
+		pos := doc.prependsPos[i]
+		inc,err := doc.include(pos.args[1])
 		if err != nil {
-			oerr.ErrStr = "failed to prepend document to self"
+			oerr.ErrStr = "failed to prepend document"
 			oerr.SetBecause(err)
 			_ = doc.Close()
 			return doc, oerr
 		}
+		doc.prepends[i] = inc
 	}
 
 	// run #appends
 	Debugf("appending %d documents to '%s'", len(doc.appendPos), path)
-	for _, i := range doc.appendPos {
-		err = doc.runAppend(*i)
+	doc.appends = make([]*Document, len(doc.appendPos))
+	for i := 0; i < len(doc.appendPos); i++ {
+		pos := doc.appendPos[i]
+		inc,err := doc.include(pos.args[1])
 		if err != nil {
-			oerr.ErrStr = "failed to append document to self"
+			oerr.ErrStr = "failed to append document"
 			oerr.SetBecause(err)
 			_ = doc.Close()
 			return doc, oerr
 		}
+		doc.appends[i] = inc
 	}
 
 	// normal definitions (#define)
@@ -311,7 +334,7 @@ func loadDocumentFromPath(path string,
 		err = doc.addDefinition(def)
 		if err != nil {
 			oerr.ErrStr = "failed to add normal definition"
-			//oerr.SetSubjectf("%s %s", path, d.ToString())
+			oerr.SetSubjectf("%s %s", path, p.ToString())
 			oerr.SetBecause(err)
 			_ = doc.Close()
 			return doc, oerr
@@ -601,44 +624,59 @@ func (doc *Document) processMacros() (oerr *Error) {
 	return nil
 }
 
-func (doc *Document) runPrepend(macoPos) *Error {
-	relDir := filepath.Dir(doc.path) + string(filepath.Separator)
-	pdoc, err := loadDocumentFromPath(relDir+i.args[1], doc.converters,
-		&doc, doc.root)
-	if err != nil {
-		oerr.ErrStr = "cannot prepend document to self"
-		oerr.SetBecause(err)
-		_ = doc.Close()
-		return doc, oerr
+// prevents duplicate opens
+func (doc *Document) include(path string) (incdoc *Document, oerr *Error) {
+	relPath := filepath.Dir(doc.path) + string(filepath.Separator) + path
+
+	var stat syscall.Stat_t
+	cerr := syscall.Stat(relPath, &stat)
+	if cerr != nil {
+		oerr := NewError("failed to stat document")
+		oerr.SetSubject(relPath)
+		oerr.SetBecause(NewError(cerr.Error()))
+		return nil, oerr
 	}
-	doc.allIncluded = append(doc.allIncluded,
-		pdoc) // todo: remove duplicate files
-	doc.prepends = append(doc.prepends, &doc.allIncluded[len(doc.allIncluded)-1])
+
+	// make sure we done re-include anything
+	for _,d := range *doc.allIncluded {
+		if d.fileInode == stat.Ino {
+			Debugf("avoiding a re-opening of document '%s' (inode match)",
+				path)
+			return d, nil
+		}
+	}
+
+
+	adoc, err := loadDocumentFromPath(relPath,
+		doc.converters,
+		doc.proccessorLoader,
+		doc,
+		doc.root)
+
+	if err != nil {
+		oerr := NewError("failed to include document")
+		oerr.SetSubject(path)
+		oerr.SetBecause(err)
+		return nil, oerr
+	}
+
+	*doc.allIncluded = append(*doc.allIncluded, &adoc)
+	return &adoc, nil
+
 }
 
-func (doc *Document) runAppend(macoPos) *Error {
-	adoc, err := loadDocumentFromPath(relDir+i.args[1], doc.converters,
-		&doc)
-	if err != nil {
-		oerr.ErrStr = "cannot append document to self"
-		oerr.SetBecause(err)
-		_ = doc.Close()
-		return doc, oerr
-	}
-	doc.allIncluded = append(doc.allIncluded, adoc)
-	doc.appends = append(doc.appends, &doc.allIncluded[len(doc.allIncluded)-1])
-}
-
+// prevent duplicate definitions
 func (doc *Document) addDefinition(definition Definition) *Error {
-	def, err := CreateNormalDefinition(d.args[1], d.args[2])
-	if err != nil {
-		oerr.ErrStr = "cannot parse definition"
-		oerr.SetSubjectf("%s %s", path, d.ToString())
-		oerr.SetBecause(err)
-		_ = doc.Close()
-		return doc, oerr
+	for _,d := range *doc.allDefinitions {
+		if d.GetFullName() == definition.GetFullName() {
+			oerr := NewError(errAlreadyDefined)
+			oerr.SetSubjectf(d.GetFullName())
+			return oerr
+		}
 	}
-	doc.normalDefines = append(doc.normalDefines, def)
+
+	*doc.allDefinitions = append(*doc.allDefinitions, definition)
+	return nil
 }
 
 // if n < len(p) it's probably because you were about to read a macro,
@@ -889,29 +927,6 @@ func (doc *Document) Close() error {
 		_ = d.Close()
 	}
 	return nil
-}
-
-// generate all definitions that are detected in all documents below this one.
-// it stores the answer and subseqent calls will always return the initial
-// result.
-func (doc *Document) getRecursiveDefinitions() []Definition {
-	if doc.allRecursiveNormalDefines != nil {
-		return doc.allRecursiveNormalDefines
-	}
-
-	doc.allRecursiveNormalDefines = make([]Definition, len(doc.normalDefines))
-	for i := 0; i < len(doc.normalDefines); i++ {
-		doc.allRecursiveNormalDefines[i] = &doc.normalDefines[i]
-	}
-
-	for _, d := range doc.prepends {
-		childDefines := d.getRecursiveDefinitions()
-		for _, c := range childDefines {
-			doc.allRecursiveNormalDefines = append(doc.
-				allRecursiveNormalDefines, c)
-		}
-	}
-	return doc.allRecursiveNormalDefines
 }
 
 // helper-function for loadDocumentFromPath
