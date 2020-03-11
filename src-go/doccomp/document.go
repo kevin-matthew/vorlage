@@ -117,6 +117,8 @@ type Document struct {
 	VariableDetectionBuffer []byte // used before every Read(
 	// ) to see if there's variables
 
+	rawContentStart int64
+
 	macros   []macoPos
 
 
@@ -342,7 +344,8 @@ func loadDocumentFromPath(path string,
 	}
 
 
-	_, cerr = doc.file.Seek(0, 0)
+	// set the cursor past all the #prepends, #appends, and #includes.
+	_, cerr = doc.file.Seek(doc.rawContentStart, 0)
 	if cerr != nil {
 		oerr.ErrStr = errFailedToSeek
 		oerr.SetBecause(NewError(cerr.Error()))
@@ -580,6 +583,7 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 		doc.macros = append(doc.macros, pos)
 
 		if pos.length == 0 {
+			doc.rawContentStart = at
 			Debugf("finished detecting macros in '%s'", doc.path)
 			return nil
 		}
@@ -777,10 +781,9 @@ func (doc *Document) read(dest []byte, root *Document,
 	// set cutOff to the next detected #define, #include, or possible variable
 	var cutOff int64
 	for cutOff = pos; cutOff < endpos; cutOff++ {
-		// we hit an #include
-		for i, incpos := range doc.prependPositions {
+		// we hit an #append, #prepend, or a #define
+		for i, incpos := range doc.prependsPos {
 			if cutOff == int64(incpos) {
-
 				// if we're ignoring macros then don't bother opening up
 				// the include
 				if !ignoreIncludes {
