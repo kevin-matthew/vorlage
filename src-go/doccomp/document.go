@@ -68,6 +68,11 @@ func (d *NormalDefinition) Read(p []byte) (int, error) {
 	return d.seeker, nil
 }
 
+func (d *NormalDefinition) Reset() error {
+	d.seeker = 0
+	return nil
+}
+
 type macoPos struct {
 	args    []string
 	charPos uint64
@@ -80,10 +85,10 @@ type variablePos struct {
 	variableName string // this will be the Processor-Variable Name if
 	// processorName is not ""
 	processorName string // if "" then it is not a processed variable
-	charPos uint64
-	length  uint
-	linenum uint // used for debugging
-	colnum  uint // used for debugging
+	charPos       int64
+	length        uint
+	linenum       uint // used for debugging
+	colnum        uint // used for debugging
 }
 
 func (m macoPos) ToString() string {
@@ -95,43 +100,51 @@ func (v variablePos) ToString() string {
 }
 
 type Document struct {
-	file       *os.File
-	fileInode  uint64
-	converters  []*DocumentConverter
+	file *os.File
+
+	fileInode uint64 // it may be linux-only. but this keeps us grounded,
+	// now Document can be made without an actual file backing it.
+
+	converters       []*DocumentConverter
 	proccessorLoader ProcessorLoader
 
 	path string
 
-	root               *Document
-	parent             *Document
+	root   *Document
+	parent *Document
 
-	allDefinitions   *[]Definition // if root != nil,
-	 // then this points to the root's allDefinitions
-	allIncluded     *[]*Document // if root != nil,
+	allDefinitions *[]Definition // if root != nil,
+	// then this points to the root's allDefinitions
+	allIncluded *[]*Document // if root != nil,
 	// then this points to the root's allIncluded
 
-	curentlyReading    *Document // used for reading
-	curentlyReadingDef Definition
+	convertedFileDoneReading bool // set to true if the (
+	// converted) file and variables this document references has been
+	// completely/outputted and all thats left is appended documents.
+	//used for reading.
+	currentlyReadingDef Definition // points to somewhere in allDefinitions,
+	// used in reading. can be nil which means not currenlty reading from one
+	cursorPos int64 // used for reading
 
 	MacroReadBuffer         []byte
-	VariableDetectionBuffer []byte // used before every Read(
-	// ) to see if there's variables
+	VariableDetectionBuffer []byte // used to detect variables when the
+	// document is converted and being loaded
+	rawContentStart int64 // used for reading
 
-	rawContentStart int64
+	macros []macoPos
 
-	macros   []macoPos
+	prepends            []*Document // points to somewhere in allIncluded
+	prependReadingIndex int
+	prependsPos         []*macoPos // points to somewhere in macros
 
-
-	prepends    []*Document // points to somewhere in allIncluded
-	prependsPos []*macoPos  // points to somewhere in macros
-
-	appends   []*Document // points to somewhere in allIncluded
-	appendPos []*macoPos  // points to somewhere in macros
+	appends            []*Document // points to somewhere in allIncluded
+	appendReadingIndex int
+	appendPos          []*macoPos // points to somewhere in macros
 
 	normalDefines []*NormalDefinition // points to somewhere in allDefines
-	normalPos     []*macoPos // points to somewhere in macros
+	normalPos     []*macoPos          // points to somewhere in macros
 
-	variablePos []variablePos
+	variablePos []variablePos // note: these positions are in the CONVERTED file
 }
 
 /*
@@ -148,15 +161,18 @@ func LoadDocument(path string, converters []*DocumentConverter,
 	return loadDocumentFromPath(path, converters, proccessorLoader, nil, nil)
 }
 
+/*
+ * Gets the filename to which the document was accessed or included by.
+ */
 func (doc Document) GetFileName() string {
 	return doc.path
 }
 
 func loadDocumentFromPath(path string,
-		converters []*DocumentConverter,
-		proccessorLoader ProcessorLoader,
-		parent *Document,
-		root *Document) (doc Document, oerr *Error) {
+	converters []*DocumentConverter,
+	proccessorLoader ProcessorLoader,
+	parent *Document,
+	root *Document) (doc Document, oerr *Error) {
 
 	oerr = &Error{}
 	oerr.SetSubject(path)
@@ -164,22 +180,22 @@ func loadDocumentFromPath(path string,
 	var cerr error
 	doc.MacroReadBuffer = make([]byte, MacroMaxLength)
 	doc.VariableDetectionBuffer = make([]byte, len(VariablePrefix))
-	doc.curentlyReading = &doc
 	doc.parent = parent
-	doc.root   = root
+	doc.root = root
 	doc.path = path
 	doc.proccessorLoader = proccessorLoader
 	doc.converters = converters
+	doc.convertedFileDoneReading = false
 
 	// see the document struct's instructions about 'allIncluded' and
 	// 'allDefinitions'
 	if doc.root != nil {
 		doc.allDefinitions = doc.root.allDefinitions
-		doc.allIncluded    = doc.root.allIncluded
+		doc.allIncluded = doc.root.allIncluded
 	} else {
 		doc.root = &doc
 		doc.allDefinitions = &[]Definition{}
-		doc.allIncluded    = &[]*Document{}
+		doc.allIncluded = &[]*Document{}
 	}
 
 	sourceerr := doc.ancestorHasPath(path)
@@ -189,7 +205,7 @@ func loadDocumentFromPath(path string,
 		return doc, oerr
 	}
 
-	file,serr := os.Open(path)
+	file, serr := os.Open(path)
 	if serr != nil {
 		oerr.ErrStr = "failed to open file"
 		oerr.SetBecause(NewError(serr.Error()))
@@ -217,16 +233,6 @@ func loadDocumentFromPath(path string,
 		return doc, oerr
 	}
 
-
-	err = doc.detectVariables()
-	if err != nil {
-		oerr.ErrStr = "failed to detect variables"
-		oerr.SetBecause(err)
-		_ = doc.Close()
-		return doc, oerr
-	}
-	Debugf("detected '%d' variable uses in '%s'", len(doc.variablePos), path)
-
 	Debugf("interpreting macros in '%s'", path)
 	err = doc.processMacros()
 	if err != nil {
@@ -241,7 +247,7 @@ func loadDocumentFromPath(path string,
 	doc.prepends = make([]*Document, len(doc.prependsPos))
 	for i := 0; i < len(doc.prependsPos); i++ {
 		pos := doc.prependsPos[i]
-		inc,err := doc.include(pos.args[1])
+		inc, err := doc.include(pos.args[1])
 		if err != nil {
 			oerr.ErrStr = "failed to prepend document"
 			oerr.SetBecause(err)
@@ -256,7 +262,7 @@ func loadDocumentFromPath(path string,
 	doc.appends = make([]*Document, len(doc.appendPos))
 	for i := 0; i < len(doc.appendPos); i++ {
 		pos := doc.appendPos[i]
-		inc,err := doc.include(pos.args[1])
+		inc, err := doc.include(pos.args[1])
 		if err != nil {
 			oerr.ErrStr = "failed to append document"
 			oerr.SetBecause(err)
@@ -265,6 +271,27 @@ func loadDocumentFromPath(path string,
 		}
 		doc.appends[i] = inc
 	}
+
+	// set the cursor past all the #prepends, #appends, and #includes.
+	_, cerr = doc.file.Seek(doc.rawContentStart, 0)
+	if cerr != nil {
+		oerr.ErrStr = errFailedToSeek
+		oerr.SetBecause(NewError(cerr.Error()))
+		_ = doc.Close()
+		return doc, oerr
+	}
+
+	// TODO: right here... right before we start looking for and defining
+	// variables we need to convert the document to the target format.
+
+	err = doc.detectVariables()
+	if err != nil {
+		oerr.ErrStr = "failed to detect variables"
+		oerr.SetBecause(err)
+		_ = doc.Close()
+		return doc, oerr
+	}
+	Debugf("detected '%d' variable uses in '%s'", len(doc.variablePos), path)
 
 	// normal definitions (#define)
 	Debugf("parsing %d normalDefines '%s'", len(doc.normalPos), path)
@@ -291,8 +318,8 @@ func loadDocumentFromPath(path string,
 	// processed definitions
 	for _, p := range doc.variablePos {
 
-		// if it has a non-empty processor name, then its a processor variable
-		// otherwise ignore it
+		// if it has an empty processor name, then its not a processor variable
+		// so ignore it
 		if p.processorName == "" {
 			continue
 		}
@@ -310,7 +337,7 @@ func loadDocumentFromPath(path string,
 		var i int
 		var procVar string
 		var procVars = pros.GetVariableNames()
-		for i = 0; i < len(procVars); i ++ {
+		for i = 0; i < len(procVars); i++ {
 			procVar = procVars[i]
 			if procVar == p.variableName {
 				break
@@ -343,15 +370,6 @@ func loadDocumentFromPath(path string,
 		}
 	}
 
-
-	// set the cursor past all the #prepends, #appends, and #includes.
-	_, cerr = doc.file.Seek(doc.rawContentStart, 0)
-	if cerr != nil {
-		oerr.ErrStr = errFailedToSeek
-		oerr.SetBecause(NewError(cerr.Error()))
-		_ = doc.Close()
-		return doc, oerr
-	}
 	return doc, nil
 }
 
@@ -360,6 +378,8 @@ func bytesAreString(buff []byte, str string, offset int) bool {
 		string(buff[offset:offset+len(str)]) == str
 }
 
+// TODO: this function does not look at the converted file,
+// it looks at the raw file.... we need to have it look at the converted file.
 func (doc *Document) detectVariables() *Error {
 	var linenum uint = 1 // used for debugging
 	var colnum uint      // used to generate colnum (for debuggin)
@@ -378,7 +398,7 @@ func (doc *Document) detectVariables() *Error {
 	// loop through the hole file until we hit the end
 	for !lastBuffer {
 		// load bytes into the buffer
-		n, err := doc.file.ReadAt(doc.VariableDetectionBuffer,at)
+		n, err := doc.file.ReadAt(doc.VariableDetectionBuffer, at)
 		lastBuffer = err == io.EOF
 		if err != nil && err != io.EOF {
 			oerr := &Error{}
@@ -387,12 +407,11 @@ func (doc *Document) detectVariables() *Error {
 			return oerr
 		}
 
-
 		// if this buffer starts with a '$' we can then try to interpret a
 		// variable
 		if doc.VariableDetectionBuffer[0] == VariablePrefix[0] {
 			pos, serr := scanVariable(doc.VariableDetectionBuffer,
-				uint64(at),
+				int64(at),
 				linenum,
 				colnum)
 			if serr != nil {
@@ -402,9 +421,7 @@ func (doc *Document) detectVariables() *Error {
 			if pos != nil {
 				// success, we've found a variable.
 				doc.variablePos = append(doc.variablePos, *pos)
-				Debugf("found variable '%s' at '%s'",
-					string(doc.VariableDetectionBuffer[pos.charPos:pos.
-					charPos+uint64(pos.length)]),
+				Debugf("found variable '%s'", pos.fullName,
 					pos.ToString())
 			} else {
 				// this buffer did contain a valid variable. Oh well, let
@@ -417,7 +434,8 @@ func (doc *Document) detectVariables() *Error {
 		// checked above) and force the next/itoration to start
 		// where that '$' was found or just move the entire buffer if nothing
 		// was found. This also increments linenum if if finds and newlines.
-		var scannedBytes = 0; colnum++ // increment column num because we
+		var scannedBytes = 0
+		colnum++ // increment column num because we
 		// skip it in the for-loop.
 		for scannedBytes = 1; scannedBytes < n; scannedBytes++ {
 			if doc.VariableDetectionBuffer[scannedBytes] == '\n' {
@@ -439,16 +457,16 @@ func (doc *Document) detectVariables() *Error {
 // start at the very beginning of the buffer.
 // If VariablePrefix and VariableSuffix was not found, this will NOT result
 // in an error.
-func scanVariable(buffer []byte, charsource uint64,
+func scanVariable(buffer []byte, charsource int64,
 	linenum uint, colnum uint) (pos *variablePos, oerr *Error) {
 
-	if len(buffer) < len(VariablePrefix) + len(VariableSuffix) {
+	if len(buffer) < len(VariablePrefix)+len(VariableSuffix) {
 		// this buffer isn't big enough to even consider the possibility
 		// of having a variable.
 		return nil, nil
 	}
 
-	var length,j,dotIndex int
+	var length, j, dotIndex int
 	for length = 0; length < len(VariablePrefix); length++ {
 		if buffer[length] != VariablePrefix[length] {
 			// no valid prefix, no variable to be found here!
@@ -456,17 +474,15 @@ func scanVariable(buffer []byte, charsource uint64,
 		}
 	}
 
-
 	for ; length < len(buffer); length++ {
 		// keep scanning through until we find the VariableSuffix
 
-		if length + len(VariableSuffix) >= len(buffer) {
+		if length+len(VariableSuffix) >= len(buffer) {
 			// The VariableSuffix was not found in this buffer.
 			oerr = NewError(errVariableTooLong)
 			oerr.SetSubjectf("line %d", linenum)
 			return nil, oerr
 		}
-
 
 		for j = 0; j < len(VariableSuffix); j++ {
 			if buffer[length+j] != VariableSuffix[j] {
@@ -474,7 +490,7 @@ func scanVariable(buffer []byte, charsource uint64,
 			}
 		}
 		if j < len(VariableSuffix) {
-			length = length +j
+			length = length + j
 			break
 		}
 	}
@@ -482,7 +498,7 @@ func scanVariable(buffer []byte, charsource uint64,
 	if !variableRegexpProc.Match(buffer[:length]) {
 		oerr = NewError(errVariableName)
 		oerr.SetSubjectf("'%s' at line %d", string(buffer[:length]), linenum)
-		return nil,oerr
+		return nil, oerr
 	}
 
 	dotIndex = strings.Index(string(buffer[:length]),
@@ -490,16 +506,16 @@ func scanVariable(buffer []byte, charsource uint64,
 	if dotIndex == -1 {
 		dotIndex = 0
 	}
-	
+
 	pos = &variablePos{
-		fullName:      string(buffer[:length]),
-		variableName:  string(buffer[len(VariablePrefix):length-len(VariableSuffix)]),
-		processorName: string(buffer[len(VariablePrefix):len(
+		fullName:     string(buffer[:length]),
+		variableName: string(buffer[len(VariablePrefix) : length-len(VariableSuffix)]),
+		processorName: string(buffer[len(VariablePrefix) : len(
 			VariablePrefix)+dotIndex]),
-		charPos:       charsource,
-		length:        uint(length),
-		linenum:       linenum,
-		colnum:        colnum,
+		charPos: charsource,
+		length:  uint(length),
+		linenum: linenum,
+		colnum:  colnum,
 	}
 	return pos, nil
 }
@@ -642,14 +658,13 @@ func (doc *Document) include(path string) (incdoc *Document, oerr *Error) {
 	}
 
 	// make sure we done re-include anything
-	for _,d := range *doc.allIncluded {
+	for _, d := range *doc.allIncluded {
 		if d.fileInode == stat.Ino {
 			Debugf("avoiding a re-opening of document '%s' (inode match)",
 				path)
 			return d, nil
 		}
 	}
-
 
 	adoc, err := loadDocumentFromPath(relPath,
 		doc.converters,
@@ -671,7 +686,7 @@ func (doc *Document) include(path string) (incdoc *Document, oerr *Error) {
 
 // prevent duplicate definitions
 func (doc *Document) addDefinition(definition Definition) *Error {
-	for _,d := range *doc.allDefinitions {
+	for _, d := range *doc.allDefinitions {
 		if d.GetFullName() == definition.GetFullName() {
 			oerr := NewError(errAlreadyDefined)
 			oerr.SetSubjectf(d.GetFullName())
@@ -680,6 +695,15 @@ func (doc *Document) addDefinition(definition Definition) *Error {
 	}
 
 	*doc.allDefinitions = append(*doc.allDefinitions, definition)
+	return nil
+}
+
+func (doc Document) findDefinitionByName(FullName string) Definition {
+	for _, d := range *doc.allDefinitions {
+		if d.GetFullName() == FullName {
+			return d
+		}
+	}
 	return nil
 }
 
@@ -692,226 +716,136 @@ func (doc *Document) addDefinition(definition Definition) *Error {
 //
 // that being said, len(p) >= MacroMaxLength.
 func (doc *Document) Read(dest []byte) (int, error) {
-	return doc.ReadIgnore(dest, false)
-}
-
-// used for cacheing
-func (doc *Document) ReadIgnore(dest []byte,
-	ignoreMissingDefinition bool) (
-	int,
-	error) {
-
-	// you may ask... what the hell is going on:
-	// - why is there read() AND Read()?
-	// - what does doc.currentlyReading mean?
-	//
-	// The code is laid out like this because of the fact that there's
-	// '#include's. Once an '#include' is read, doc.currentlyReading swtiches
-	// to the document that was allIncluded by that '#include'. Furthermore,
-	// that allIncluded document can also have documents IT prepends, thus,
-	// currentlyReading can be pointing to a document that doesn't even exist
-	// in doc.Includes (ie, it could point to doc.Includes[3].Includes[1])
-	if doc.curentlyReadingDef != nil {
-
-		n, err := doc.curentlyReadingDef.Read(dest)
-		if err != nil && err != io.EOF {
-
-			return n, err
-		}
-
-		// if the variable is all done being read...
-		if err == io.EOF {
-			Debugf("Read() completed the variable. going back to file '%s'",
-				doc.curentlyReading.path)
-			// ... lets set it to not currenlt being read anymore
-			doc.curentlyReadingDef = nil
-			// and continue on with a normal read...
-		} else {
-			return n, nil
-		}
-	}
-
-	// do a normal read
-	return doc.curentlyReading.read(dest,
-		doc, false, ignoreMissingDefinition) // TODO: I'm really not sure this
-	// woorks...
+	return doc.ReadIgnore(dest, true)
 }
 
 // todo: remove the 'ignore' bools... we need to have some way to communicate
 // processor vars to the processor. Maybe they should be passed in via Read?
 // hmmmm.... or something like that. or perhaps 'add proccessor' instead of
 // 'add definition'.... AH YES. Let's do that.
-func (doc *Document) read(dest []byte, root *Document,
-	ignoreIncludes bool,
-	ignoreMissing bool) (int, error) {
-	// before we do any reading, lets get the current position.
-	pos, cerr := doc.file.Seek(0, 1)
-	if cerr != nil {
-		oerr := NewError(errFailedToSeek)
-		oerr.SetSubject(doc.path)
-		oerr.SetBecause(NewError(cerr.Error()))
-		return 0, oerr
-	}
+func (doc *Document) ReadIgnore(dest []byte, defineVariables bool) (int, error) {
 
-	n, cerr := doc.file.Read(dest)
-	if cerr == io.EOF {
-		Debugf("Read() completed file %s",
-			doc.path)
-
-		// so we've reached the end of the file.
-		// HOWEVER: the file we reached the end of could be any file... and
-		// the parents could all still have work to do. so lets pass it back
-		// up to the doc.
-		root.curentlyReading = doc.parent
-
-		// if we don't have a doc, then we're done-done.
-		if doc.parent == nil {
-			return 0, io.EOF
+	// If we have prepends that we haven't read, keep reading those.
+	if doc.prependReadingIndex < len(doc.prepends) {
+		Debugf("reading from prepended file %s", doc.path)
+		n, cerr := doc.prepends[doc.prependReadingIndex].ReadIgnore(dest, defineVariables)
+		if cerr != nil && cerr != io.EOF {
+			oerr := NewError(errFailedToReadPrependDocument)
+			oerr.SetSubject(doc.prepends[doc.prependReadingIndex].path)
+			oerr.SetBecause(NewError(cerr.Error()))
+			return n, oerr
 		}
-		return root.Read(dest) // TODO: this is really weird...
+		if cerr == io.EOF {
+			doc.prependReadingIndex++
+			return n, nil
+		}
+		return n, nil
 	}
-	if cerr != nil {
-		oerr := NewError(errFailedToReadBytes)
-		oerr.SetSubject(doc.path)
-		oerr.SetBecause(NewError(cerr.Error()))
-		return n, oerr
+
+	// if we're currenlty reading a variable, lets continue doing that
+	if doc.currentlyReadingDef != nil {
+		Debugf("reading variable '%s' into buffer",
+			doc.currentlyReadingDef.GetFullName())
+		n, cerr := doc.currentlyReadingDef.Read(dest)
+		if cerr != nil && cerr != io.EOF {
+			oerr := NewError(errFailedToReadVariable)
+			oerr.SetSubject(doc.currentlyReadingDef.GetFullName())
+			oerr.SetBecause(NewError(cerr.Error()))
+			return n, oerr
+		}
+		if cerr == io.EOF {
+			// this variable is done being read. let's move on the next call.
+			Debugf("done from reading variable '%s'",
+				doc.currentlyReadingDef.GetFullName())
+			doc.currentlyReadingDef = nil
+		}
+		return n, nil
 	}
-	endpos := pos + int64(n)
 
-	// set cutOff to the next detected #define, #include, or possible variable
-	var cutOff int64
-	for cutOff = pos; cutOff < endpos; cutOff++ {
-		// we hit an #append, #prepend, or a #define
-		for i, incpos := range doc.prependsPos {
-			if cutOff == int64(incpos) {
-				// if we're ignoring macros then don't bother opening up
-				// the include
-				if !ignoreIncludes {
-					// next time they call read, it will be reading the file
-					// that was allIncluded by the '#include'
-					Debugf("directing Read() to access '%s'",
-						doc.prepends[i].path)
-					root.curentlyReading = &doc.prepends[i]
-				}
+	// At this point, we're not reading a prepended file, we're not reading
+	// a variable. Now the question is,
+	// are we done reading the content of this doucmnet?...
+	if !doc.convertedFileDoneReading {
+		// ...we're not. so lets continue reading the content from this document
+		// TODO: this needs to read from the converted file
+		Debugf("reading document to buffer")
+		n, cerr := doc.file.ReadAt(dest, doc.cursorPos)
+		if cerr != nil && cerr != io.EOF {
+			oerr := NewError(errFailedToReadDocument)
+			oerr.SetSubject(doc.path)
+			oerr.SetBecause(NewError(cerr.Error()))
+			return n, oerr
+		}
+		if cerr == io.EOF {
+			// ...we are done reading this document,
+			// so lets not read it anymore in subsequent read()'s
+			Debugf("document reading return EOF, will no longer read it")
+			doc.convertedFileDoneReading = true
+		}
 
-				// before we let the child doc start reading, lets skip the
-				// #include macro so when the child sets currently reading
-				// back to doc, we don't read the same #include twice.
-				_, cerr := doc.file.Seek(cutOff+int64(doc.prependLengths[i]), 0)
-				if cerr != nil {
-					oerr := NewError(errFailedToReadBytes)
-					oerr.SetSubject(doc.path + ":#inlcude")
-					oerr.SetBecause(NewError(cerr.Error()))
-					return n, oerr
+		if defineVariables {
+			// are there any variables in what we just read?
+			for _, v := range doc.variablePos {
+				for i := 0; i < n; i++ {
+					if int64(i)+doc.cursorPos == v.charPos {
+						// there is a variable in this buffer. let's mark it to be
+						// read on the next read()
+						def := doc.findDefinitionByName(v.fullName)
+						if def == nil {
+							oerr := NewError(errNotDefined)
+							oerr.SetSubject(v.ToString())
+							return n, oerr
+						}
+						doc.currentlyReadingDef = def
+						cerr = def.Reset()
+						if cerr != nil {
+							oerr := NewError(errResetVariable)
+							oerr.SetSubject(v.ToString())
+							return n, oerr
+						}
+						Debugf("found variable '%s' in read buffer, "+
+							"will now read from that", def.GetFullName())
+
+						// now advance the cursor forward to where the variable is
+						// plus its length so we dont read the raw variable again.
+						doc.cursorPos = doc.cursorPos + int64(i) + int64(v.length)
+
+						// only return all bytes that have been proccessed up to
+						// the variable
+						return i, nil
+					}
 				}
-				goto ret
 			}
 		}
 
-		// we hit a #define... just skip over it.
-		for i, incpos := range doc.definePositions {
-			if cutOff == int64(incpos) {
+		// no variables in this buffer, so just return the generic read results
+		doc.cursorPos = doc.cursorPos + int64(n)
+		return n, nil
+	}
 
-				// skip over it. We already got everything we need out of it.
-				Debugf("Read() omitting #define at %s:%d",
-					doc.path,
-					doc.definePositionsLineNum[i])
-				_, cerr := doc.file.Seek(cutOff+int64(doc.defineLengths[i]), 0)
-				if cerr != nil {
-					oerr := NewError(errFailedToReadBytes)
-					oerr.SetSubject(doc.path)
-					oerr.SetBecause(NewError(cerr.Error()))
-					return n, oerr
-				}
-				goto ret
-			}
+	// well okay looks like the document itself has been fully read.
+	// lets read from appended files now...
+	if doc.appendReadingIndex < len(doc.appends) {
+		Debugf("reading from appended file %s", doc.path)
+		n, cerr := doc.appends[doc.appendReadingIndex].ReadIgnore(dest, defineVariables)
+		if cerr != nil && cerr != io.EOF {
+			oerr := NewError(errFailedToReadAppendedDocument)
+			oerr.SetSubject(doc.appends[doc.appendReadingIndex].path)
+			oerr.SetBecause(NewError(cerr.Error()))
+			return n, oerr
 		}
+		if cerr == io.EOF {
+			doc.appendReadingIndex++
+			return n, nil
+		}
+		return n, nil
+	}
 
-		// we hit a possible $variable position
-		// and the next time they read,
-		//they'll be reading the definitions Read() function
-		for i, incpos := range doc.possibleVariablePositions {
-			if cutOff == int64(incpos) {
-				Debugf("Read() came across a possible variable at %s:%d",
-					doc.path,
-					doc.possibleVariablePositionsLineNum[i])
-
-				// extract the possible variable name (possibleVariableName)
-				variableNameBuffer := make([]byte, MaxVariableLength)
-				vn, cerr := doc.file.ReadAt(variableNameBuffer, cutOff)
-				if cerr != nil && cerr != io.EOF {
-					oerr := NewError(errFailedToReadBytes)
-					oerr.SetSubject(doc.path + ":" + strconv.Itoa(int(doc.
-						possibleVariablePositionsLineNum[i])) + "@" + strconv.Itoa(int(cutOff)))
-					oerr.SetBecause(NewError(cerr.Error()))
-					return n, oerr
-				}
-				possibleVariableName := string(variableNameBuffer[:vn])
-
-				var foundMatch = false
-				for _, d := range root.getRecursiveDefinitions() {
-					// first off, lets make it easy, trim down the possible variable
-					// name to be the same length as an actual one
-					actualVariableName := d.GetName()
-					tuncPossibleVariableName := possibleVariableName
-					if len(possibleVariableName) > len(actualVariableName) {
-						tuncPossibleVariableName = possibleVariableName[:len(
-							actualVariableName)]
-					}
-
-					if tuncPossibleVariableName != actualVariableName {
-						// didn't find it yet.
-						continue
-					}
-
-					foundMatch = true
-					Debugf("found definition for variable '%s' at  %s:%d",
-						actualVariableName,
-						doc.path,
-						doc.possibleVariablePositionsLineNum[i])
-					Debugf("switching Read() to look at variable '%s'",
-						actualVariableName)
-
-					// this will be used back in the original Read() function
-					// to then read from the definition.
-					root.curentlyReadingDef = d
-
-					// before we let the child doc start reading, lets skip the
-					// #include macro so when the child sets currently reading
-					// back to doc, we don't read the same #include twice.
-					_, cerr := doc.file.Seek(cutOff+int64(len(actualVariableName)), 0)
-					if cerr != nil {
-						oerr := NewError(errFailedToSeek)
-						oerr.SetSubject(doc.path + ":$var")
-						oerr.SetBecause(NewError(cerr.Error()))
-						return n, oerr
-					}
-					break
-				} // for _,d := range root.getRecursiveDefinitions()
-				if !foundMatch {
-					if ignoreMissing {
-						Debugf("ignore missing definition at %s:%d",
-							doc.path,
-							doc.possibleVariablePositionsLineNum[i])
-					} else {
-						// we didn't find a match, throw an error.
-						oerr := NewError(errNotDefined)
-						oerr.SetSubject(doc.path + ":" + strconv.Itoa(
-							int(doc.possibleVariablePositionsLineNum[i])))
-						return n, oerr
-					}
-				}
-				goto ret
-			} // if cutOff == int64(incpos)
-		} // for i,incpos := range doc.possibleVariablePositions
-	} // for cutOff = pos; cutOff < endpos; cutOff++
-
-	// sense we are going to force the Read function to be called again,
-	// let's cut their buffer short so they don't read any info that
-	// was deliberatley skipped using Seek.
-ret:
-	n = int(cutOff - pos)
-	return n, nil
+	// well look at that. If we've made it this far,
+	// then we've read all prepended files,
+	// the document itself + variables, and all appended files.
+	// In other words, we've got nothing left to do.
+	return 0, io.EOF
 }
 
 func (doc *Document) close() error {
@@ -927,6 +861,9 @@ func (doc *Document) close() error {
 func (doc *Document) Close() error {
 	_ = doc.close()
 	for _, d := range doc.prepends {
+		_ = d.Close()
+	}
+	for _, d := range doc.appends {
 		_ = d.Close()
 	}
 	return nil
