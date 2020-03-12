@@ -1,6 +1,5 @@
 package doccomp
 
-
 type RequestData struct {
 	// cookies?
 	// request data?
@@ -12,7 +11,6 @@ type RequestData struct {
 
 	//
 }
-
 
 type ProcessorLoader interface {
 	// GetProcessor should be ready to be called multiple times with the same
@@ -28,8 +26,35 @@ type Processor interface {
 	// Names. Note this may be called multiple times so it's best to make the
 	//list as static as possible.
 	DefineVariable(procVariableName string) (Definition,
-		*Error)// will be called only after
+		*Error) // will be called only after
 	// the 'variable' string was found in GetVariableNames.
+}
+
+var _ Definition = &ProcessorDefinition{}
+
+type ProcessorDefinition struct {
+	fullname string
+	parent   Processor
+}
+
+func (p ProcessorDefinition) Reset() error {
+	panic("implement me")
+}
+
+func (p *ProcessorDefinition) Read(dest []byte) (int, error) {
+	panic("implement me")
+}
+
+func (p ProcessorDefinition) GetFullName() string {
+	return p.fullname
+}
+
+func GetProcessorVariables() ([]Definition, error) {
+	//return [](Definition(ProcessorDefinition{})),nil
+}
+
+func init() {
+	// do dlopen()'s
 }
 
 // todo: use package 'C' as well as dlopen to dymiaclly load all archive.
