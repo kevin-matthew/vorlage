@@ -62,10 +62,15 @@ func (e Error) ErrorHighlight() string {
 var errNotImplemented = &Error{ErrStr: "not implemented"}
 
 const (
-	errFailedToReadBytes = "failed to read bytes from stream"
-	errFailedToSeek      = "failed to seek through file"
-	errNotDefined        = "a variable was left undefined"
-	errAlreadyDefined    = "variable has already been defined"
-	errVariableTooLong   = "variable too long"
-	errVariableName      = "variable has an invalid name"
+	errFailedToReadBytes            = "failed to read bytes from stream"
+	errFailedToReadDocument         = "failed to read from document"
+	errFailedToReadPrependDocument  = "failed to read from prepended document"
+	errFailedToReadAppendedDocument = "failed to read from appended document"
+	errFailedToReadVariable         = "failed to read variable"
+	errFailedToSeek                 = "failed to seek through file"
+	errNotDefined                   = "a variable was left undefined"
+	errResetVariable                = "failed to reset variable"
+	errAlreadyDefined               = "variable has already been defined"
+	errVariableTooLong              = "variable too long"
+	errVariableName                 = "variable has an invalid name"
 )
