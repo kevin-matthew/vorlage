@@ -1,5 +1,10 @@
 package doccomp
 
+import (
+	"fmt"
+	"io"
+)
+
 type Cache interface {
 
 	/*
@@ -18,5 +23,30 @@ type Cache interface {
 	/*
 	 * Load the document from the cache by using its path.
 	 */
-	GetFromCache(path string) (*Document, error)
+	GetFromCache(path string) (io.ReadCloser, error)
+}
+
+type variablePos struct {
+	fullName     string
+	variableName string // this will be the Processor-Variable Name if
+	// processorName is not ""
+	processorName string // if "" then it is not a processed variable
+	charPos       int64
+	length        uint
+	linenum       uint // used for debugging
+	colnum        uint // used for debugging
+}
+
+func (v variablePos) ToString() string {
+	return fmt.Sprintf("'%s', line %d, col %d", v.fullName, v.linenum, v.colnum)
+}
+
+type CachedDocument struct {
+	missingDefs    []variablePos
+	path           string // could also be memoery
+	dependantPaths []string
+}
+
+func (c CachedDocument) Read(dest []byte) error {
+
 }
