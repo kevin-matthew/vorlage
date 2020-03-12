@@ -7,8 +7,13 @@ import "io"
  * if the page processor
  */
 type Definition interface {
+	// reset the reader to the beginning,
+	// this is called before the every instance of the variable.
+	// Thus repetitions of large definitions should be advised against,
+	// or at least have a sophisticated caching system.
+	Reset() error
 
-	// must return 0,EOF when complete.
+	// must return EOF when complete.
 	Read(p []byte) (int, error)
 
 	// returns the fulle variable name ie '$(myvar)'
