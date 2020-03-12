@@ -43,10 +43,11 @@ func (v variablePos) ToString() string {
 
 type CachedDocument struct {
 	missingDefs    []variablePos
-	path           string // could also be memoery
-	dependantPaths []string
+	path           string   // could also be memoery
+	dependantPaths []string // use Document.GetDependants
 }
 
 func (c CachedDocument) Read(dest []byte) error {
-
+	// use scanVariable()
+	// use
 }
