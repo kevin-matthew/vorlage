@@ -18,7 +18,7 @@ default: all
 #*********************************************************************
 
 GOC           = go
-APISRC        = $(MAKEDIR)/gosrc
+APISRC        = $(MAKEDIR)/src-go
 GO_FILES     := $(wildcard $(APISRC)/*.go)
 GO_FILES_ALL := $(shell find $(APISRC) -name \*.go -type f)
 GO_BIN        = $(BUILD_DIR)/$(PRODUCT)

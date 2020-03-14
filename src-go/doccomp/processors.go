@@ -50,6 +50,7 @@ func (p ProcessorDefinition) GetFullName() string {
 }
 
 func GetProcessorVariables() ([]Definition, error) {
+	return nil, nil
 	//return [](Definition(ProcessorDefinition{})),nil
 }
 

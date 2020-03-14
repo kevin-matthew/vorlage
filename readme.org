@@ -81,6 +81,10 @@ with your technical skill set in software development.
 #define $myvar my var will be replaced with this sentence.
 #+END_SRC
 * Technical Aspects
+First, the process starts in =doccomp.go= which then uses =loading.go=
+to load document and its included documents (if applicable). 
+
+
 ** Highlevel Proccess
 step 1: we get a request for a file
 step 2: is the file cached? if yes then go to step 7

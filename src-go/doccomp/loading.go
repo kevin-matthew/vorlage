@@ -41,8 +41,9 @@ func CreateNormalDefinition(variable string, value string) (NormalDefinition,
 		variable: variable,
 		value:    value,
 	}
-	if !bytesAreString([]byte(VariablePrefix), variable, 0) {
-		err := NewError("#define variable does not start with '$'")
+
+	if strings.Contains(variable, ".") {
+		err := NewError("cannot #define a processor variable")
 		err.SetSubject(variable)
 		return ret, err
 	}
@@ -254,7 +255,7 @@ func loadDocumentFromPath(path string,
 	}
 
 	// normal definitions (#define)
-	Debugf("parsing %d normalDefines '%s'", len(doc.normalPos), path)
+	Debugf("parsing %d normal define(s) '%s'", len(doc.normalPos), path)
 	for _, d := range doc.normalPos {
 		def, err := CreateNormalDefinition(d.args[1], d.args[2])
 		if err != nil {
@@ -285,6 +286,7 @@ func loadDocumentFromPath(path string,
 	doc.cursorPos = doc.rawContentStart
 
 	// variables we need to convert the document to the target format.
+	Debugf("opening a converter to '%s'", path)
 	doc.ConvertedFile, err = getConverted(doc.rawFile)
 	if err != nil {
 		oerr.ErrStr = errConvert
@@ -312,6 +314,7 @@ func scanMaco(buffer []byte, charsource int64,
 	// first off, do we even have a valid macro?
 	if !bytesAreString(buffer, MacroPrefix, 0) {
 		// no this isn't a macro... so we're done looking for macros.
+		pos.length = 0
 		return pos, nil
 	}
 
@@ -331,14 +334,15 @@ func scanMaco(buffer []byte, charsource int64,
 	}
 	if pos.length <= uint(len(MacroPrefix)) {
 		oerr = &Error{}
-		oerr.ErrStr = "macro prefix detected but nothing defined"
+		oerr.ErrStr = "macro prefix detected but no macro present"
 		oerr.SetSubjectf(pos.ToString())
 		return pos, oerr
 	}
 
 	// todo: what if macro is to long
 	//append(pos.args, )
-	tmp := strings.Split(string(buffer[:pos.length]), string(MacroArgument))
+	tmp := strings.Split(string(buffer[:pos.length-uint(len(EndOfLine))]),
+		string(MacroArgument))
 	pos.args = []string{}
 	for _, t := range tmp {
 		if t != "" {
@@ -375,7 +379,7 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 		n, err := doc.rawFile.ReadAt(doc.MacroReadBuffer, at)
 
 		// all errors except for EOF should kill the function
-		lastBuffer = err == io.EOF
+		lastBuffer = err == io.EOF && n == 0
 		if err != nil && err != io.EOF {
 			oerr := &Error{}
 			oerr.ErrStr = errFailedToReadBytes
@@ -388,14 +392,17 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 			return oerr
 		}
 
-		Debugf("detected macro '%s' in %s", pos.args[0], doc.path)
-		doc.macros = append(doc.macros, pos)
+
 
 		if pos.length == 0 {
 			doc.rawContentStart = at
 			Debugf("finished detecting macros in '%s'", doc.path)
 			return nil
 		}
+
+		Debugf("detected macro '%s' in %s", pos.args[0], doc.path)
+		doc.macros = append(doc.macros, pos)
+
 		at += int64(pos.length)
 	}
 	return nil
@@ -536,26 +543,6 @@ func (doc *Document) ReadIgnore(dest []byte, defineProcVars bool) (int,
 		return n, nil
 	}
 
-	// if we're currenlty reading a variable, lets continue doing that
-	if doc.currentlyReadingDef != nil {
-		Debugf("reading variable '%s' into buffer",
-			doc.currentlyReadingDef.GetFullName())
-		n, cerr := doc.currentlyReadingDef.Read(dest)
-		if cerr != nil && cerr != io.EOF {
-			oerr := NewError(errFailedToReadVariable)
-			oerr.SetSubject(doc.currentlyReadingDef.GetFullName())
-			oerr.SetBecause(NewError(cerr.Error()))
-			return n, oerr
-		}
-		if cerr == io.EOF {
-			// this variable is done being read. let's move on the next call.
-			Debugf("done from reading variable '%s'",
-				doc.currentlyReadingDef.GetFullName())
-			doc.currentlyReadingDef = nil
-		}
-		return n, nil
-	}
-
 	// At this point, we're not reading a prepended file, we're not reading
 	// a variable. Now the question is,
 	// are we done reading the content of this doucmnet?...
@@ -605,6 +592,7 @@ func (doc *Document) ReadIgnore(dest []byte, defineProcVars bool) (int,
 }
 
 func (doc *Document) close() error {
+
 	Debugf("closing '%s'",
 		doc.path)
 	if doc.rawFile != nil {
@@ -619,6 +607,10 @@ func (doc *Document) close() error {
 
 // recursively closes
 func (doc *Document) Close() error {
+	if doc == nil {
+		Debugf("warning, closing nil documnet")
+		return nil
+	}
 	_ = doc.close()
 	for _, d := range doc.prepends {
 		_ = d.Close()

@@ -1,9 +1,0 @@
-Here we go, I'm including defines-and-includes as well as includes.
-
-#include defines-and-includes.dc
-#include includes.dc
-
-And now, if I type right here #include sample.txt... nothing should
-happen. but we can do it again:
-
-#include sample.txt

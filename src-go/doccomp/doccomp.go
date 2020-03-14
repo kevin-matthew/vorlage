@@ -32,8 +32,7 @@ type Request interface {
  * defined in the 'Highlevel Process' chapter in the readme.
  */
 func HandleRequest(request Request,
-	cache Cache,
-	pageProcessor PageProcessor) (docstream io.ReadCloser, err *Error) {
+	cache Cache) (docstream io.ReadCloser, err *Error) {
 
 	shouldCache, cerr := cache.ShouldCache(request.GetFilePath())
 	if cerr != nil {
@@ -67,7 +66,7 @@ func HandleRequest(request Request,
 		}
 
 		reqdoc = &doc
-	} else {
+	} /* else {
 		Debugf("pulling '%s' from cache", request.GetFilePath())
 		reqdoc, cerr = cache.GetFromCache(request.GetFilePath())
 		if cerr != nil {
@@ -112,7 +111,7 @@ func HandleRequest(request Request,
 		reqdoc.Close()
 		return docstream, erro
 	}
-
+*/
 	// step 10,11
 	docstream = reqdoc
 	return docstream, nil

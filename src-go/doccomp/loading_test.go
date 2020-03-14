@@ -18,7 +18,7 @@ func TestLoadDocument(t *testing.T) {
 		panic(cerr)
 	}
 
-	d, err := LoadDocument("tests/documents/defines-and-prepends.dc")
+	d, err := LoadDocument("tests/documents/defines.haml")
 	if err != nil {
 		t.Log(err.ErrorHighlight())
 		t.Fail()
@@ -32,6 +32,11 @@ func TestLoadDocument(t *testing.T) {
 		return
 	}
 
+	println(res)
+	t.Log(string(res))
+	t.Fail()
+
+	return
 	finalFile, cerr := ioutil.ReadFile(
 		"tests/documents/final-defines-and-prepends.txt")
 	if cerr != nil {

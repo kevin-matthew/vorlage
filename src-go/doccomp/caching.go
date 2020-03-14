@@ -1,6 +1,7 @@
 package doccomp
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -196,4 +197,5 @@ type CachedDocument struct {
 func (c CachedDocument) Read(dest []byte) error {
 	// use scanVariable()
 	// use
+	return errors.New("not implemented")
 }
