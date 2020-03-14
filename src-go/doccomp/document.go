@@ -177,7 +177,7 @@ func loadDocumentFromPath(path string,
 		doc.allIncluded = doc.root.allIncluded
 	} else {
 		doc.root = &doc
-		doc.allDefinitions = &[]Definition{}
+		doc.allDefinitions = &[]NormalDefinition{}
 		doc.allIncluded = &[]*Document{}
 	}
 
@@ -276,15 +276,6 @@ func loadDocumentFromPath(path string,
 		}
 	}
 
-	/*err = doc.detectVariables()
-	if err != nil {
-		oerr.ErrStr = "failed to detect variables"
-		oerr.SetBecause(err)
-		_ = doc.Close()
-		return doc, oerr
-	}
-	Debugf("detected '%d' variable uses in '%s'", len(doc.variablePos), path)
-	*/
 	// normal definitions (#define)
 	Debugf("parsing %d normalDefines '%s'", len(doc.normalPos), path)
 	for _, d := range doc.normalPos {
@@ -307,61 +298,6 @@ func loadDocumentFromPath(path string,
 		}
 	}
 
-	// processed definitions
-	/*for _, p := range doc.variablePos {
-
-		// if it has an empty processor name, then its not a processor variable
-		// so ignore it
-		if p.processorName == "" {
-			continue
-		}
-
-		pros, err := doc.proccessorLoader.GetProcessor(p.processorName)
-		if err != nil {
-			oerr.ErrStr = "failed to get processor for variable"
-			oerr.SetSubjectf("%s %s", path, p.ToString())
-			oerr.SetBecause(err)
-			_ = doc.Close()
-			return doc, oerr
-		}
-
-		// check to make sure the processor will actually define it.
-		var i int
-		var procVar string
-		var procVars = pros.GetVariableNames()
-		for i = 0; i < len(procVars); i++ {
-			procVar = procVars[i]
-			if procVar == p.variableName {
-				break
-			}
-		}
-		if i == len(procVars) {
-			oerr.ErrStr = "processor does not define variable"
-			oerr.SetSubjectf("%s %s", path, p.ToString())
-			_ = doc.Close()
-			return doc, oerr
-		}
-
-		// okay, now demand it defines it
-		def, err := pros.DefineVariable(p.variableName)
-		if err != nil {
-			oerr.ErrStr = "processor failed to define variable"
-			oerr.SetSubjectf("%s %s", path, p.ToString())
-			oerr.SetBecause(err)
-			_ = doc.Close()
-			return doc, oerr
-		}
-
-		err = doc.addDefinition(def)
-		if err != nil {
-			oerr.ErrStr = "failed to add normal definition"
-			oerr.SetSubjectf("%s %s", path, p.ToString())
-			oerr.SetBecause(err)
-			_ = doc.Close()
-			return doc, oerr
-		}
-	}*/
-
 	return doc, nil
 }
 
@@ -370,111 +306,13 @@ func bytesAreString(buff []byte, str string, offset int) bool {
 		string(buff[offset:offset+len(str)]) == str
 }
 
-// TODO: this function does not look at the converted file,
-// it looks at the raw file.... we need to have it look at the converted file.
-/*
-func (doc *Document) detectVariables() *Error {
-	var linenum uint = 1 // used for debugging
-	var colnum uint      // used to generate colnum (for debuggin)
-
-	var at int64 = 0
-	var lastBuffer = false
-
-	var bufferFill = 0
-
-	// loop through the hole file until we hit the end
-	for !lastBuffer {
-		n,err := doc.ConvertedFile.Read(doc.
-			VariableDetectionBuffer[bufferFill:])
-		lastBuffer = err == io.EOF
-		if err != nil && err != io.EOF {
-			oerr := NewError(errFailedToReadBytes)
-			oerr.SetBecause(NewError(err.Error()))
-			return oerr
-		}
-
-		if bufferFill != 0 {
-			// we're currently in the middle of reading a variable...
-		} else {
-			// we need to continue to find a variable
-		}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-		// load bytes into the buffer
-		n, err := doc.rawFile.ReadAt(doc.VariableDetectionBuffer, at)
-		lastBuffer = err == io.EOF
-		if err != nil && err != io.EOF {
-			oerr := &Error{}
-			oerr.ErrStr = errFailedToReadBytes
-			oerr.SetBecause(NewError(err.Error()))
-			return oerr
-		}
-
-		// if this buffer starts with a '$' we can then try to interpret a
-		// variable
-		if doc.VariableDetectionBuffer[0] == VariablePrefix[0] {
-			pos, serr := scanVariable(doc.VariableDetectionBuffer,
-				int64(at),
-				linenum,
-				colnum)
-			if serr != nil {
-				// failed to parse. send it up.
-				return serr
-			}
-			if pos != nil {
-				// success, we've found a variable.
-				doc.variablePos = append(doc.variablePos, *pos)
-				Debugf("found variable '%s'", pos.fullName,
-					pos.ToString())
-			} else {
-				// this buffer did contain a valid variable. Oh well, let
-				// just move on. (else statement left for this comment's
-				// readability)
-			}
-		}
-
-		// find the next availabe '$' (aside from the '0' index which we just
-		// checked above) and force the next/itoration to start
-		// where that '$' was found or just move the entire buffer if nothing
-		// was found. This also increments linenum if if finds and newlines.
-		var scannedBytes = 0
-		colnum++ // increment column num because we
-		// skip it in the for-loop.
-		for scannedBytes = 1; scannedBytes < n; scannedBytes++ {
-			if doc.VariableDetectionBuffer[scannedBytes] == '\n' {
-				colnum = 1
-				linenum++
-			}
-			if doc.VariableDetectionBuffer[scannedBytes] == VariablePrefix[0] {
-				break
-			}
-			colnum++
-		}
-		at += int64(scannedBytes)
-	}
-	return nil
-}*/
-
-// returns nil,nil if that means you should keep scanning
-// returns pos,nil if a variable was found
 // returns nil,err if an error happened while parsing
+// returns 0,nil,nil if no variable has been found yet
+// returns >0,nil,nil if a variable has been found but not completely done
+//  scanned.
+// returns pos,nil if a variable was found
 func drawParseVar(dest []byte, src []byte,
-	charsource int64,
-	linenum uint,
-	colnum uint) (pos *variablePos, oerr *Error) {
+	charsource int64) (pos *variablePos, oerr *Error) {
 
 	// we retain i for 2 reasons: 1) we can check of a loop completed and 2)
 	// so if we have just scanned in the start of a new variable from src to
@@ -518,7 +356,7 @@ func drawParseVar(dest []byte, src []byte,
 		return nil, nil
 	}
 
-	scannedPos, serr := scanVariable(dest, charsource, linenum, colnum)
+	scannedPos, serr := scanVariable(dest, charsource)
 	if serr != nil {
 		switch serr.ErrStr {
 		case errVariableMissingSuffix:
@@ -555,8 +393,7 @@ func drawParseVar(dest []byte, src []byte,
 // helper-function for detectVariables
 // looks at the buffer and tries to parse a variable out of it.
 // The itself variable must start at the very beginning of the buffer.
-func scanVariable(buffer []byte, charsource int64,
-	linenum uint, colnum uint) (pos variablePos, oerr *Error) {
+func scanVariable(buffer []byte, charsource int64) (pos variablePos, oerr *Error) {
 
 	if len(buffer) < len(VariablePrefix)+len(VariableSuffix) {
 		// this buffer isn't big enough to even consider the possibility
@@ -595,7 +432,7 @@ func scanVariable(buffer []byte, charsource int64,
 
 	if !variableRegexpProc.Match(varName) {
 		oerr = NewError(errVariableName)
-		oerr.SetSubjectf("'%s' at line %d", string(varName), linenum)
+		oerr.SetSubjectf("'%s'", string(varName))
 		return pos, oerr
 	}
 
@@ -612,8 +449,6 @@ func scanVariable(buffer []byte, charsource int64,
 			VariablePrefix)+dotIndex]),
 		charPos: charsource,
 		length:  uint(length),
-		linenum: linenum,
-		colnum:  colnum,
 	}
 	return pos, nil
 }
@@ -835,11 +670,12 @@ func (doc *Document) Read(dest []byte) (int, error) {
 // 'add definition'.... AH YES. Let's do that.
 
 // Does /not/ define processor variables
-func (doc *Document) ReadIgnore(dest []byte) (int, error) {
+func (doc *Document) ReadIgnore(dest []byte, defineProcVars bool) (int,
+	error) {
 	// If we have prepends that we haven't read, keep reading those.
 	if doc.prependReadingIndex < len(doc.prepends) {
 		Debugf("reading from prepended file %s", doc.path)
-		n, cerr := doc.prepends[doc.prependReadingIndex].ReadIgnore(dest)
+		n, cerr := doc.prepends[doc.prependReadingIndex].ReadIgnore(dest, defineProcVars)
 		if cerr != nil && cerr != io.EOF {
 			oerr := NewError(errFailedToReadPrependDocument)
 			oerr.SetSubject(doc.prepends[doc.prependReadingIndex].path)
@@ -880,15 +716,6 @@ func (doc *Document) ReadIgnore(dest []byte) (int, error) {
 		// ...we're not. so lets continue reading the content from this document
 		// TODO: this needs to read from the converted file
 		Debugf("reading (converted) document to buffer")
-
-		/// draw variables and expand the normal ones, print out the proc
-		// ones
-		// I think we should just grab the proc vars as we go... or add
-		// the ignore option back so the cacher has control... but keeping
-		// the draw function external and portable maybe inefficnet when
-		// ignoring proc vars on the first go-around. but the caching makes
-		// it a whole lot faster on the second one.
-
 		n, cerr := doc.ConvertedFile.Read(dest)
 		if cerr != nil && cerr != io.EOF {
 			oerr := NewError(errFailedToReadDocument)
@@ -902,50 +729,6 @@ func (doc *Document) ReadIgnore(dest []byte) (int, error) {
 			Debugf("document reading return EOF, will no longer read it")
 			doc.convertedFileDoneReading = true
 		}
-
-		for i := 0; i < n; i++ {
-			if dest[i] == VariablePrefix[0] {
-
-			}
-		}
-
-		if defineProcVars {
-			// are there any variables in what we just read?
-			for _, v := range doc.variablePos {
-				for i := 0; i < n; i++ {
-					if int64(i)+doc.cursorPos == v.charPos {
-						// there is a variable in this buffer. let's mark it to be
-						// read on the next read()
-						def := doc.findDefinitionByName(v.fullName)
-						if def == nil {
-							oerr := NewError(errNotDefined)
-							oerr.SetSubject(v.ToString())
-							return n, oerr
-						}
-						doc.currentlyReadingDef = def
-						cerr = def.Reset()
-						if cerr != nil {
-							oerr := NewError(errResetVariable)
-							oerr.SetSubject(v.ToString())
-							return n, oerr
-						}
-						Debugf("found variable '%s' in read buffer, "+
-							"will now read from that", def.GetFullName())
-
-						// now advance the cursor forward to where the variable is
-						// plus its length so we dont read the raw variable again.
-						doc.cursorPos = doc.cursorPos + int64(i) + int64(v.length)
-
-						// only return all bytes that have been proccessed up to
-						// the variable
-						return i, nil
-					}
-				}
-			}
-		}
-
-		// no variables in this buffer, so just return the generic read results
-		doc.cursorPos = doc.cursorPos + int64(n)
 		return n, nil
 	}
 
