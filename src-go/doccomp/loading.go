@@ -86,12 +86,10 @@ func (m macoPos) ToString() string {
 
 type Document struct {
 	rawFile       *os.File
-	ConvertedFile ConvertedFile
+	ConvertedFile io.ReadCloser
 
 	fileInode uint64 // it may be linux-only. but this keeps us grounded,
 	// now Document can be made without an actual file backing it.
-
-	converters []DocumentConverter
 
 	path string
 
@@ -140,10 +138,9 @@ type Document struct {
  * be used. If no converters return true, the document is not converted and will
  * be read as normal (via io.OpenFile).
  */
-func LoadDocument(path string, converters []DocumentConverter,
-	proccessorLoader ProcessorLoader) (doc Document,
+func LoadDocument(path string) (doc Document,
 	oerr *Error) {
-	return loadDocumentFromPath(path, converters, nil, nil)
+	return loadDocumentFromPath(path, nil, nil)
 }
 
 /*
@@ -154,21 +151,22 @@ func (doc Document) GetFileName() string {
 }
 
 func loadDocumentFromPath(path string,
-	converters []DocumentConverter,
 	parent *Document,
 	root *Document) (doc Document, oerr *Error) {
 
 	oerr = &Error{}
 	oerr.SetSubject(path)
 
-	var cerr error
 	doc.MacroReadBuffer = make([]byte, MacroMaxLength)
 	doc.VariableDetectionBuffer = make([]byte, len(VariablePrefix))
 	doc.parent = parent
 	doc.root = root
 	doc.path = path
-	doc.converters = converters
 	doc.convertedFileDoneReading = false
+	// zero-out the variable detection buffer
+	for i, _ := range doc.VariableDetectionBuffer {
+		doc.VariableDetectionBuffer[i] = 0
+	}
 
 	// see the document struct's instructions about 'allIncluded' and
 	// 'allDefinitions'
@@ -200,7 +198,7 @@ func loadDocumentFromPath(path string,
 	serr = syscall.Stat(path, &stat)
 	if serr != nil {
 		oerr.ErrStr = "failed to get inode for file"
-		oerr.SetBecause(NewError(cerr.Error()))
+		oerr.SetBecause(NewError(serr.Error()))
 		_ = doc.Close()
 		return doc, oerr
 	}
@@ -255,27 +253,6 @@ func loadDocumentFromPath(path string,
 		doc.appends[i] = inc
 	}
 
-	// set the cursor past all the #prepends, #appends, and #includes.
-	doc.cursorPos = doc.rawContentStart
-
-	// TODO: right here... right before we start looking for and defining
-	// variables we need to convert the document to the target format.
-	doc.ConvertedFile = doc.rawFile
-	for _, c := range doc.converters {
-		if c.ShouldConvert(doc.path) {
-			Debugf("using converter '%s' for '%s'", c.GetDescription(), path)
-			converted, cerr := c.ConvertFile(doc.rawFile)
-			if cerr != nil {
-				oerr.ErrStr = errConvert
-				oerr.SetBecause(NewError(cerr.Error()))
-				_ = doc.Close()
-				return doc, oerr
-			}
-			doc.ConvertedFile = converted
-			break
-		}
-	}
-
 	// normal definitions (#define)
 	Debugf("parsing %d normalDefines '%s'", len(doc.normalPos), path)
 	for _, d := range doc.normalPos {
@@ -298,159 +275,30 @@ func loadDocumentFromPath(path string,
 		}
 	}
 
+	// set the cursor past all the #prepends, #appends, and #includes.
+	_, serr = doc.rawFile.Seek(doc.rawContentStart, 0)
+	if serr != nil {
+		oerr.ErrStr = errFailedToSeek
+		oerr.SetBecause(NewError(serr.Error()))
+		_ = doc.Close()
+	}
+	doc.cursorPos = doc.rawContentStart
+
+	// variables we need to convert the document to the target format.
+	doc.ConvertedFile, err = getConverted(doc.rawFile)
+	if err != nil {
+		oerr.ErrStr = errConvert
+		oerr.SetBecause(err)
+		_ = doc.Close()
+		return doc, oerr
+	}
+
 	return doc, nil
 }
 
 func bytesAreString(buff []byte, str string, offset int) bool {
 	return offset+len(str) <= len(buff) &&
 		string(buff[offset:offset+len(str)]) == str
-}
-
-// returns nil,err if an error happened while parsing
-// returns 0,nil,nil if no variable has been found yet
-// returns >0,nil,nil if a variable has been found but not completely done
-//  scanned.
-// returns pos,nil if a variable was found
-func drawParseVar(dest []byte, src []byte,
-	charsource int64) (pos *variablePos, oerr *Error) {
-
-	// we retain i for 2 reasons: 1) we can check of a loop completed and 2)
-	// so if we have just scanned in the start of a new variable from src to
-	// dest, we can start the normal scanning proccess from where we left off
-	// when we discovered the start of the variable.
-	var i = 0
-
-	var j = 0
-
-	// if the dest starts with null (0), then that means we haven't started
-	// drawing a variable yet. So look at src to see if (and where) we should
-	// start.
-	if dest[0] != VariablePrefix[0] {
-		for ; i < len(src) && src[i] != VariablePrefix[0]; i++ {
-		}
-		if i == len(src) {
-			// we're not recording a variable, nor did we find the start of one
-			// in src.
-			return nil, nil
-		}
-	}
-
-	// at this point we've just found, or have previously found at least
-	// the start of a variable that is currently loaded in dest.
-
-	// so lets find where we left off with dest (when dest[j] == 0 that means
-	// we havent written to that part of it yet)
-	for ; j < len(dest) && dest[j] != 0; j++ {
-	}
-
-	// now appended src to dest
-	for j < len(dest) && i < len(src) {
-		dest[j] = src[i]
-		j++
-		i++
-	}
-
-	// if the scanned in bytes is shorter than the prefix, then
-	// we need to wait another scan.
-	if j < len(VariablePrefix) {
-		return nil, nil
-	}
-
-	scannedPos, serr := scanVariable(dest, charsource)
-	if serr != nil {
-		switch serr.ErrStr {
-		case errVariableMissingSuffix:
-			// so we didn't scan in a full variable into dest...
-			// now we ask: are we out of room in dest?
-			if j == len(dest) {
-				// if we are, then the caller can't draw anymore. so send em the
-				// error
-				for j = 0; j < len(dest); j++ {
-					dest[j] = 0
-				}
-				return nil, serr
-			}
-			// if we're not at the end of dest then the caller can call this
-			// function more times until we indeed fill it.
-			return nil, nil
-		case errVariableMissingPrefix:
-			// theres no prefix. which means the buffer is crap if it doesn't
-			// even start right. So throw the whole thing away.
-			for j = 0; j < len(dest); j++ {
-				dest[j] = 0
-			}
-			return nil, nil
-
-		}
-		return nil, serr
-	}
-	for j = 0; j < len(dest); j++ {
-		dest[j] = 0
-	}
-	return &scannedPos, nil
-}
-
-// helper-function for detectVariables
-// looks at the buffer and tries to parse a variable out of it.
-// The itself variable must start at the very beginning of the buffer.
-func scanVariable(buffer []byte, charsource int64) (pos variablePos, oerr *Error) {
-
-	if len(buffer) < len(VariablePrefix)+len(VariableSuffix) {
-		// this buffer isn't big enough to even consider the possibility
-		// of having a variable.
-		return pos, NewError(errBufferTooShort)
-	}
-
-	var length, j, dotIndex int
-	for length = 0; length < len(VariablePrefix); length++ {
-		if buffer[length] != VariablePrefix[length] {
-			// no valid prefix, no variable to be found here!
-			return pos, NewError(errVariableMissingPrefix)
-		}
-	}
-
-	for ; length < len(buffer); length++ {
-		// keep scanning through until we find the VariableSuffix
-		if length+len(VariableSuffix) >= len(buffer) {
-			// The VariableSuffix was not found in this buffer.
-			oerr = NewError(errVariableMissingSuffix)
-			return pos, oerr
-		}
-
-		for j = 0; j < len(VariableSuffix); j++ {
-			if buffer[length+j] != VariableSuffix[j] {
-				break
-			}
-		}
-		if j == len(VariableSuffix) {
-			length = length + j
-			break
-		}
-	}
-
-	varName := buffer[len(VariablePrefix) : length-len(VariableSuffix)]
-
-	if !variableRegexpProc.Match(varName) {
-		oerr = NewError(errVariableName)
-		oerr.SetSubjectf("'%s'", string(varName))
-		return pos, oerr
-	}
-
-	dotIndex = strings.Index(string(buffer[:length]),
-		VariableProcessorSeporator)
-	if dotIndex == -1 {
-		dotIndex = 0
-	}
-
-	pos = variablePos{
-		fullName:     string(buffer[:length]),
-		variableName: string(buffer[len(VariablePrefix) : length-len(VariableSuffix)]),
-		processorName: string(buffer[len(VariablePrefix) : len(
-			VariablePrefix)+dotIndex]),
-		charPos: charsource,
-		length:  uint(length),
-	}
-	return pos, nil
 }
 
 // helper-function for detectMacrosPositions
@@ -612,7 +460,6 @@ func (doc *Document) include(path string) (incdoc *Document, oerr *Error) {
 	}
 
 	adoc, err := loadDocumentFromPath(relPath,
-		doc.converters,
 		doc,
 		doc.root)
 

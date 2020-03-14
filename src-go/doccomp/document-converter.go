@@ -1,19 +1,8 @@
 package doccomp
 
-// todo
-// do we introduce the
-
-type ConvertedFile interface {
-	// same as io.ReadCloser
-	Close() error
-
-	// same as io.ReaderAt
-	// must always return error if n < len(p).
-	// must return io.EOF when end of file
-	ReadAt(p []byte, off int64) (n int, err error)
-
-	Read(p []byte) (n int, err error)
-}
+import (
+	"io"
+)
 
 // its a io.Reader that will read from the file but will NOT read the macros.
 type SourceFile interface {
@@ -40,10 +29,14 @@ type DocumentConverter interface {
 	 * note that the SourceFile:Close MUST be called before this function
 	 * returns.
 	 */
-	ConvertFile(SourceFile) (ConvertedFile, error)
+	ConvertFile(reader io.Reader) (io.ReadCloser, error)
 
 	/*
 	 * For verboseness/errors/UI purposes. No functional signifigance
 	 */
 	GetDescription() string
+}
+
+func getConverted(rawcontents io.ReadCloser) (io.ReadCloser, *Error) {
+	return rawcontents, nil
 }
