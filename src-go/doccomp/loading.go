@@ -87,7 +87,7 @@ func (m macoPos) ToString() string {
 
 type Document struct {
 	rawFile       *os.File
-	ConvertedFile io.ReadCloser
+	ConvertedFile File
 
 	fileInode uint64 // it may be linux-only. but this keeps us grounded,
 	// now Document can be made without an actual file backing it.
@@ -102,6 +102,8 @@ type Document struct {
 	allIncluded *[]*Document // if root != nil,
 	// then this points to the root's allIncluded
 
+	documentEOF bool // while reading, will be set to true if the document (
+	// plus prepends and appends) is at End of file
 	convertedFileDoneReading bool // set to true if the (
 	// converted) file and variables this document references has been
 	// completely/outputted and all thats left is appended documents.
@@ -287,7 +289,7 @@ func loadDocumentFromPath(path string,
 
 	// variables we need to convert the document to the target format.
 	Debugf("opening a converter to '%s'", path)
-	doc.ConvertedFile, err = getConverted(doc.rawFile)
+	doc.ConvertedFile, err = getConverted(osFileToFile(doc.rawFile, doc.rawContentStart))
 	if err != nil {
 		oerr.ErrStr = errConvert
 		oerr.SetBecause(err)
@@ -457,7 +459,7 @@ func (doc *Document) include(path string) (incdoc *Document, oerr *Error) {
 		return nil, oerr
 	}
 
-	// make sure we done re-include anything
+	// make sure we dont re-include anything
 	for _, d := range *doc.allIncluded {
 		if d.fileInode == stat.Ino {
 			Debugf("avoiding a re-opening of document '%s' (inode match)",
@@ -518,17 +520,62 @@ func (doc *Document) Read(dest []byte) (int, error) {
 	return doc.ReadIgnore(dest, true)
 }
 
-// todo: remove the 'ignore' bools... we need to have some way to communicate
-// processor vars to the processor. Maybe they should be passed in via Read?
-// hmmmm.... or something like that. or perhaps 'add proccessor' instead of
-// 'add definition'.... AH YES. Let's do that.
+func (doc *Document) Rewind() error {
+	Debugf("rewinding document %s", doc.path)
+	cerr := doc.ConvertedFile.Rewind()
+	if cerr != nil {
+		oerr := NewError(errRewind)
+		oerr.SetSubject(doc.path)
+		oerr.SetBecause(NewError(cerr.Error()))
+		return oerr
+	}
+	for i := 0; i < doc.prependReadingIndex; i++ {
+		cerr := doc.prepends[i].Rewind()
+		if cerr != nil {
+			oerr := NewError(errRewind)
+			oerr.SetSubject(doc.path)
+			oerr.SetBecause(NewError(cerr.Error()))
+			return oerr
+		}
+	}
+
+	for i := 0; i < doc.appendReadingIndex; i++ {
+		cerr := doc.appends[i].Rewind()
+		if cerr != nil {
+			oerr := NewError(errRewind)
+			oerr.SetSubject(doc.path)
+			oerr.SetBecause(NewError(cerr.Error()))
+			return oerr
+		}
+	}
+	doc.appendReadingIndex = 0
+	doc.prependReadingIndex = 0
+	doc.documentEOF = false
+	doc.convertedFileDoneReading = false
+	return nil
+}
 
 // Does /not/ define processor variables
 func (doc *Document) ReadIgnore(dest []byte, defineProcVars bool) (int,
 	error) {
+
+	// the caller is requesting we read from this document even though we've
+	// previously returned an EOF... so lets reset
+	if doc.documentEOF {
+		Debugf("rewinding EOF'd document '%s' for reading", doc.path)
+		cerr := doc.Rewind()
+		if cerr != nil {
+			oerr := NewError(errFailedToReadPrependDocument)
+			oerr.SetSubject(doc.prepends[doc.prependReadingIndex].path)
+			oerr.SetBecause(NewError(cerr.Error()))
+			return 0, oerr
+		}
+		doc.documentEOF = false
+		doc.convertedFileDoneReading = false
+	}
+
 	// If we have prepends that we haven't read, keep reading those.
 	if doc.prependReadingIndex < len(doc.prepends) {
-		Debugf("reading from prepended file %s", doc.path)
 		n, cerr := doc.prepends[doc.prependReadingIndex].ReadIgnore(dest, defineProcVars)
 		if cerr != nil && cerr != io.EOF {
 			oerr := NewError(errFailedToReadPrependDocument)
@@ -548,8 +595,7 @@ func (doc *Document) ReadIgnore(dest []byte, defineProcVars bool) (int,
 	// are we done reading the content of this doucmnet?...
 	if !doc.convertedFileDoneReading {
 		// ...we're not. so lets continue reading the content from this document
-		// TODO: this needs to read from the converted file
-		Debugf("reading (converted) document to buffer")
+		Debugf("reading (converted) document to buffer %s", doc.path)
 		n, cerr := doc.ConvertedFile.Read(dest)
 		if cerr != nil && cerr != io.EOF {
 			oerr := NewError(errFailedToReadDocument)
@@ -560,7 +606,8 @@ func (doc *Document) ReadIgnore(dest []byte, defineProcVars bool) (int,
 		if cerr == io.EOF {
 			// ...we are done reading this document,
 			// so lets not read it anymore in subsequent read()'s
-			Debugf("document reading return EOF, will no longer read it")
+			Debugf("document '%s' reading return EOF, " +
+				"will no longer read it", doc.path)
 			doc.convertedFileDoneReading = true
 		}
 		return n, nil
@@ -570,6 +617,7 @@ func (doc *Document) ReadIgnore(dest []byte, defineProcVars bool) (int,
 	// lets read from appended files now...
 	if doc.appendReadingIndex < len(doc.appends) {
 		Debugf("reading from appended file %s", doc.path)
+
 		n, cerr := doc.appends[doc.appendReadingIndex].ReadIgnore(dest, defineProcVars)
 		if cerr != nil && cerr != io.EOF {
 			oerr := NewError(errFailedToReadAppendedDocument)
@@ -588,6 +636,7 @@ func (doc *Document) ReadIgnore(dest []byte, defineProcVars bool) (int,
 	// then we've read all prepended files,
 	// the document itself + variables, and all appended files.
 	// In other words, we've got nothing left to do.
+	doc.documentEOF = true
 	return 0, io.EOF
 }
 

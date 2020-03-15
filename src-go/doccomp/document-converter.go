@@ -2,16 +2,41 @@ package doccomp
 
 import (
 	"io"
+	"os"
 )
 
 // its a io.Reader that will read from the file but will NOT read the macros.
-type SourceFile interface {
+type File interface {
 	// n will sometimes be < len(p) but that does not mean it's the end of the
 	// file. Only when 0, io.EOF is returned will it be the end of the file.
 	Read(p []byte) (int, error)
 
+	// returns to the beginning of the file
+	Rewind() error
+
 	// must be called when conversion is done.
 	Close() error
+}
+
+
+type osFileHandle struct {
+	*os.File
+	resetPos int64
+}
+
+func osFileToFile(file *os.File, resetPos int64) File {
+	return osFileHandle{file,resetPos}
+}
+
+func (o osFileHandle) Read(p []byte) (int, error) {
+	return o.File.Read(p)
+}
+func (o osFileHandle) Rewind() error {
+	_,err := o.File.Seek(o.resetPos, 0)
+	return err
+}
+func (o osFileHandle) Close() error {
+	return o.File.Close()
 }
 
 type DocumentConverter interface {
@@ -37,6 +62,6 @@ type DocumentConverter interface {
 	GetDescription() string
 }
 
-func getConverted(rawcontents io.ReadCloser) (io.ReadCloser, *Error) {
+func getConverted(rawcontents File) (File, *Error) {
 	return rawcontents, nil
 }

@@ -65,6 +65,7 @@ const (
 	errFailedToReadBytes            = "failed to read bytes from stream"
 	errFailedToReadDocument         = "failed to read from document"
 	errFailedToReadPrependDocument  = "failed to read from prepended document"
+	errRewind                       = "cannot rewind"
 	errFailedToReadAppendedDocument = "failed to read from appended document"
 	errFailedToReadVariable         = "failed to read variable"
 	errFailedToSeek                 = "failed to seek through file"
