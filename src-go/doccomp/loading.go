@@ -22,12 +22,8 @@ const VariableSuffix = ")"
 const VariableProcessorSeporator = "."
 const VariableRegexp = `^(?:[a-z0-9]+\.)?[a-zA-Z0-9]+$`
 const MacroMaxLength = 1024
-const MaxVariableLength = 32
 
 var variableRegexpProc = regexp.MustCompile(VariableRegexp)
-
-const DocumentReadBlock = len(MacroPrefix)*3 + len(
-	DefineStr)*len(PrependStr)*len(AppendStr)*256
 
 type NormalDefinition struct {
 	variable string
@@ -35,7 +31,7 @@ type NormalDefinition struct {
 	seeker   int
 }
 
-func CreateNormalDefinition(variable string, value string) (NormalDefinition,
+func createNormalDefinition(variable string, value string) (NormalDefinition,
 	*Error) {
 	ret := NormalDefinition{
 		variable: variable,
@@ -108,9 +104,8 @@ type Document struct {
 	// converted) file and variables this document references has been
 	// completely/outputted and all thats left is appended documents.
 	//used for reading.
-	currentlyReadingDef Definition // points to somewhere in allDefinitions,
+
 	// used in reading. can be nil which means not currenlty reading from one
-	cursorPos int64 // used for reading
 
 	MacroReadBuffer         []byte
 	VariableDetectionBuffer []byte // used to detect variables when the
@@ -259,7 +254,7 @@ func loadDocumentFromPath(path string,
 	// normal definitions (#define)
 	Debugf("parsing %d normal define(s) '%s'", len(doc.normalPos), path)
 	for _, d := range doc.normalPos {
-		def, err := CreateNormalDefinition(d.args[1], d.args[2])
+		def, err := createNormalDefinition(d.args[1], d.args[2])
 		if err != nil {
 			oerr.ErrStr = "cannot parse definition"
 			oerr.SetSubjectf("%s %s", path, d.ToString())
@@ -285,7 +280,6 @@ func loadDocumentFromPath(path string,
 		oerr.SetBecause(NewError(serr.Error()))
 		_ = doc.Close()
 	}
-	doc.cursorPos = doc.rawContentStart
 
 	// variables we need to convert the document to the target format.
 	Debugf("opening a converter to '%s'", path)
@@ -393,8 +387,6 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 		if oerr != nil {
 			return oerr
 		}
-
-
 
 		if pos.length == 0 {
 			doc.rawContentStart = at
@@ -516,8 +508,88 @@ func (doc Document) findDefinitionByName(FullName string) *NormalDefinition {
 //your next read will read the contents of the variable.
 //
 // that being said, len(p) >= MacroMaxLength.
-func (doc *Document) Read(dest []byte) (int, error) {
-	return doc.ReadIgnore(dest, true)
+func (doc *Document) Read(dest []byte) (int,
+	error) {
+
+	// the caller is requesting we read from this document even though we've
+	// previously returned an EOF... so lets reset
+	if doc.documentEOF {
+		Debugf("rewinding EOF'd document '%s' for reading", doc.path)
+		cerr := doc.Rewind()
+		if cerr != nil {
+			oerr := NewError(errFailedToReadPrependDocument)
+			oerr.SetSubject(doc.prepends[doc.prependReadingIndex].path)
+			oerr.SetBecause(NewError(cerr.Error()))
+			return 0, oerr
+		}
+		doc.documentEOF = false
+		doc.convertedFileDoneReading = false
+	}
+
+	// If we have prepends that we haven't read, keep reading those.
+	if doc.prependReadingIndex < len(doc.prepends) {
+		n, cerr := doc.prepends[doc.prependReadingIndex].Read(dest)
+		if cerr != nil && cerr != io.EOF {
+			oerr := NewError(errFailedToReadPrependDocument)
+			oerr.SetSubject(doc.prepends[doc.prependReadingIndex].path)
+			oerr.SetBecause(NewError(cerr.Error()))
+			return n, oerr
+		}
+		if cerr == io.EOF {
+			doc.prependReadingIndex++
+			return n, nil
+		}
+		return n, nil
+	}
+
+	// At this point, we're not reading a prepended file, we're not reading
+	// a variable. Now the question is,
+	// are we done reading the content of this doucmnet?...
+	if !doc.convertedFileDoneReading {
+		// ...we're not. so lets continue reading the content from this document
+		Debugf("reading (converted) document to buffer %s", doc.path)
+		n, cerr := doc.ConvertedFile.Read(dest)
+		if cerr != nil && cerr != io.EOF {
+			oerr := NewError(errFailedToReadDocument)
+			oerr.SetSubject(doc.path)
+			oerr.SetBecause(NewError(cerr.Error()))
+			return n, oerr
+		}
+		if cerr == io.EOF {
+			// ...we are done reading this document,
+			// so lets not read it anymore in subsequent read()'s
+			Debugf("document '%s' reading return EOF, "+
+				"will no longer read it", doc.path)
+			doc.convertedFileDoneReading = true
+		}
+		return n, nil
+	}
+
+	// well okay looks like the document itself has been fully read.
+	// lets read from appended files now...
+	if doc.appendReadingIndex < len(doc.appends) {
+		Debugf("reading from appended file %s", doc.path)
+
+		n, cerr := doc.appends[doc.appendReadingIndex].Read(dest)
+		if cerr != nil && cerr != io.EOF {
+			oerr := NewError(errFailedToReadAppendedDocument)
+			oerr.SetSubject(doc.appends[doc.appendReadingIndex].path)
+			oerr.SetBecause(NewError(cerr.Error()))
+			return n, oerr
+		}
+		if cerr == io.EOF {
+			doc.appendReadingIndex++
+			return n, nil
+		}
+		return n, nil
+	}
+
+	// well look at that. If we've made it this far,
+	// then we've read all prepended files,
+	// the document itself + variables, and all appended files.
+	// In other words, we've got nothing left to do.
+	doc.documentEOF = true
+	return 0, io.EOF
 }
 
 func (doc *Document) Rewind() error {
@@ -553,91 +625,6 @@ func (doc *Document) Rewind() error {
 	doc.documentEOF = false
 	doc.convertedFileDoneReading = false
 	return nil
-}
-
-// Does /not/ define processor variables
-func (doc *Document) ReadIgnore(dest []byte, defineProcVars bool) (int,
-	error) {
-
-	// the caller is requesting we read from this document even though we've
-	// previously returned an EOF... so lets reset
-	if doc.documentEOF {
-		Debugf("rewinding EOF'd document '%s' for reading", doc.path)
-		cerr := doc.Rewind()
-		if cerr != nil {
-			oerr := NewError(errFailedToReadPrependDocument)
-			oerr.SetSubject(doc.prepends[doc.prependReadingIndex].path)
-			oerr.SetBecause(NewError(cerr.Error()))
-			return 0, oerr
-		}
-		doc.documentEOF = false
-		doc.convertedFileDoneReading = false
-	}
-
-	// If we have prepends that we haven't read, keep reading those.
-	if doc.prependReadingIndex < len(doc.prepends) {
-		n, cerr := doc.prepends[doc.prependReadingIndex].ReadIgnore(dest, defineProcVars)
-		if cerr != nil && cerr != io.EOF {
-			oerr := NewError(errFailedToReadPrependDocument)
-			oerr.SetSubject(doc.prepends[doc.prependReadingIndex].path)
-			oerr.SetBecause(NewError(cerr.Error()))
-			return n, oerr
-		}
-		if cerr == io.EOF {
-			doc.prependReadingIndex++
-			return n, nil
-		}
-		return n, nil
-	}
-
-	// At this point, we're not reading a prepended file, we're not reading
-	// a variable. Now the question is,
-	// are we done reading the content of this doucmnet?...
-	if !doc.convertedFileDoneReading {
-		// ...we're not. so lets continue reading the content from this document
-		Debugf("reading (converted) document to buffer %s", doc.path)
-		n, cerr := doc.ConvertedFile.Read(dest)
-		if cerr != nil && cerr != io.EOF {
-			oerr := NewError(errFailedToReadDocument)
-			oerr.SetSubject(doc.path)
-			oerr.SetBecause(NewError(cerr.Error()))
-			return n, oerr
-		}
-		if cerr == io.EOF {
-			// ...we are done reading this document,
-			// so lets not read it anymore in subsequent read()'s
-			Debugf("document '%s' reading return EOF, " +
-				"will no longer read it", doc.path)
-			doc.convertedFileDoneReading = true
-		}
-		return n, nil
-	}
-
-	// well okay looks like the document itself has been fully read.
-	// lets read from appended files now...
-	if doc.appendReadingIndex < len(doc.appends) {
-		Debugf("reading from appended file %s", doc.path)
-
-		n, cerr := doc.appends[doc.appendReadingIndex].ReadIgnore(dest, defineProcVars)
-		if cerr != nil && cerr != io.EOF {
-			oerr := NewError(errFailedToReadAppendedDocument)
-			oerr.SetSubject(doc.appends[doc.appendReadingIndex].path)
-			oerr.SetBecause(NewError(cerr.Error()))
-			return n, oerr
-		}
-		if cerr == io.EOF {
-			doc.appendReadingIndex++
-			return n, nil
-		}
-		return n, nil
-	}
-
-	// well look at that. If we've made it this far,
-	// then we've read all prepended files,
-	// the document itself + variables, and all appended files.
-	// In other words, we've got nothing left to do.
-	doc.documentEOF = true
-	return 0, io.EOF
 }
 
 func (doc *Document) close() error {

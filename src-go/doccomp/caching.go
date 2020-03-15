@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+const MaxVariableLength = 32
+
 type Cache interface {
 
 	/*
