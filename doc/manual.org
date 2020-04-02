@@ -301,12 +301,15 @@ doccomp_get_description();
 const char **
 doccomp_get_variable_names();
 
-struct doccomp_read_variable_return 
-doccomp_read_variable(
-    , requestArray // THIS IS WHAT NEED TO BE FIGURED
-    , const char *variable
-    , void *buffer
-    , int buffer_len);
+// will return an array of structs that is equal length to 
+// the inputed variable_names.
+// variable_names and target_buffer are of length. Each buffer
+// of target_buffer is of length buffer_lengths, associtively
+struct *doccomp_read_variable_return 
+doccomp_read_variable(const char **variable_names
+    , void **target_buffer
+    , int    length
+    , int   *buffer_lengths);
 #+END_SRC
 
 ** Library Path
