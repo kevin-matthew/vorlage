@@ -16,6 +16,12 @@ type Definition interface {
 	// must return EOF when complete.
 	Read(p []byte) (int, error)
 
+	// needed for content-length to be sent
+	// if nil is returned, doccomp will not calculate nor send content-length
+	// however this is not prefered and should be only used for applications
+	// that truelly cannot know what their content length will be.
+	Length() *uint64
+
 	// returns the fulle variable name ie '$(myvar)'
 	GetFullName() string
 }
@@ -111,7 +117,7 @@ func HandleRequest(request Request,
 		reqdoc.Close()
 		return docstream, erro
 	}
-*/
+	*/
 	// step 10,11
 	docstream = reqdoc
 	return docstream, nil
