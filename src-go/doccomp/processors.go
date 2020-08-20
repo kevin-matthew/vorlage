@@ -1,5 +1,7 @@
 package doccomp
 
+import "io"
+
 type RequestData struct {
 	// cookies?
 	// request data?
@@ -18,16 +20,36 @@ type ProcessorLoader interface {
 	GetProcessor(name string) (Processor, *Error)
 }
 
-//TODO: I don't think 'arbitrarycode' is a good name
 type Processor interface {
-	GetName() string // not present in the processor itself
+	// not present in the processor itself.. but in the filename
+	GetName() string
+
+	// description of the proccessor
 	GetDescription() string
-	GetVariableNames() []string // returns a list of Processor-Variable
+
+	// returns a list of Processor-Variable
 	// Names. Note this may be called multiple times so it's best to make the
 	//list as static as possible.
-	DefineVariable(procVariableName string) (Definition,
-		*Error) // will be called only after
-	// the 'variable' string was found in GetVariableNames.
+	GetVariables() []ProcessorVariable
+
+	// defines a given variable only if that variable was a match to what
+	// was provided by GetVariables.
+	// All errors returned by this method will simply be logged. def WILL ALWAYS
+	// be used to define the processor variable.
+	DefineVariable(name string,
+		input map[string]string,
+		streams map[string]io.Reader) (def Definition, err error)
+}
+
+type ProcessorVariable struct {
+	name        string
+	description string
+	inputNames  []string
+
+	// streamed inputs are mutually exclusive from inputNames.
+	// streamedInputNames will be passed into Processor.DefineVariable as an
+	// io.Reader under the streams argument.
+	streamedInputNames []string
 }
 
 var _ Definition = &ProcessorDefinition{}

@@ -1,6 +1,10 @@
 package doccomp
 
-import "io"
+import (
+	"io"
+	"net"
+	"net/http"
+)
 
 /*
  * This is a definition, they can be made either by using '#define' in a file or
@@ -33,12 +37,26 @@ type Request interface {
 	GetFilePath() string
 } // this will probably stay an interface.
 
+type Compiler struct {
+	cache Cache
+}
+
+func ServeHttp(listner net.Listener, rootPath string) error {
+	verbose("starting http at " + rootPath)
+	err := http.Serve(listner)
+
+}
+
+func NewCompiler() (com Compiler, err error) {
+
+}
+
 /*
  * The best way to describe this function is by reading through the steps
  * defined in the 'Highlevel Process' chapter in the readme.
  */
-func HandleRequest(request Request,
-	cache Cache) (docstream io.ReadCloser, err *Error) {
+func Compile(filepath string,
+	Cache Cache) (docstream io.ReadCloser, err *Error) {
 
 	shouldCache, cerr := cache.ShouldCache(request.GetFilePath())
 	if cerr != nil {
