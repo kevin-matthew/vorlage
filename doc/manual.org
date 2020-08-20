@@ -183,6 +183,13 @@ Processor called the *Processor-Variable Name*.
 For example, =$(myproc.BlobPosts)= is a Processed variable, =myproc=
 is the Processor Name, and =BlobPosts= is the Processor-Variable Name.
 
+Each Processed Variables requires a Name and an optional
+*Input*. Input is a lot like the arguments of a function, it's simply
+a list of input names. All arguments of the input are assumed to be a
+raw byte stream... which can easily be interpeted as a string most of
+the time but also can be interpreted as other types such as ints or
+floats in other cases.
+
 * Macros
 Macros are actions to perform during the compolation of a
 Document. The variety of avaialbe Macros is limited by design. The
@@ -238,8 +245,8 @@ be processed the instant the #prepend is evaluated.
 Note that if a [[Circular Dependancy]] is detected, the Document will not
 compile and an error outputted.
 
-
 * Processors
+
 Processors provide you with the ability to perform arbitrary code
 execution when a Document is requested. Under normal (non-erroneous)
 operation, a given Processor has only one duty and that is to define
@@ -330,6 +337,21 @@ first match is what is used.
 
 It should be noted that the Document Compiler's Library Path is NOT
 stored in the envrioment. It is stored in the [[Configuration]].
+
+* Comparison to CGI, FastCGI, NodeJs, PHP, Java/C#
+ - CGI runs the component per request.
+ - FCGI has a single componenet running constantly. But cannot include
+   additional compoenents without re-compiliation
+ - NodeJS and PHP loads most of the componenet constantly. But keeps
+   the remaining parts of the componenet running JIT. Does not require
+   compiliation.
+ - Java/C# componenets is much like NodeJS and PHP execpt the JIT is
+   more effiecnet, using byte code.
+ - DocComp is like FCGI, but loads additional components without
+   re-compiliation.
+ 
+
+
 
 * TODO Technical Elaboration 
 ** Configuration
