@@ -145,7 +145,6 @@ At the core of everything, a variable is identified by a unique string
 of text. However, this string of text must follow a particular syntax
 to be valid. The syntax is as follows:
 
-
  1. A variable must begin with =$(= called a *Variable Prefix*,
  2. followed by UTF-8 alphanumaric string /unless/ it is a
     Processed-type to which a dot (=.=) is also present called a
@@ -183,6 +182,12 @@ a list of input names. All arguments of the input are assumed to be a
 raw byte stream... which can easily be interpeted as a string most of
 the time but also can be interpreted as other types such as ints or
 floats in other cases.
+
+Once a Processed Variable has been fully loaded, meaning that the
+poccessor was fully loaded, the variable was found, and the inputs are
+a match, the processor will then be responsible for defining it. Note
+that any errors that occour during definition will be logged and will
+not stop the overall request.
 
 ** Input
 User input is only used for Processed Variables. Each Processed
