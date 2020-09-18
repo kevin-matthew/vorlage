@@ -196,6 +196,13 @@ Processed Variable will not be defined if the Document Compiler was
 not given adequent input, and will result in an error which will be
 blamed on the user.
 
+TODO: as of now the software passes ALL INPUT to the processor, not
+just the matching input... Not sure if this is right or not. On one
+hand, input can be treaed like envrioment variables (where everything
+should be avaialbe). On the other hand, Input can be treaed as
+function arguments working only with the data that you asked
+for... hmmm...
+
 For example, if =$(mytranslator.german)= is detected inside the
 document, the processor =mytranslator= will be loaded and that
 processor will then demand that the =german= variable be supplied an
@@ -205,7 +212,6 @@ applied exmaple, if we were in the context of HTTP/HTML, the request
 =www.mywebsite.com/germantranslator.proc.html?english=Hello= will cause
 all instances of =$(mytanslator.german)= in
 =germantranslator.proc.html= to be compiled to "Guten Tag".
-
 
 The Inputs' Names (ie. =english=) are used to detect if all demanded
 Input for a particular Processed Variable are satisfied. The values
