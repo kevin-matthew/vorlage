@@ -5,14 +5,12 @@ Copyright \copy 2020 Ellem, Inc., all rights reserved.
 This is a reference manual for the Document Compiler. For more
 information and other documents, see [[https://ellem.ai/d-document-compiler][ellem.ai/d-document-compiler]].
 
-Making a website? Use document compiler.
-
 Document compiler puts together text documnets by looking for specific
 macros within the text documents themselves (such as .html, .txt, .js,
 ect). Once compiled, the completed document is cached and can be
 served over a variety of channels (http, fcgi, cli, ect).
 ** Example
-Observe these three files:
+The best way to learn is with examples. Observe the following files:
 
 *header.html*
 #+NAME: header.html
@@ -29,19 +27,17 @@ Observe these three files:
 </html>
 #+END_SRC
 
-*myproc.go* (which is compiled into *myproc.a*)
+*myproc.go*
 #+NAME: myproc.go
 #+BEGIN_SRC go
 // ...
-func SendVariables() map[strings]string {
-    return map[string]string{
-        "MyIP": getMyIP()
-    }
+func MyIP() string {
+    return getRemoteIP()
 }
 // ...
 #+END_SRC
 
-*index.html*
+And finally, *index.html*
 #+NAME: index.html
 #+BEGIN_SRC html
 #prepend header.html
@@ -83,9 +79,7 @@ engineering. HTTP was made by a small team trying to solve a problem
 they had between a team of 50 people. Javascript was made in 2 weeks
 and is named after another language to trick people in to using it.
 
-But now: Every photon of light transfered accrossed the fibre optic
-internet backbone in an attempt to deliever an HTML can be measured in
-actual pounds. This is a huge problem.
+But now: The electrons that are used to process HTML, HTTP, and JS
 
 * Components
 There's four distinct components to the Document Compiler:
@@ -346,37 +340,9 @@ Compile gains maturaty. As of now, the following supported file types
    objects
  - myproc.go.a - go pluging made using ~go build -buildmode=plugin~
 
-*Required exports for myproc.go.a*
-#+BEGIN_SRC golang
-
-#+END_SRC
-
 *Required exports for myproc.a and libmyproc.so*
 #+BEGIN_SRC c
-struct doccomp_read_variable_return
-{
-    int bytesRead;
-    int isEOF; // bool
-    const char *error;
-    int *cache_ndex; // TODO
-    int  cache_index_len; // TODO
-};
-
-const char *
-doccomp_get_description();
-
-const char **
-doccomp_get_variable_names();
-
-// will return an array of structs that is equal length to 
-// the inputed variable_names.
-// variable_names and target_buffer are of length. Each buffer
-// of target_buffer is of length buffer_lengths, associtively
-struct *doccomp_read_variable_return 
-doccomp_read_variable(const char **variable_names
-    , void **target_buffer
-    , int    length
-    , int   *buffer_lengths);
+//TODO
 #+END_SRC
 
 ** Library Path
