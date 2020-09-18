@@ -2,8 +2,6 @@ package doccomp
 
 import (
 	"io"
-	"net"
-	"net/http"
 )
 
 /*
@@ -12,16 +10,16 @@ import (
  */
 type Definition interface {
 	// reset the reader to the beginning,
-	// this is called before the every instance of the variable.
+	// this is called before the every instance of the variable by the loader
 	// Thus repetitions of large definitions should be advised against,
 	// or at least have a sophisticated caching system.
 	Reset() error
 
-	// must return EOF when complete.
+	// must return EOF when complete (no more bytes left to read)
 	Read(p []byte) (int, error)
 
-	// needed for content-length to be sent
-	// if nil is returned, doccomp will not calculate nor send content-length
+	// needed for content-length to be sent.
+	// if nil is returned, doccomp will not calculate nor send content-length.
 	// however this is not prefered and should be only used for applications
 	// that truelly cannot know what their content length will be.
 	Length() *uint64
@@ -41,102 +39,70 @@ type Compiler struct {
 	cache Cache
 }
 
-func ServeHttp(listner net.Listener, rootPath string) error {
-	verbose("starting http at " + rootPath)
-	err := http.Serve(listner)
-
-}
-
-func NewCompiler() (com Compiler, err error) {
-
-}
-
 /*
  * The best way to describe this function is by reading through the steps
  * defined in the 'Highlevel Process' chapter in the readme.
+ * Be sure you've added the right processors via the Processors field
  */
-func Compile(filepath string,
-	Cache Cache) (docstream io.ReadCloser, err *Error) {
-
-	shouldCache, cerr := cache.ShouldCache(request.GetFilePath())
-	if cerr != nil {
-		erro := NewError("querying should cache")
-		erro.SetSubject(request.GetFilePath())
-		erro.SetBecause(NewError(cerr.Error()))
-		return docstream, erro
-	}
-
+func Process(filepath string) (docstream io.ReadCloser, err error) {
 	var reqdoc *Document
 	//step 2
-	if shouldCache {
-		//step 3,4
-		doc, err := LoadDocument(request.GetFilePath())
-		if err != nil {
-			erro := NewError("loading a requested document")
-			erro.SetSubject(request.GetFilePath())
-			erro.SetBecause(err)
-			return docstream, erro
-		}
-
-		//step 5,6
-		Debugf("storing '%s' in cache", request.GetFilePath())
-		cerr := cache.AddToCache(doc)
-		if cerr != nil {
-			erro := NewError("adding a document to the cache")
-			erro.SetSubject(request.GetFilePath())
-			erro.SetBecause(NewError(cerr.Error()))
-			doc.Close()
-			return docstream, erro
-		}
-
-		reqdoc = &doc
-	} /* else {
-		Debugf("pulling '%s' from cache", request.GetFilePath())
-		reqdoc, cerr = cache.GetFromCache(request.GetFilePath())
-		if cerr != nil {
-			erro := NewError("adding a document to the cache")
-			erro.SetSubject(request.GetFilePath())
-			erro.SetBecause(NewError(cerr.Error()))
-			return docstream, erro
-		}
+	//step 3,4
+	doc, errd := LoadDocument(filepath)
+	if errd != nil {
+		erro := NewError("loading a requested document")
+		erro.SetSubject(filepath)
+		erro.SetBecause(errd)
+		return docstream, erro
 	}
+
+	//step 5,6
+	/*Debugf("storing '%s' in cache", request.GetFilePath())
+	cerr := cache.AddToCache(doc)
+	if cerr != nil {
+		erro := NewError("adding a document to the cache")
+		erro.SetSubject(request.GetFilePath())
+		erro.SetBecause(NewError(cerr.Error()))
+		doc.Close()
+		return docstream, erro
+	}*/
+
+	reqdoc = &doc
 
 	// step 7
-	Debugf("pre-processing document '%s'", request.GetFilePath())
-	err = pageProcessor.Preprocess(request)
-	if err != nil {
-		erro := NewError("in pre-processing")
-		erro.SetBecause(err)
-		reqdoc.Close()
-		return docstream, erro
+	Debugf("processing document '%s'", filepath)
+	for n := range Processors {
+		Debugf("attaching processor %s", n)
+		doc.AttachProcessor(Processors[n])
 	}
+	return reqdoc, nil
 
-	// step 8
-	Debugf("processing document '%s'", request.GetFilePath())
-	definitions, err := pageProcessor.Process(request)
-	if err != nil {
-		erro := NewError("in processing")
-		erro.SetBecause(err)
-		reqdoc.Close()
-		return docstream, erro
-	}
+	/*
 
-	for _, d := range definitions {
-		reqdoc.AddDefinition(d)
-	}
-	docstream = reqdoc
+		definitions, err := pageProcessor.Process(request)
+		if err != nil {
+			erro := NewError("in processing")
+			erro.SetBecause(err)
+			reqdoc.Close()
+			return docstream, erro
+		}
 
-	// step 9
-	Debugf("post-processing document '%s'", request.GetFilePath())
-	err = pageProcessor.Postprocess(request)
-	if err != nil {
-		erro := NewError("in post-processing")
-		erro.SetBecause(err)
-		reqdoc.Close()
-		return docstream, erro
-	}
-	*/
-	// step 10,11
-	docstream = reqdoc
-	return docstream, nil
+		for _, d := range definitions {
+			reqdoc.AddDefinition(d)
+		}
+		docstream = reqdoc
+
+		// step 9
+		Debugf("post-processing document '%s'", request.GetFilePath())
+		err = pageProcessor.Postprocess(request)
+		if err != nil {
+			erro := NewError("in post-processing")
+			erro.SetBecause(err)
+			reqdoc.Close()
+			return docstream, erro
+		}
+
+		// step 10,11
+		docstream = reqdoc
+		return docstream, nil*/
 }

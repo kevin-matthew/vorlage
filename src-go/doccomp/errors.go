@@ -62,6 +62,7 @@ func (e Error) ErrorHighlight() string {
 var errNotImplemented = &Error{ErrStr: "not implemented"}
 
 const (
+	errNoProcessor                  = "no proccessor found"
 	errFailedToReadBytes            = "failed to read bytes from stream"
 	errFailedToReadDocument         = "failed to read from document"
 	errFailedToReadPrependDocument  = "failed to read from prepended document"

@@ -31,6 +31,13 @@ type NormalDefinition struct {
 	seeker   int
 }
 
+func (d *NormalDefinition) Length() *uint64 {
+	v := uint64(len(d.value))
+	return &v
+}
+
+var _ Definition = &NormalDefinition{}
+
 func createNormalDefinition(variable string, value string) (NormalDefinition,
 	*Error) {
 	ret := NormalDefinition{
@@ -53,7 +60,7 @@ func createNormalDefinition(variable string, value string) (NormalDefinition,
 	return ret, nil
 }
 
-func (d NormalDefinition) GetFullName() string {
+func (d *NormalDefinition) GetFullName() string {
 	return d.variable
 }
 
@@ -93,10 +100,17 @@ type Document struct {
 	root   *Document
 	parent *Document
 
-	allDefinitions *[]NormalDefinition // if root != nil,
+	// if root != nil,
 	// then this points to the root's allDefinitions
+	allDefinitions *[]NormalDefinition
+
 	allIncluded *[]*Document // if root != nil,
 	// then this points to the root's allIncluded
+
+	// attachedProcessors are all the processors that have been attached to
+	// this document. So if a proc var is detected, it will look in here
+	// until it finds the right processors.
+	attachedProcessors map[string]Processor
 
 	documentEOF bool // while reading, will be set to true if the document (
 	// plus prepends and appends) is at End of file
@@ -139,6 +153,10 @@ type Document struct {
 func LoadDocument(path string) (doc Document,
 	oerr *Error) {
 	return loadDocumentFromPath(path, nil, nil)
+}
+
+func (doc *Document) AttachProcessor(processor Processor) {
+	panic("implement me")
 }
 
 /*
@@ -283,7 +301,7 @@ func loadDocumentFromPath(path string,
 
 	// variables we need to convert the document to the target format.
 	Debugf("opening a converter to '%s'", path)
-	doc.ConvertedFile, err = getConverted(osFileToFile(doc.rawFile, doc.rawContentStart))
+	doc.ConvertedFile, err = getConverted(&doc, osFileToFile(doc.rawFile, doc.rawContentStart))
 	if err != nil {
 		oerr.ErrStr = errConvert
 		oerr.SetBecause(err)
@@ -490,6 +508,7 @@ func (doc *Document) addDefinition(definition NormalDefinition) *Error {
 	return nil
 }
 
+//TODO: VIOLATION: This document is exceeding 500 lines.
 func (doc Document) findDefinitionByName(FullName string) *NormalDefinition {
 	for i := 0; i < len(*doc.allDefinitions); i++ {
 		d := (*doc.allDefinitions)[i]
@@ -500,12 +519,10 @@ func (doc Document) findDefinitionByName(FullName string) *NormalDefinition {
 	return nil
 }
 
-// if n < len(p) it's probably because you were about to read a macro,
+// if n < len(p) it's probably because you are about to read a macro,
 // simply read again and you'll read the expanded macro. In other words,
-// any time there's a macro in the file, read is forced to start there.
-//
-// if you hit a variable than, then n will be < len(p).
-//your next read will read the contents of the variable.
+// any time there's a macro in the file, read is forced to start there and be
+// truncated on the call before.
 //
 // that being said, len(p) >= MacroMaxLength.
 func (doc *Document) Read(dest []byte) (int,
@@ -513,6 +530,8 @@ func (doc *Document) Read(dest []byte) (int,
 
 	// the caller is requesting we read from this document even though we've
 	// previously returned an EOF... so lets reset
+	// todo: the caller should be doing this explicitly... why did I put this here?
+	// may just have to remove.
 	if doc.documentEOF {
 		Debugf("rewinding EOF'd document '%s' for reading", doc.path)
 		cerr := doc.Rewind()
@@ -542,9 +561,8 @@ func (doc *Document) Read(dest []byte) (int,
 		return n, nil
 	}
 
-	// At this point, we're not reading a prepended file, we're not reading
-	// a variable. Now the question is,
-	// are we done reading the content of this doucmnet?...
+	// At this point, we're not reading a prepended file.
+	// Now the question is, are we done reading the content of the actual docmnet?...
 	if !doc.convertedFileDoneReading {
 		// ...we're not. so lets continue reading the content from this document
 		Debugf("reading (converted) document to buffer %s", doc.path)

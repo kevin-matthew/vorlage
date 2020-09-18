@@ -3,6 +3,7 @@ package doccomp
 import (
 	"io"
 	"os"
+	"strings"
 )
 
 // its a io.Reader that will read from the file but will NOT read the macros.
@@ -18,6 +19,24 @@ type File interface {
 	Close() error
 }
 
+// nonConvertedFile means the file to which was originally supplied by
+// the user will be the one to which will be outputted.
+type nonConvertedFile struct {
+	bytesRead int64
+
+	// remember to use the sourceFile fore doing file ops. Ie. calling
+	// sourceDocument.Read in nonConvertedFile.Read will cause a recursive crash.
+	sourceDocument *Document
+
+	// the file to read, close, rewind.
+	sourceFile File
+
+	// used for drawParser
+	variableReadBuffer []byte
+
+	// will be nil if not currently reading.
+	currentlyReadingDef Definition
+}
 
 type osFileHandle struct {
 	*os.File
@@ -25,14 +44,14 @@ type osFileHandle struct {
 }
 
 func osFileToFile(file *os.File, resetPos int64) File {
-	return osFileHandle{file,resetPos}
+	return osFileHandle{file, resetPos}
 }
 
 func (o osFileHandle) Read(p []byte) (int, error) {
 	return o.File.Read(p)
 }
 func (o osFileHandle) Rewind() error {
-	_,err := o.File.Seek(o.resetPos, 0)
+	_, err := o.File.Seek(o.resetPos, 0)
 	return err
 }
 func (o osFileHandle) Close() error {
@@ -49,7 +68,7 @@ type DocumentConverter interface {
 	ShouldConvert(path string) bool
 
 	/*
-	 * Convert the file and return the ConvertedFile. If Error
+	 * Convert the file and return the nonConvertedFile. If Error
 	 * is non-nil, the document's loading is stopped completely.
 	 * note that the SourceFile:Close MUST be called before this function
 	 * returns.
@@ -61,7 +80,6 @@ type DocumentConverter interface {
 	 */
 	GetDescription() string
 }
-
 
 type variablePos struct {
 	fullName     string
@@ -142,7 +160,7 @@ func scanVariable(buffer []byte, charsource int64) (pos variablePos, oerr *Error
 // returns _,nil,err if an error happened while parsing
 // returns len(src),nil,nil if no variable has been found yet
 // returns 0,nil,nil if the VariablePrefix hasn't been fully read
-// returns >0,nil,nil if a variable has been found but not completely done scanned, send the next block of src over.
+// returns >0,nil,nil if a variable has been found but not completely done scanned, send the next block of src over. Be sure to add n to charsource next call.
 // returns _,pos,nil if a variable was found and fully scanned
 func drawParseVar(dest []byte, src []byte,
 	charsource int64) (n int, pos *variablePos, oerr *Error) {
@@ -186,12 +204,12 @@ func drawParseVar(dest []byte, src []byte,
 	// if the scanned in bytes is shorter than the prefix, then
 	// we need to wait another scan.
 	if j < len(VariablePrefix) {
-		return 0,nil, nil
+		return 0, nil, nil
 	}
 
 	// now we call scanVariable that will parse out the variable's componenets
 	// OR it will return an error that will inform us of what we're missing.
-	scannedPos, serr := scanVariable(dest, charsource)
+	scannedPos, serr := scanVariable(dest, charsource+int64(i))
 	if serr != nil {
 		// scanVariable has told us we're missing something... so what is it?
 		switch serr.ErrStr {
@@ -238,7 +256,139 @@ func drawParseVar(dest []byte, src []byte,
 	return i, &scannedPos, nil
 }
 
-func getConverted(sourceFile File) (converedFile File, *Error) {
+func (c *nonConvertedFile) Read(dest []byte) (int, error) {
 
-	return rawcontents, nil
+	// are we currently exposing a defnition?
+	if c.currentlyReadingDef != nil {
+		// we are... so lets read it.
+		n, err := c.currentlyReadingDef.Read(dest)
+		if err != nil {
+			if err != io.EOF {
+				return n, err
+			}
+			// we're done reading the current definition.
+			c.currentlyReadingDef = nil
+			return n, nil
+		}
+		// we're not done reading the definition yet.
+		return n, err
+	}
+
+	// so if we're done reading the definition, move along.
+	n, err := c.sourceFile.Read(dest)
+	if err != nil {
+		return n, err
+	}
+
+	c.bytesRead += int64(n)
+
+	bytesIgnored, pos, err := drawParseVar(c.variableReadBuffer, dest[:n], c.bytesRead)
+	if err != nil {
+		return n - bytesIgnored, err
+	}
+	if bytesIgnored == n {
+		return n, nil
+	}
+	if pos != nil {
+		// we have stumbled apon a variable.
+		// TODO: define the define func.
+		def, err := c.sourceDocument.define(*pos)
+		if err != nil {
+			return n - bytesIgnored, err
+		}
+		c.currentlyReadingDef = def
+		return n - bytesIgnored, nil
+	}
+	// at this point we know that a variable was not found, but not all bytes were
+	// ignored.
+	return n - bytesIgnored, nil
+}
+
+// todo: I don't think this method should belong to Document...
+// ARCHITECTUAL ERROR.
+func (doc *Document) define(pos variablePos) (Definition, error) {
+	var foundDef Definition
+
+	// we have found a variable in the document.
+	// lets go find it's definition
+
+	if len(pos.processorName) != 0 {
+		// its not a normal defintion, its a processed definition.
+		// lets find the right processor...
+		p, ok := doc.attachedProcessors[pos.processorName]
+		if !ok {
+			// processor not found
+			oerr := NewError(errNoProcessor)
+			oerr.SetSubject(pos.processorName)
+			return nil, oerr
+		}
+
+		// we've found the processor, now lets
+		p.GetVariables()
+	} else {
+		// its a normal variable.
+		// look through all the doucment's normal definitions.
+		for i, d := range *doc.allDefinitions {
+			if d.GetFullName() == pos.fullName {
+				foundDef = &((*doc.allDefinitions)[i])
+				break
+			}
+		}
+	}
+
+	// did we find a definition from the logic above?
+	if foundDef != nil {
+		// found it!
+		// lets start reading this normal definition.
+		// but first we must reset it as per the Definition specification.
+		err := foundDef.Reset()
+		if err != nil {
+			return nil, err
+		}
+		// okay that's out of the way. The next call will begin reading
+		// the definition's contents.
+		return foundDef, nil
+	}
+
+	// we got the definition.
+	return foundDef, NewError(errNotDefined)
+}
+
+func (c *nonConvertedFile) Rewind() error {
+	//clear the variable buffer
+	for i := 0; i < len(c.variableReadBuffer); i++ {
+		c.variableReadBuffer[i] = 0
+	}
+
+	err := c.sourceFile.Rewind()
+	if err != nil {
+		return err
+	}
+
+	c.bytesRead = 0
+	return nil
+}
+
+func (c *nonConvertedFile) Close() error {
+	if c.currentlyReadingDef != nil {
+		_ = c.currentlyReadingDef.Reset()
+	}
+
+	err := c.sourceFile.Close()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var _ File = &nonConvertedFile{}
+
+func (doc *Document) getConverted(sourceFile File) (converedFile File, err *Error) {
+	// todo: switch on the source file name to find a good converted (haml->html)
+	file := nonConvertedFile{
+		sourceFile:         sourceFile,
+		variableReadBuffer: make([]byte, MacroMaxLength),
+	}
+	return &file, nil
 }

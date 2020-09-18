@@ -14,15 +14,19 @@ type RequestData struct {
 	//
 }
 
+/*
+ * note: I was going too have this as an interface so that way I can load
+ * proocessors multiple ways. But I'll transfer these methods to namespace-wide.
 type ProcessorLoader interface {
 	// GetProcessor should be ready to be called multiple times with the same
 	// argument. So it's best to cache the Processors.
-	GetProcessor(name string) (Processor, *Error)
-}
+	GetProcessor(name string) (*Processor, error)
+
+	// AddProcessor adds a p
+	AddProcessor(name string, processor Processor)
+}*/
 
 type Processor interface {
-	// not present in the processor itself.. but in the filename
-	GetName() string
 
 	// description of the proccessor
 	GetDescription() string
@@ -30,7 +34,7 @@ type Processor interface {
 	// returns a list of Processor-Variable
 	// Names. Note this may be called multiple times so it's best to make the
 	//list as static as possible.
-	GetVariables() []ProcessorVariable
+	GetVariables() map[string]ProcessorVariable
 
 	// defines a given variable only if that variable was a match to what
 	// was provided by GetVariables.
@@ -71,13 +75,8 @@ func (p ProcessorDefinition) GetFullName() string {
 	return p.fullname
 }
 
-func GetProcessorVariables() ([]Definition, error) {
-	return nil, nil
-	//return [](Definition(ProcessorDefinition{})),nil
-}
-
-func init() {
-	// do dlopen()'s
-}
+// This is the source of all processors. Add to this list if you
+// want to add your own processor. They're mapped via their name.
+var Processors map[string]*Processor = make(map[string]*Processor)
 
 // todo: use package 'C' as well as dlopen to dymiaclly load all archive.
