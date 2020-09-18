@@ -72,6 +72,8 @@ const (
 	errFailedToSeek                 = "failed to seek through file"
 	errConvert                      = "could not convert file"
 	errNotDefined                   = "a variable was left undefined"
+	errInputNotProvided             = "an input was requested but not provided"
+	errDoubleInputStream            = "the same streamed input was requested twice in the same request"
 	errResetVariable                = "failed to reset variable"
 	errAlreadyDefined               = "variable has already been defined"
 	errVariableTooLong              = "variable too long"
