@@ -88,6 +88,21 @@ func (m macoPos) ToString() string {
 	return fmt.Sprintf("line %d", m.linenum)
 }
 
+type inputSet struct {
+	// input arguments by the user that will be used for defining processor
+	// variables (see Processor.DefineVariable's parameters).
+	// the maps them selves may be nil.
+	staticInputs map[string]string
+	streamInputs map[string]io.Reader
+
+	// This map will have the same keys as streamArguments. The purpose of this
+	// map is to keep track of what streamArguments have already been handed out
+	// to processor Variables. In accordance to the manual, if a streamed input
+	// is attempted to be used twice, an error will occour (errDoubleInputStream
+	// will be thrown)
+	streamInputsUsed map[string]bool
+}
+
 type Document struct {
 	rawFile       *os.File
 	ConvertedFile File
@@ -96,6 +111,10 @@ type Document struct {
 	// now Document can be made without an actual file backing it.
 
 	path string
+
+	// will point to the root's. will not be nil after the document
+	// is loaded. only used when the document is being read.
+	args *inputSet
 
 	root   *Document
 	parent *Document
@@ -106,11 +125,6 @@ type Document struct {
 
 	allIncluded *[]*Document // if root != nil,
 	// then this points to the root's allIncluded
-
-	// attachedProcessors are all the processors that have been attached to
-	// this document. So if a proc var is detected, it will look in here
-	// until it finds the right processors.
-	attachedProcessors map[string]Processor
 
 	documentEOF bool // while reading, will be set to true if the document (
 	// plus prepends and appends) is at End of file
@@ -150,13 +164,26 @@ type Document struct {
  * be used. If no converters return true, the document is not converted and will
  * be read as normal (via io.OpenFile).
  */
-func LoadDocument(path string) (doc Document,
+func LoadDocument(path string,
+	args map[string]string,
+	streamedArgs map[string]io.Reader) (doc Document,
 	oerr *Error) {
-	return loadDocumentFromPath(path, nil, nil)
-}
+	d, err := loadDocumentFromPath(path, nil, nil)
+	if err != nil {
+		return d, err
+	}
 
-func (doc *Document) AttachProcessor(processor Processor) {
-	panic("implement me")
+	// so these 2 lines are bit... out of place. Let me explain.
+	// first, loadDocumentFromPath will indeed point d.arguments and
+	// d.streamArguments to valid memory. So we can dereference them without
+	// worry.
+	// And what's also weird is args and streamedArgs are both input for
+	// LoadDocument but not loadDocumentFromPath. This makes me think we have
+	// and architectual error.
+	(*(d.args)).staticInputs = args
+	(*(d.args)).streamInputs = streamedArgs
+	(*(d.args)).streamInputsUsed = make(map[string]bool, len(streamedArgs))
+	return d, nil
 }
 
 /*
@@ -189,10 +216,12 @@ func loadDocumentFromPath(path string,
 	if doc.root != nil {
 		doc.allDefinitions = doc.root.allDefinitions
 		doc.allIncluded = doc.root.allIncluded
+		doc.args = doc.root.args
 	} else {
 		doc.root = &doc
 		doc.allDefinitions = &[]NormalDefinition{}
 		doc.allIncluded = &[]*Document{}
+		doc.args = new(inputSet)
 	}
 
 	sourceerr := doc.ancestorHasPath(path)
