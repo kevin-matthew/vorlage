@@ -202,11 +202,13 @@ all instances of =$(mytanslator.german)= in
 =germantranslator.proc.html= to be compiled to "Guten Tag".
 
 
-The Inputs' variable names (ie. =english=) are used to detect if all
-demanded Input for a particular Processed Variable are satisfied. The
-values (ie. =hello=) is ignored by the document compiler and are
-simply passed along to the processor. However; Values comes in two
-forms: *[[Static Values]]* and *[[Streamed Values]]*
+The Inputs' Names (ie. =english=) are used to detect if all demanded
+Input for a particular Processed Variable are satisfied. The values
+(ie. =hello=) is ignored by the document compiler and are simply
+passed along to the processor. However; Values comes in two forms:
+*[[Static Values]]* and *[[Streamed Values]]*. The list of Input Names for a
+given Processor Variable must be mutually exclusive between Static and
+Streamed.
 
 *** Static Values
 Static Values are simple, and should be used more or less 95% of the

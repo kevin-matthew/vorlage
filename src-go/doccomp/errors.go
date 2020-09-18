@@ -73,6 +73,7 @@ const (
 	errConvert                      = "could not convert file"
 	errNotDefined                   = "a variable was left undefined"
 	errInputNotProvided             = "an input was requested but not provided"
+	errInputInStreamAndStatic       = "a processor variable is asking for the same input in both static and stream formats"
 	errDoubleInputStream            = "the same streamed input was requested twice in the same request"
 	errResetVariable                = "failed to reset variable"
 	errAlreadyDefined               = "variable has already been defined"
