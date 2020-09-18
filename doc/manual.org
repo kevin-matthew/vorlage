@@ -184,11 +184,72 @@ For example, =$(myproc.BlobPosts)= is a Processed variable, =myproc=
 is the Processor Name, and =BlobPosts= is the Processor-Variable Name.
 
 Each Processed Variables requires a Name and an optional
-*Input*. Input is a lot like the arguments of a function, it's simply
+*[[Input]]*. Input is a lot like the arguments of a function, it's simply
 a list of input names. All arguments of the input are assumed to be a
 raw byte stream... which can easily be interpeted as a string most of
 the time but also can be interpreted as other types such as ints or
 floats in other cases.
+
+** Input
+User input is only used for Processed Variables. Each Processed
+Variable can define what Input it requires to function properly. The
+Processed Variable will not be defined if the Document Compiler was
+not given adequent input, and will result in an error which will be
+blamed on the user.
+
+For example, if =$(mytranslator.german)= is detected inside the
+document, the processor =mytranslator= will be loaded and that
+processor will then demand that the =german= variable be supplied an
+Input with the variable name of =english=. As you can see,
+=$(mytranslator.german)= translates english to german. For a more
+applied exmaple, if we were in the context of HTTP/HTML, the request
+=www.mywebsite.com/germantranslator.proc.html?english=Hello= will cause
+all instances of =$(mytanslator.german)= in
+=germantranslator.proc.html= to be compiled to "Guten Tag".
+
+
+The Inputs' variable names (ie. =english=) are used to detect if all
+demanded Input for a particular Processed Variable are satisfied. The
+values (ie. =hello=) is ignored by the document compiler and are
+simply passed along to the processor. However; Values comes in two
+forms: *[[Static Values]]* and *[[Streamed Values]]*
+
+*** Static Values
+Static Values are simple, and should be used more or less 95% of the
+time with Document Compiler. Static Values are given to the Processor
+in entirety. The transloator above is an example of static values.
+
+So you're probably wondering, "static values seems like everything
+I'll ever need... what is this other type of value?", Let's move on.
+
+*** Streamed Values
+Streamed Values are complex in nature but very powerful. Streamed
+values are NOT given to the Processor in entirety. The Processor is
+instead given a file descriptor to which it can read from.
+
+An example of when you should use Inputs with Streamed Value is file
+uploads. For instance if you try to upload a 6GiB file and supply
+it too the processor via a Static Value that would mean you'd need to
+store the entire file in 6GiB of memory. Using a Streamed Value means
+document compiler doesn't need to read the entire file.
+
+There's a drawback with Streamed Values, and that's its inability to
+be supplied more than once. Inputs using Streamed Values can only be
+used once per Compiliation.
+
+For instance, if =$(myconverter.ToPNG)= requires a =imageFile= Input
+to be streamed, it will output the PNG conversion. But,
+=$(myconverter.ToJPEG)= also requires a =imageFile= Input to be
+streamed. Thus an error will occour if you try to include both
+=$(myconverter.ToPNG)= and =$(myconverter.ToJPEG)= on the same page
+because one will read the stream to its end and the other will be
+given nothing but an empty stream.
+
+Note that it is still possible to make that practicle example work,
+but you'd have to add a better degree of backend engineering, such as
+to replace the use of 2 Streamed Values with 1 Streamed Values and 2
+other Processed Variables that will read from a file saved by Streamed
+Value Input and output the conversions.
 
 * Macros
 Macros are actions to perform during the compolation of a
@@ -252,11 +313,10 @@ execution when a Document is requested. Under normal (non-erroneous)
 operation, a given Processor has only one duty and that is to define
 [[Processed][variables that will be dependant on that given processor]]. Thus that
 when the Document is compiled, Processors can dynamiaclly populate
-these Processed Variables acrossed page request. However, under
-non-normal (erroneous) operation, a given Processor can cancel a
-Document's Compilation with a given error. Concluseivly, Processors
-allow a Document to interact with an unlimited amount of applications
-such as databases, authentication, logging, auditing, searching, ect.
+these Processed Variables acrossed page request. Concluseivly,
+Processors allow a Document to interact with an unlimited amount of
+applications such as databases, authentication, logging, auditing,
+searching, ect.
 
 To add a Processor to your Document, Document Compiler must detect the
 relevant *[[Processor File]]* in the relvant *[[Library Path]]*. Once that is
