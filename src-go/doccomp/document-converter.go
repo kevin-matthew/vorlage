@@ -299,6 +299,7 @@ func (c *nonConvertedFile) Read(dest []byte) (int, error) {
 			return nonVarByteCount, err
 		}
 		c.currentlyReadingDef = def
+
 		return nonVarByteCount, nil
 	}
 	// at this point we know that a variable was not found, but not all bytes were
@@ -423,7 +424,9 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 	}
 
 	// we did not find the definition
-	return foundDef, NewError(errNotDefined)
+	oerr := NewError(errNotDefined)
+	oerr.SetSubject(pos.fullName)
+	return foundDef, oerr
 }
 
 func (c *nonConvertedFile) Rewind() error {

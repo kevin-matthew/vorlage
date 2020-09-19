@@ -26,7 +26,7 @@ func TestLoadDocument(t *testing.T) {
 		return
 	}
 
-	buff := make([]byte, 1)
+	buff := make([]byte, 1000)
 	var total = ""
 	for {
 		n, cerr := d.Read(buff)
