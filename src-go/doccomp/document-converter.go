@@ -184,6 +184,7 @@ func drawParseVar(dest []byte, src []byte,
 			// in src.
 			return i, nil, nil
 		}
+
 	}
 
 	// at this point we've just found, or have previously found at least
@@ -225,12 +226,12 @@ func drawParseVar(dest []byte, src []byte,
 				for j = 0; j < len(dest); j++ {
 					dest[j] = 0
 				}
-				return i, nil, serr
+				return i - 1, nil, serr
 			}
 
 			// if we're not at the end of dest then the caller can call this
 			// function more times until we indeed fill it.
-			return i, nil, nil
+			return i - 1, nil, nil
 
 		case errVariableMissingPrefix:
 			// theres no prefix. which means the buffer is crap if it doesn't
@@ -238,13 +239,13 @@ func drawParseVar(dest []byte, src []byte,
 			for j = 0; j < len(dest); j++ {
 				dest[j] = 0
 			}
-			return i, nil, nil
+			return i - 1, nil, nil
 
 		}
 
 		// unhandled error returned by scanVariable. Example of this is
 		// when the variable uses bad syntax.
-		return i, nil, serr
+		return i - 1, nil, serr
 	}
 
 	// at this point, we have successfully scanned in a good variable into
@@ -253,7 +254,7 @@ func drawParseVar(dest []byte, src []byte,
 	for j = 0; j < len(dest); j++ {
 		dest[j] = 0
 	}
-	return i, &scannedPos, nil
+	return i - 1, &scannedPos, nil
 }
 
 func (c *nonConvertedFile) Read(dest []byte) (int, error) {
@@ -282,11 +283,12 @@ func (c *nonConvertedFile) Read(dest []byte) (int, error) {
 
 	c.bytesRead += int64(n)
 
-	bytesIgnored, pos, err := drawParseVar(c.variableReadBuffer, dest[:n], c.bytesRead)
-	if err != nil {
-		return n - bytesIgnored, err
+	nonVarByteCount, pos, cerr := drawParseVar(c.variableReadBuffer, dest[:n], c.bytesRead)
+	//lmlog.DebugF("drawparseVar: %d, %#v, %#v -- %s", nonVarByteCount, pos,cerr, string(c.variableReadBuffer));
+	if cerr != nil {
+		return nonVarByteCount, *cerr
 	}
-	if bytesIgnored == n {
+	if nonVarByteCount == n {
 		return n, nil
 	}
 	if pos != nil {
@@ -294,19 +296,19 @@ func (c *nonConvertedFile) Read(dest []byte) (int, error) {
 		// TODO: define the define func.
 		def, err := c.sourceDocument.define(*pos)
 		if err != nil {
-			return n - bytesIgnored, err
+			return nonVarByteCount, err
 		}
 		c.currentlyReadingDef = def
-		return n - bytesIgnored, nil
+		return nonVarByteCount, nil
 	}
 	// at this point we know that a variable was not found, but not all bytes were
 	// ignored.
-	return n - bytesIgnored, nil
+	return nonVarByteCount, nil
 }
 
 // todo: I don't think this method should belong to Document...
 // ARCHITECTUAL ERROR.
-func (doc *Document) define(pos variablePos) (Definition, *Error) {
+func (doc *Document) define(pos variablePos) (Definition, error) {
 	var foundDef Definition
 
 	// we have found a variable in the document.
@@ -395,7 +397,7 @@ func (doc *Document) define(pos variablePos) (Definition, *Error) {
 	} else {
 		// its a normal variable.
 		// look through all the doucment's normal definitions.
-		for i, d := range *doc.allDefinitions {
+		for i, d := range *(doc.allDefinitions) {
 			if d.GetFullName() == pos.fullName {
 				foundDef = &((*(doc.allDefinitions))[i])
 				break
@@ -458,6 +460,7 @@ func (doc *Document) getConverted(sourceFile File) (converedFile File, err *Erro
 	// todo: switch on the source file name to find a good converted (haml->html)
 	file := nonConvertedFile{
 		sourceFile:         sourceFile,
+		sourceDocument:     doc,
 		variableReadBuffer: make([]byte, MacroMaxLength),
 	}
 	return &file, nil

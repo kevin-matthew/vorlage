@@ -100,7 +100,9 @@ type inputSet struct {
 	// to processor Variables. In accordance to the manual, if a streamed input
 	// is attempted to be used twice, an error will occour (errDoubleInputStream
 	// will be thrown)
-	streamInputsUsed map[string]bool
+	// The index is the input name, the value is which processor variable
+	// had used it, if the value is "" then that means it hasn't been used yet.
+	streamInputsUsed map[string]string
 }
 
 type Document struct {
@@ -182,7 +184,7 @@ func LoadDocument(path string,
 	// and architectual error.
 	(*(d.args)).staticInputs = args
 	(*(d.args)).streamInputs = streamedArgs
-	(*(d.args)).streamInputsUsed = make(map[string]bool, len(streamedArgs))
+	(*(d.args)).streamInputsUsed = make(map[string]string, len(streamedArgs))
 	return d, nil
 }
 
@@ -207,7 +209,7 @@ func loadDocumentFromPath(path string,
 	doc.path = path
 	doc.convertedFileDoneReading = false
 	// zero-out the variable detection buffer
-	for i, _ := range doc.VariableDetectionBuffer {
+	for i := range doc.VariableDetectionBuffer {
 		doc.VariableDetectionBuffer[i] = 0
 	}
 
@@ -330,7 +332,7 @@ func loadDocumentFromPath(path string,
 
 	// variables we need to convert the document to the target format.
 	Debugf("opening a converter to '%s'", path)
-	doc.ConvertedFile, err = getConverted(&doc, osFileToFile(doc.rawFile, doc.rawContentStart))
+	doc.ConvertedFile, err = doc.getConverted(osFileToFile(doc.rawFile, doc.rawContentStart))
 	if err != nil {
 		oerr.ErrStr = errConvert
 		oerr.SetBecause(err)

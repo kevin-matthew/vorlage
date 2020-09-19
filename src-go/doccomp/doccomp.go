@@ -44,11 +44,11 @@ type Compiler struct {
  * defined in the 'Highlevel Process' chapter in the readme.
  * Be sure you've added the right processors via the Processors field
  */
-func Process(filepath string) (docstream io.ReadCloser, err error) {
+func Process(filepath string, input map[string]string, streamInput map[string]io.Reader) (docstream io.ReadCloser, err error) {
 	var reqdoc *Document
 	//step 2
 	//step 3,4
-	doc, errd := LoadDocument(filepath)
+	doc, errd := LoadDocument(filepath, input, streamInput)
 	if errd != nil {
 		erro := NewError("loading a requested document")
 		erro.SetSubject(filepath)
@@ -70,11 +70,6 @@ func Process(filepath string) (docstream io.ReadCloser, err error) {
 	reqdoc = &doc
 
 	// step 7
-	Debugf("processing document '%s'", filepath)
-	for n := range Processors {
-		Debugf("attaching processor %s", n)
-		doc.AttachProcessor(Processors[n])
-	}
 	return reqdoc, nil
 
 	/*

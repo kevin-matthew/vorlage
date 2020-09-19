@@ -34,10 +34,11 @@ type Processor interface {
 	// returns a list of Processor-Variable
 	// Names. Note this may be called multiple times so it's best to make the
 	//list as static as possible.
-	GetVariables() map[string]ProcessorVariable
+	GetVariables() []ProcessorVariable
 
 	// defines a given variable only if that variable was a match to what
-	// was provided by GetVariables.
+	// was provided by GetVariables, thus this method will never be called with
+	// unfimiliar arguments to the processor.
 	// All errors returned by this method will simply be logged. def WILL ALWAYS
 	// be used to define the processor variable.
 	DefineVariable(name string,
@@ -63,6 +64,10 @@ type ProcessorDefinition struct {
 	parent   Processor
 }
 
+func (p ProcessorDefinition) Length() *uint64 {
+	panic("implement me")
+}
+
 func (p ProcessorDefinition) Reset() error {
 	panic("implement me")
 }
@@ -77,6 +82,6 @@ func (p ProcessorDefinition) GetFullName() string {
 
 // This is the source of all processors. Add to this list if you
 // want to add your own processor. They're mapped via their name.
-var Processors map[string]*Processor = make(map[string]*Processor)
+var Processors map[string]Processor = make(map[string]Processor)
 
 // todo: use package 'C' as well as dlopen to dymiaclly load all archive.

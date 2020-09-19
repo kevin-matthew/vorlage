@@ -1,10 +1,11 @@
 package doccomp
 
 import (
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 )
+import "../lmlog"
 
 func TestLoadDocument(t *testing.T) {
 
@@ -18,26 +19,37 @@ func TestLoadDocument(t *testing.T) {
 		panic(cerr)
 	}
 
-	d, err := LoadDocument("tests/documents/defines.haml")
+	d, err := LoadDocument("tests/documents/defines.haml", nil, nil)
 	if err != nil {
 		t.Log(err.ErrorHighlight())
 		t.Fail()
 		return
 	}
 
-	res, cerr := ioutil.ReadAll(&d)
-	if cerr != nil {
-		t.Log(cerr.Error())
-		t.Fail()
-		return
+	buff := make([]byte, 1)
+	var total = ""
+	for {
+		n, cerr := d.Read(buff)
+		if cerr != nil && cerr != io.EOF {
+			t.Log(cerr.Error())
+			t.Fail()
+			return
+		}
+		total += string(buff[:n])
+		lmlog.Debug("buff : " + string(d.ConvertedFile.(*nonConvertedFile).variableReadBuffer))
+		lmlog.Debug("total: " + total)
+
+		if cerr == io.EOF {
+			break
+		}
 	}
 
-	println(res)
-	t.Log(string(res))
+	//println(buff[:n])
+	t.Log(total)
 	t.Fail()
 
 	return
-	finalFile, cerr := ioutil.ReadFile(
+	/*finalFile, cerr := ioutil.ReadFile(
 		"tests/documents/final-defines-and-prepends.txt")
 	if cerr != nil {
 		t.Log(cerr.Error())
@@ -80,5 +92,5 @@ func TestLoadDocument(t *testing.T) {
 		t.Fail()
 		return
 	}
-	t.Log("when testing circular dependices (2) got: " + err.ErrorHighlight())
+	t.Log("when testing circular dependices (2) got: " + err.ErrorHighlight())*/
 }
