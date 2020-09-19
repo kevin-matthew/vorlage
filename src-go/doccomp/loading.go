@@ -68,8 +68,13 @@ func (d *NormalDefinition) Read(p []byte) (int, error) {
 	if d.seeker == len(d.value) {
 		return 0, io.EOF
 	}
-	d.seeker = copy(p, d.value[d.seeker:])
-	return d.seeker, nil
+	n := copy(p, d.value[d.seeker:])
+	if d.seeker+n >= len(d.value) {
+		d.seeker = len(d.value)
+		return n, io.EOF
+	}
+	d.seeker += n
+	return n, nil
 }
 
 func (d *NormalDefinition) Reset() error {
