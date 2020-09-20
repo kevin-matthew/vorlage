@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+import "../lmlog"
+
 // its a io.Reader that will read from the file but will NOT read the macros.
 type File interface {
 	// n will sometimes be < len(p) but that does not mean it's the end of the
@@ -30,9 +32,14 @@ type nonConvertedFile struct {
 
 	// the file to read, close, rewind.
 	sourceFile File
+	hasEOFd    bool
 
 	// used for drawParser
 	variableReadBuffer []byte
+
+	// buffer used to hold what was read from the file when reading from
+	// definitions
+	tmpBuff []byte
 
 	// will be nil if not currently reading.
 	currentlyReadingDef Definition
@@ -170,7 +177,7 @@ func drawParseVar(dest []byte, src []byte,
 	// dest, we can start the normal scanning proccess from where we left off
 	// when we discovered the start of the variable.
 	var i = 0
-
+	var nonVarBytes int
 	var j = 0
 
 	// if the dest starts with null (0), then that means we haven't started
@@ -184,11 +191,13 @@ func drawParseVar(dest []byte, src []byte,
 			// in src.
 			return i, nil, nil
 		}
-
 	}
 
 	// at this point we've just found, or have previously found at least
-	// the start of a VariablePrefix that is currently in src at index i
+	// the start of a VariablePrefix that is currently in src at index i.
+	// So let's also document how many bytes at the beginning of this buffer
+	// it takes to get to the start to the variabel
+	nonVarBytes = i
 
 	// so lets find where we left off with dest (when dest[j] == 0 that means
 	// we havent written to j yet)
@@ -203,9 +212,10 @@ func drawParseVar(dest []byte, src []byte,
 	}
 
 	// if the scanned in bytes is shorter than the prefix, then
-	// we need to wait another scan.
+	// we need to wait another scan because it's automatically impossible
+	// we've recorder the entire thing.
 	if j < len(VariablePrefix) {
-		return 0, nil, nil
+		return nonVarBytes, nil, nil
 	}
 
 	// now we call scanVariable that will parse out the variable's componenets
@@ -226,12 +236,12 @@ func drawParseVar(dest []byte, src []byte,
 				for j = 0; j < len(dest); j++ {
 					dest[j] = 0
 				}
-				return i - 1, nil, serr
+				return nonVarBytes, nil, serr
 			}
 
 			// if we're not at the end of dest then the caller can call this
 			// function more times until we indeed fill it.
-			return i - 1, nil, nil
+			return nonVarBytes, nil, nil
 
 		case errVariableMissingPrefix:
 			// theres no prefix. which means the buffer is crap if it doesn't
@@ -239,13 +249,13 @@ func drawParseVar(dest []byte, src []byte,
 			for j = 0; j < len(dest); j++ {
 				dest[j] = 0
 			}
-			return i - 1, nil, nil
+			return nonVarBytes, nil, nil
 
 		}
 
 		// unhandled error returned by scanVariable. Example of this is
 		// when the variable uses bad syntax.
-		return i - 1, nil, serr
+		return nonVarBytes, nil, serr
 	}
 
 	// at this point, we have successfully scanned in a good variable into
@@ -254,57 +264,121 @@ func drawParseVar(dest []byte, src []byte,
 	for j = 0; j < len(dest); j++ {
 		dest[j] = 0
 	}
-	return i - 1, &scannedPos, nil
+	return nonVarBytes, &scannedPos, nil
 }
 
-func (c *nonConvertedFile) Read(dest []byte) (int, error) {
+func (c *nonConvertedFile) Read(dest []byte) (n int, err error) {
+
+	if c.hasEOFd {
+		return 0, io.EOF
+	}
 
 	// are we currently exposing a defnition?
 	if c.currentlyReadingDef != nil {
 		// we are... so lets read it.
-		n, err := c.currentlyReadingDef.Read(dest)
+		n, err = c.currentlyReadingDef.Read(dest)
 		if err != nil {
 			if err != io.EOF {
 				return n, err
 			}
 			// we're done reading the current definition.
 			c.currentlyReadingDef = nil
+
+			dest = dest[n:]
+
+			//return n, nil
+		} else {
+			// we're not done reading the definition yet.
 			return n, nil
 		}
-		// we're not done reading the definition yet.
-		return n, err
 	}
 
-	// so if we're done reading the definition, move along.
-	n, err := c.sourceFile.Read(dest)
-	if err != nil {
-		return n, err
+	// before we do another read from the file, we need to make sure that
+	// tmpBuff has been emptied.
+	if len(c.tmpBuff) != 0 {
+		lmlog.DebugF("tmp buffer has stuff in it \"%s\"", string(c.tmpBuff))
+		bytesCopied := copy(dest, c.tmpBuff)
+		c.tmpBuff = c.tmpBuff[bytesCopied:]
+		dest = dest[bytesCopied:]
+		n += bytesCopied
+		if len(c.tmpBuff) != 0 {
+			// if we still have stuff in tmp buffer, we need another read.
+			return n, nil
+		}
 	}
 
-	c.bytesRead += int64(n)
+	// so if we're done reading the definition, move along with another read
+	// from the file
 
-	nonVarByteCount, pos, cerr := drawParseVar(c.variableReadBuffer, dest[:n], c.bytesRead)
+	var sourceBytesRead int
+	sourceBytesRead, err = c.sourceFile.Read(dest)
+
+	// we WILL NOT append this bytes to n. Because if we do there's a chance
+	// we've read in a variable. We don't want that to show up for the caller.
+	//n+=sourceBytesRead
+	if err != nil && err != io.EOF {
+		return n, err
+	}
+	// set hasEOFd so future calls will return EOF.
+	c.hasEOFd = err == io.EOF
+
+	c.bytesRead += int64(sourceBytesRead)
+
+	nonVarByteCount, pos, cerr := drawParseVar(c.variableReadBuffer, dest[:sourceBytesRead], c.bytesRead)
 	//lmlog.DebugF("drawparseVar: %d, %#v, %#v -- %s", nonVarByteCount, pos,cerr, string(c.variableReadBuffer));
 	if cerr != nil {
-		return nonVarByteCount, *cerr
+		return n + nonVarByteCount, *cerr
 	}
-	if nonVarByteCount == n {
-		return n, nil
+	if nonVarByteCount == sourceBytesRead {
+		lmlog.DebugF("detected no variables in bytes")
+		return n + nonVarByteCount, err
 	}
 	if pos != nil {
 		// we have stumbled apon a variable.
-		// TODO: define the define func.
-		def, err := c.sourceDocument.define(*pos)
-		if err != nil {
-			return nonVarByteCount, err
+		def, derr := c.sourceDocument.define(*pos)
+		if derr != nil {
+			return n + nonVarByteCount, derr
 		}
+
+		// lets start reading it on the next read.
 		c.currentlyReadingDef = def
 
-		return nonVarByteCount, nil
+		// but first we ask:
+		// did the buffer (dest) pick up anything after the variable?
+		// (ie dest[:n] = "123$(varible)abc")
+		//                    ^         ^  ^
+		//                   (a)       (b)(c)
+		//
+		//  (a) = position of nonVarByteCount
+		//  (b) = position of nonVarByteCount + len(pos.fullName)
+		//  (c) = position of sourceBytesRead (length of string)
+		// if so, we need to save the extra (ie "abc") to tmpBuff because
+		// dest will be used to read-in the variable and will in turn all
+		// content that was read after the variable from the file.
+		if sourceBytesRead > nonVarByteCount+len(pos.fullName) {
+
+			// calculate the remaining buffer length
+			remainingBuffLen := sourceBytesRead - (nonVarByteCount + len(pos.fullName))
+			// make the tmp buff the size of everything after the variable.
+			c.tmpBuff = make([]byte, remainingBuffLen)
+			// copy everything after that variable into that buffer.
+			copy(c.tmpBuff, dest[nonVarByteCount+len(pos.fullName):sourceBytesRead])
+
+			// lets use up the rest of the buffer we were given in this call
+			// to try to fill the next one. You could comment these three
+			// lines out and the only thing it would really affect is the
+			// fact that the caller needs to call Read a few more times.
+			//lmlog.AlertF("%s", string(dest[nonVarByteCount:]))
+			bytesOfDefinition, err := c.Read(dest[nonVarByteCount:])
+			n += bytesOfDefinition + nonVarByteCount
+			return n, err
+		}
+		return n + nonVarByteCount, err
 	}
+
 	// at this point we know that a variable was not found, but not all bytes were
 	// ignored.
-	return nonVarByteCount, nil
+	return n + nonVarByteCount, err
 }
 
 // todo: I don't think this method should belong to Document...
@@ -439,6 +513,7 @@ func (c *nonConvertedFile) Rewind() error {
 	if err != nil {
 		return err
 	}
+	c.hasEOFd = false
 
 	c.bytesRead = 0
 	return nil

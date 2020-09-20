@@ -7,6 +7,14 @@ import (
 )
 import "../lmlog"
 
+func asdf(a []byte) {
+	lmlog.DebugF("test2: %d", len(a))
+	a = a[2:]
+	lmlog.DebugF("test2: %d", len(a))
+	a[0] = 'd'
+	return
+}
+
 func TestLoadDocument(t *testing.T) {
 
 	// change cwd to caller
@@ -26,23 +34,32 @@ func TestLoadDocument(t *testing.T) {
 		return
 	}
 
-	buff := make([]byte, 1000)
+	buff := make([]byte, 10)
 	var total = ""
+	var totalreads int
+	var averageBuffUsage float64
 	for {
+		totalreads++
+		lmlog.DebugF("reading...")
 		n, cerr := d.Read(buff)
 		if cerr != nil && cerr != io.EOF {
 			t.Log(cerr.Error())
 			t.Fail()
 			return
 		}
+
+		averageBuffUsage += float64(n) / float64(len(buff))
+
 		total += string(buff[:n])
-		lmlog.Debug("buff : " + string(d.ConvertedFile.(*nonConvertedFile).variableReadBuffer))
 		lmlog.Debug("total: " + total)
 
 		if cerr == io.EOF {
 			break
 		}
 	}
+
+	t.Logf("total reads: %d", totalreads)
+	t.Logf("average buffer utilization: %.2f%%", (averageBuffUsage/float64(totalreads))*100)
 
 	//println(buff[:n])
 	t.Log(total)
