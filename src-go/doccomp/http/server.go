@@ -25,13 +25,14 @@ func (h Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	var tryFilesIndex = 0
-	var fileToUse = request.URL.Path
+	var fileToUse = h.docroot + request.URL.Path
 
 	// does this file exist at all?
-	stat, err := os.Stat(h.docroot + fileToUse)
+	stat, err := os.Stat(fileToUse)
 	if err != nil {
 		if os.IsNotExist(err) {
 			writer.WriteHeader(http.StatusNotFound)
+			println("could not find " + fileToUse)
 			return
 		}
 		if os.IsPermission(err) {
@@ -49,14 +50,14 @@ func (h Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		for i = 0; i < len(TryFiles); i++ {
 			// make sure we don't add an extra '/' if it's already there.
 			if request.URL.Path[len(request.URL.Path)-1] == '/' {
-				fileToUse = request.URL.Path + TryFiles[tryFilesIndex]
+				fileToUse = h.docroot + request.URL.Path + TryFiles[tryFilesIndex]
 			} else {
-				fileToUse = request.URL.Path + "/" + TryFiles[tryFilesIndex]
+				fileToUse = h.docroot + request.URL.Path + "/" + TryFiles[tryFilesIndex]
 			}
 
 			// check the stat of the path+tryfile to see if we have an
 			// existing one
-			stat, err = os.Stat(h.docroot + fileToUse)
+			stat, err = os.Stat(fileToUse)
 			if err != nil {
 				if os.IsNotExist(err) {
 					// that tryfile doesn't exist, go to the next one.
@@ -96,9 +97,11 @@ func (h Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	// parse the form and multipart form
 	if err := request.ParseMultipartForm(MultipartMaxMemory); err != nil {
-		writer.WriteHeader(http.StatusBadRequest)
-		_, _ = writer.Write([]byte(err.Error()))
-		return
+		if err != http.ErrNotMultipart {
+			writer.WriteHeader(http.StatusBadRequest)
+			_, _ = writer.Write([]byte(err.Error()))
+			return
+		}
 	}
 
 	// any request with multiple declarations of the same value is invalid.
@@ -117,27 +120,29 @@ func (h Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	// do the same with the multipart form
-	streaminputs = make(map[string]io.Reader)
-	for k, s := range request.MultipartForm.File {
-		if len(s) != 1 {
-			writer.WriteHeader(http.StatusBadRequest)
-			_, _ = writer.Write([]byte("'" + k + "' contained multiple values or was empty"))
-			return
-		}
+	if request.MultipartForm != nil {
+		streaminputs = make(map[string]io.Reader)
+		for k, s := range request.MultipartForm.File {
+			if len(s) != 1 {
+				writer.WriteHeader(http.StatusBadRequest)
+				_, _ = writer.Write([]byte("'" + k + "' contained multiple values or was empty"))
+				return
+			}
 
-		file, err := request.MultipartForm.File[k][0].Open()
-		if err != nil {
-			writer.WriteHeader(http.StatusInternalServerError)
-			_, _ = writer.Write([]byte("failed to open file '" + k + "'"))
-			h.writeError(err)
-			return
+			file, err := request.MultipartForm.File[k][0].Open()
+			if err != nil {
+				writer.WriteHeader(http.StatusInternalServerError)
+				_, _ = writer.Write([]byte("failed to open file '" + k + "'"))
+				h.writeError(err)
+				return
+			}
+			defer file.Close()
+			streaminputs[k] = file
 		}
-		defer file.Close()
-		streaminputs[k] = file
 	}
 
 	// do the actual processing
-	stream, err = doccomp.Process(request.URL.Path, inputs, streaminputs)
+	stream, err = doccomp.Process(fileToUse, inputs, streaminputs)
 	if err != nil {
 		writer.WriteHeader(http.StatusInternalServerError)
 		_, _ = writer.Write([]byte("failed to process document"))
@@ -159,7 +164,7 @@ writeStream:
 }
 
 func (h Handler) writeError(err error) {
-
+	println("error: " + err.Error())
 }
 
 /*
@@ -206,6 +211,7 @@ func isUpwardTransversal(path string) bool {
  * net/http to handle all the http protocols and doccomp to handle the
  * putting-together of HTML documents.
  *
+ * Make sure if your documentRoot will be local you use "."
  *
  * (confroming too: net/http/server.go)
  */

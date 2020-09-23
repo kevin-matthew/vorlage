@@ -1,4 +1,4 @@
-package daemon
+package http
 
 import (
 	"fmt"
@@ -45,9 +45,9 @@ func Disable(l Level) {
 	LevelMask = LevelMask &^ l
 }
 
-// Feel free to set this to whatever you'd like. All output of a daemon should be going to the same place.
+// Feel free to set this to whatever you'd like. All output of a http should be going to the same place.
 // Thus we don't need to use os.Stderr for example (we should only use that if there was a
-// problem starting the daemon).
+// problem starting the http).
 var Output io.Writer = os.Stdout
 
 func logColor(prefix string, color string, message string) {

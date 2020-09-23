@@ -1,4 +1,4 @@
-package daemon
+package http
 
 import (
 	"os"
@@ -40,7 +40,7 @@ func fallBackOnPIDExists(pidFilePath string) error {
 	var fd int
 	var err error
 	if fd,err = syscall.Open(pidFilePath, syscall.O_RDONLY, 0666); err != nil {
-		return errors.New("cannot open pid file to discover if daemon is" +
+		return errors.New("cannot open pid file to discover if http is" +
 			" already running" + err.Error())
 	}
 
@@ -48,13 +48,13 @@ func fallBackOnPIDExists(pidFilePath string) error {
 	n,err  := syscall.Read(fd,buffer)
 	_ = syscall.Close(fd)
 	if err != nil {
-		return errors.New("cannot read pid file to discover if daemon is" +
+		return errors.New("cannot read pid file to discover if http is" +
 			" already running: " + err.Error())
 	}
 
 	pid,err := strconv.Atoi(string(buffer[:n]))
 	if err != nil {
-		return errors.New("cannot interpret pid file to discover if daemon is" +
+		return errors.New("cannot interpret pid file to discover if http is" +
 			" already running: " + err.Error())
 	}
 	err  = syscall.Kill(pid, 0)
@@ -74,7 +74,7 @@ func fallBackOnPIDExists(pidFilePath string) error {
 				Error())
 		}
 	}
-	return errors.New("a daemon is already running with this PID")
+	return errors.New("a http is already running with this PID")
 }
 
 func Daemonize(daemon Daemon, pidFilePath string) {
@@ -113,8 +113,8 @@ func Daemonize(daemon Daemon, pidFilePath string) {
 	}
 	_ = syscall.Close(fd)
 
-	// actually run the daemon
-	Debug("Loading daemon...")
+	// actually run the http
+	Debug("Loading http...")
 	err  = daemon.Load()
 	if err != nil {
 		Crit("Failed to load: "+ err.Error())
@@ -122,7 +122,7 @@ func Daemonize(daemon Daemon, pidFilePath string) {
 		os.Exit(1)
 	}
 
-	Debug("Starting daemon...")
+	Debug("Starting http...")
 	if err := daemon.Start(); err != nil {
 		Error("Daemon returned error: "+ err.Error())
 		_ = syscall.Unlink(pidFilePath)
@@ -149,7 +149,7 @@ const (
 type Daemon interface {
 
 	/*
-	 * DESCRIPTION: Load() will load the configuration of the daemon (ie,
+	 * DESCRIPTION: Load() will load the configuration of the http (ie,
 	 * /etc/ files). It is called before initial Start()
 	 * as well as when a SIGHUP is recieved.
 	 *
@@ -158,18 +158,18 @@ type Daemon interface {
 	 *
 	 * RETURN: returning an error is critical on initial start up, all
 	 * subsequent Load() calls that return errors
-	 * WILL NOT be critical to the proccess of the daemon.
+	 * WILL NOT be critical to the proccess of the http.
 	 */
 	Load()  error
 
 	/*
-	 * DESCRIPTION: Start() will start the daemon and will not return until the daemon needs to exit.
-	 * In other words, Start() should be treated as the daemon's 'main' function.
+	 * DESCRIPTION: Start() will start the http and will not return until the http needs to exit.
+	 * In other words, Start() should be treated as the http's 'main' function.
 	 *
 	 * THREAD SAFETY: Start does not have to be thread safe. It will only ever be
 	 * called on the main thread.
 	 *
-	 * RETURN: the only time error == nil is when the daemon has exited nicely (ie, via Stop()).
+	 * RETURN: the only time error == nil is when the http has exited nicely (ie, via Stop()).
 	 * Thus, random critical failures will result in Start returning an error.
 	 */
 	Start() error
@@ -178,10 +178,10 @@ type Daemon interface {
 	 * THREAD SAFETY: Stop MUST be thread-safe as it will likely be called on a seperate
 	 * thread that listens for arbitrary signals.
 	 *
-	 * RETURN: an error WILL ONLY be returned is if the daemon
+	 * RETURN: an error WILL ONLY be returned is if the http
 	 * refuses to stop for one reason or another. Thus, even if Stop() had broken something, but
-	 * the daemon still stopped, an error will not be returned. Furthermore, if Stop()
-	 * is being called even after the daemon has already been stopped, no error should be returned.
+	 * the http still stopped, an error will not be returned. Furthermore, if Stop()
+	 * is being called even after the http has already been stopped, no error should be returned.
 	 */
 	Stop()  error
 
@@ -189,7 +189,7 @@ type Daemon interface {
 	 * THREAD SAFETY: MUST be thread-safe as it will likely be called on a seperate
 	 * thread that listens for arbitrary signals.
 	 *
-	 * RETURN: Returns the status of the daemon
+	 * RETURN: Returns the status of the http
 	 */
 	//GetStatus() Status
 }
