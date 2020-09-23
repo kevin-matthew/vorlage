@@ -257,7 +257,7 @@ func loadDocumentFromPath(path string,
 	doc.fileInode = stat.Ino
 
 	// now that the file is open (and converting), lets detect all macros in it
-	Debugf("detecting macros in '%s'", path)
+	verbosef("detecting macros in '%s'", path)
 	err := doc.detectMacrosPositions()
 	if err != nil {
 		oerr.ErrStr = "failed to detect macros"
@@ -266,7 +266,7 @@ func loadDocumentFromPath(path string,
 		return doc, oerr
 	}
 
-	Debugf("interpreting macros in '%s'", path)
+	verbosef("interpreting macros in '%s'", path)
 	err = doc.processMacros()
 	if err != nil {
 		oerr.ErrStr = "failed to interpret macros"
@@ -276,7 +276,7 @@ func loadDocumentFromPath(path string,
 	}
 
 	// run #prepends
-	Debugf("prepending %d documents to '%s'", len(doc.prependsPos), path)
+	verbosef("prepending %d documents to '%s'", len(doc.prependsPos), path)
 	doc.prepends = make([]*Document, len(doc.prependsPos))
 	for i := 0; i < len(doc.prependsPos); i++ {
 		pos := doc.prependsPos[i]
@@ -291,7 +291,7 @@ func loadDocumentFromPath(path string,
 	}
 
 	// run #appends
-	Debugf("appending %d documents to '%s'", len(doc.appendPos), path)
+	verbosef("appending %d documents to '%s'", len(doc.appendPos), path)
 	doc.appends = make([]*Document, len(doc.appendPos))
 	for i := 0; i < len(doc.appendPos); i++ {
 		pos := doc.appendPos[i]
@@ -306,7 +306,7 @@ func loadDocumentFromPath(path string,
 	}
 
 	// normal definitions (#define)
-	Debugf("parsing %d normal define(s) '%s'", len(doc.normalPos), path)
+	verbosef("parsing %d normal define(s) '%s'", len(doc.normalPos), path)
 	for _, d := range doc.normalPos {
 		def, err := createNormalDefinition(d.args[1], strings.Join(d.args[2:], " "))
 		if err != nil {
@@ -336,7 +336,7 @@ func loadDocumentFromPath(path string,
 	}
 
 	// variables we need to convert the document to the target format.
-	Debugf("opening a converter to '%s'", path)
+	verbosef("opening a converter to '%s'", path)
 	doc.ConvertedFile, err = doc.getConverted(osFileToFile(doc.rawFile, doc.rawContentStart))
 	if err != nil {
 		oerr.ErrStr = errConvert
@@ -444,11 +444,11 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 
 		if pos.length == 0 {
 			doc.rawContentStart = at
-			Debugf("finished detecting macros in '%s'", doc.path)
+			verbosef("finished detecting macros in '%s'", doc.path)
 			return nil
 		}
 
-		Debugf("detected macro '%s' in %s", pos.args[0], doc.path)
+		verbosef("detected macro '%s' in %s", pos.args[0], doc.path)
 		doc.macros = append(doc.macros, pos)
 
 		at += int64(pos.length)
@@ -508,7 +508,7 @@ func (doc *Document) include(path string) (incdoc *Document, oerr *Error) {
 	// make sure we dont re-include anything
 	for _, d := range *doc.allIncluded {
 		if d.fileInode == stat.Ino {
-			Debugf("avoiding a re-opening of document '%s' (inode match)",
+			verbosef("avoiding a re-opening of document '%s' (inode match)",
 				path)
 			return d, nil
 		}
@@ -569,7 +569,7 @@ func (doc *Document) Read(dest []byte) (int,
 	// todo: the caller should be doing this explicitly... why did I put this here?
 	// may just have to remove.
 	if doc.documentEOF {
-		Debugf("rewinding EOF'd document '%s' for reading", doc.path)
+		verbosef("rewinding EOF'd document '%s' for reading", doc.path)
 		cerr := doc.Rewind()
 		if cerr != nil {
 			oerr := NewError(errFailedToReadPrependDocument)
@@ -601,7 +601,7 @@ func (doc *Document) Read(dest []byte) (int,
 	// Now the question is, are we done reading the content of the actual docmnet?...
 	if !doc.convertedFileDoneReading {
 		// ...we're not. so lets continue reading the content from this document
-		Debugf("reading (converted) document to buffer %s", doc.path)
+		verbosef("reading (converted) document to buffer %s", doc.path)
 		n, cerr := doc.ConvertedFile.Read(dest)
 		if cerr != nil && cerr != io.EOF {
 			oerr := NewError(errFailedToReadDocument)
@@ -612,7 +612,7 @@ func (doc *Document) Read(dest []byte) (int,
 		if cerr == io.EOF {
 			// ...we are done reading this document,
 			// so lets not read it anymore in subsequent read()'s
-			Debugf("document '%s' reading return EOF, "+
+			verbosef("document '%s' reading return EOF, "+
 				"will no longer read it", doc.path)
 			doc.convertedFileDoneReading = true
 		}
@@ -622,7 +622,7 @@ func (doc *Document) Read(dest []byte) (int,
 	// well okay looks like the document itself has been fully read.
 	// lets read from appended files now...
 	if doc.appendReadingIndex < len(doc.appends) {
-		Debugf("reading from appended file %s", doc.path)
+		verbosef("reading from appended file %s", doc.path)
 
 		n, cerr := doc.appends[doc.appendReadingIndex].Read(dest)
 		if cerr != nil && cerr != io.EOF {
@@ -647,7 +647,7 @@ func (doc *Document) Read(dest []byte) (int,
 }
 
 func (doc *Document) Rewind() error {
-	Debugf("rewinding document %s", doc.path)
+	verbosef("rewinding document %s", doc.path)
 	cerr := doc.ConvertedFile.Rewind()
 	if cerr != nil {
 		oerr := NewError(errRewind)
@@ -683,7 +683,7 @@ func (doc *Document) Rewind() error {
 
 func (doc *Document) close() error {
 
-	Debugf("closing '%s'",
+	verbosef("closing '%s'",
 		doc.path)
 	if doc.rawFile != nil {
 		_ = doc.rawFile.Close()
@@ -698,7 +698,7 @@ func (doc *Document) close() error {
 // recursively closes
 func (doc *Document) Close() error {
 	if doc == nil {
-		Debugf("warning, closing nil documnet")
+		verbosef("warning, closing nil documnet")
 		return nil
 	}
 	_ = doc.close()

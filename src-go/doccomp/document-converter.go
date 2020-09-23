@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-import "../lmlog"
-
 // its a io.Reader that will read from the file but will NOT read the macros.
 type File interface {
 	// n will sometimes be < len(p) but that does not mean it's the end of the
@@ -296,7 +294,6 @@ func (c *nonConvertedFile) Read(dest []byte) (n int, err error) {
 	// before we do another read from the file, we need to make sure that
 	// tmpBuff has been emptied.
 	if len(c.tmpBuff) != 0 {
-		lmlog.DebugF("tmp buffer has stuff in it \"%s\"", string(c.tmpBuff))
 		bytesCopied := copy(dest, c.tmpBuff)
 		c.tmpBuff = c.tmpBuff[bytesCopied:]
 		dest = dest[bytesCopied:]
@@ -325,12 +322,10 @@ func (c *nonConvertedFile) Read(dest []byte) (n int, err error) {
 	c.bytesRead += int64(sourceBytesRead)
 
 	nonVarByteCount, pos, cerr := drawParseVar(c.variableReadBuffer, dest[:sourceBytesRead], c.bytesRead)
-	//lmlog.DebugF("drawparseVar: %d, %#v, %#v -- %s", nonVarByteCount, pos,cerr, string(c.variableReadBuffer));
 	if cerr != nil {
 		return n + nonVarByteCount, *cerr
 	}
 	if nonVarByteCount == sourceBytesRead {
-		lmlog.DebugF("detected no variables in bytes")
 		return n + nonVarByteCount, err
 	}
 	if pos != nil {
@@ -467,7 +462,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// as per the documentation, if there's an error with the definition,
 		// it is ignored. All proc vars MUST be defined as long as they're loaded.
 		if logerr != nil {
-			Debugf("error defining %s: %s", pos.variableName, logerr.Error())
+			verbosef("error defining %s: %s", pos.variableName, logerr.Error())
 		}
 	} else {
 		// its a normal variable.

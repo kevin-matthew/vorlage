@@ -270,9 +270,8 @@ they are compiled. The identity of a Macro must follow this syntax:
  3. followed by a UTF-8 alpha string called the *Maco Name*
  4. followed by arbitrary text called *Arguments*... of which each one
     is preceeded by a space (char code =0x20=) and optionally wrapped
-    in double quotation marks (char code =0x22=),
- 5. will be ended with 1 newline (char code 0x10), and;
- 6. optionally be followed by a carriage return (=0x0D=) character.
+    in double quotation marks (char code =0x22=), and;
+ 5. will be ended with 1 newline (char code =0x10=).
 
 As mentioned before, there's a very limited amount of avaialbe Macros:
 

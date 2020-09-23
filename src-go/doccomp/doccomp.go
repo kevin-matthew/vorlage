@@ -57,7 +57,7 @@ func Process(filepath string, input map[string]string, streamInput map[string]io
 	}
 
 	//step 5,6
-	/*Debugf("storing '%s' in cache", request.GetFilePath())
+	/*verbosef("storing '%s' in cache", request.GetFilePath())
 	cerr := cache.AddToCache(doc)
 	if cerr != nil {
 		erro := NewError("adding a document to the cache")
@@ -88,7 +88,7 @@ func Process(filepath string, input map[string]string, streamInput map[string]io
 		docstream = reqdoc
 
 		// step 9
-		Debugf("post-processing document '%s'", request.GetFilePath())
+		verbosef("post-processing document '%s'", request.GetFilePath())
 		err = pageProcessor.Postprocess(request)
 		if err != nil {
 			erro := NewError("in post-processing")
