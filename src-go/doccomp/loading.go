@@ -280,7 +280,7 @@ func loadDocumentFromPath(path string,
 	doc.prepends = make([]*Document, len(doc.prependsPos))
 	for i := 0; i < len(doc.prependsPos); i++ {
 		pos := doc.prependsPos[i]
-		inc, err := doc.include(pos.args[1])
+		inc, err := doc.include(strings.Join(pos.args[1:], " "))
 		if err != nil {
 			oerr.ErrStr = "failed to prepend document"
 			oerr.SetBecause(err)
@@ -295,7 +295,7 @@ func loadDocumentFromPath(path string,
 	doc.appends = make([]*Document, len(doc.appendPos))
 	for i := 0; i < len(doc.appendPos); i++ {
 		pos := doc.appendPos[i]
-		inc, err := doc.include(pos.args[1])
+		inc, err := doc.include(strings.Join(pos.args[1:], " "))
 		if err != nil {
 			oerr.ErrStr = "failed to append document"
 			oerr.SetBecause(err)
@@ -308,7 +308,7 @@ func loadDocumentFromPath(path string,
 	// normal definitions (#define)
 	Debugf("parsing %d normal define(s) '%s'", len(doc.normalPos), path)
 	for _, d := range doc.normalPos {
-		def, err := createNormalDefinition(d.args[1], d.args[2])
+		def, err := createNormalDefinition(d.args[1], strings.Join(d.args[2:], " "))
 		if err != nil {
 			oerr.ErrStr = "cannot parse definition"
 			oerr.SetSubjectf("%s %s", path, d.ToString())
