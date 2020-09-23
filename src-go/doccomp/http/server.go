@@ -10,11 +10,11 @@ import (
 
 import doccomp ".."
 
-type handler struct {
+type Handler struct {
 	docroot string
 }
 
-func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+func (h Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	// transversal attacks
 	if BlockTransversalAttack {
@@ -86,10 +86,10 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	var inputs map[string]string
 	var streaminputs map[string]io.Reader
 
-	// is it a .proc.html file?
+	// does it have the file extension we don't want?
 	if len(fileToUse) < len(FileExt) ||
 		fileToUse[len(fileToUse)-len(FileExt):] != FileExt {
-		// it's not. So just serve it as a normal download.
+		// If so, just serve it as a normal download.
 		stream, err = os.Open(fileToUse)
 		goto writeStream
 	}
@@ -155,10 +155,10 @@ writeStream:
 		h.writeError(err)
 		return
 	}
-	// success!
+	// at this point we've successfully found, processed, and served the file.
 }
 
-func (h handler) writeError(err error) {
+func (h Handler) writeError(err error) {
 
 }
 
@@ -202,18 +202,6 @@ func isUpwardTransversal(path string) bool {
 }
 
 /*
- * Serve accepts incoming HTTP connections on the listener l,
- * creating a new service goroutine for each. The service goroutines
- * read requests and then call handler to reply to them.
- *
- * The handler is typically nil, in which case the DefaultServeMux is used.
- *
- *  HTTP/2 support is only enabled if the Listener returns *tls.Conn
- * connections and they were configured with "h2" in the TLS
- * Config.NextProtos.
- */
-
-/*
  * Serve accepts incoming HTTP connections on listener l using
  * net/http to handle all the http protocols and doccomp to handle the
  * putting-together of HTML documents.
@@ -222,7 +210,7 @@ func isUpwardTransversal(path string) bool {
  * (confroming too: net/http/server.go)
  */
 func Serve(l net.Listener, documentRoot string) error {
-	h := handler{
+	h := Handler{
 		docroot: documentRoot,
 	}
 	return http.Serve(l, h)
