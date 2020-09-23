@@ -1,68 +1,24 @@
 package main
 
 import (
-	"io"
-	"net"
 	"./doccomp"
 	"./doccomp/http"
-	"strings"
+	"./doccomp/simple"
+	"net"
+	"time"
 )
 
-type myProc struct {
-
-}
-
-type streamReader struct {
-	r *strings.Reader
-}
-
-func (s streamReader) Reset() error {
-	_,err := s.r.Seek(0,0)
-	return err
-}
-
-func (s streamReader) Read(p []byte) (int, error) {
-	return s.r.Read(p)
-}
-
-var myVars = []doccomp.ProcessorVariable{
-		doccomp.ProcessorVariable{"Time", "tells the time", nil, nil},
-	}
-
-func (m myProc) GetDescription() string {
-	return "my first processor"
-}
-
-func (m myProc) GetVariables() []doccomp.ProcessorVariable {
-	return myVars
-}
-
-func (m myProc) DefineVariable(name string, input map[string]string, streams map[string]io.Reader) (def doccomp.Definition, err error) {
-	switch name {
-	case "Time":
-		return streamReader{strings.NewReader("asdf")}, nil
-	}
-	return def,err
+func GetTime(args map[string]string) string {
+	return time.Now().Format(time.Kitchen)
 }
 
 func main() {
-	/*filepath := os.Args[1]
-	reader,err := doccomp.Process(filepath)
-	if err != nil {
-		os.Stderr.WriteString("failed to read: " + err.Error() + "\n")
-		os.Exit(1)
+
+	var vars = map[string]simple.CallbackDefinition{
+		"Time":{"",GetTime,nil},
 	}
-	defer reader.Close()
-	http.Serve()
 
-	buffer := make([]byte, 1024)
-	_,err = io.CopyBuffer(os.Stdout, reader, buffer)
-	if err != nil {
-		os.Stderr.WriteString( "failed to write: " + err.Error() + "\n")
-		os.Exit(1)
-	}*/
-
-	doccomp.Processors["myproc"] = myProc{}
+	doccomp.Processors["myproc"] = simple.NewProcessor("My Processor", vars)
 
 	l,_ := net.Listen("tcp", "localhost:8080")
 	err := http.Serve(l, ".")

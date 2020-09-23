@@ -190,6 +190,10 @@ that any errors that occour during definition will be logged and will
 not stop the overall request.
 
 ** Input
+TODO: I'm thinking about remvoing input in favor of just supplying all
+of the input to all the procvars. Because otherwise the use of
+"required fields" will leave the page half-processed.
+
 User input is only used for Processed Variables. Each Processed
 Variable can define what Input it requires to function properly. The
 Processed Variable will not be defined if the Document Compiler was

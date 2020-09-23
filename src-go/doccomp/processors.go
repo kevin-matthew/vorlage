@@ -57,31 +57,6 @@ type ProcessorVariable struct {
 	StreamedInputNames []string
 }
 
-var _ Definition = &ProcessorDefinition{}
-
-type ProcessorDefinition struct {
-	fullname string
-	parent   Processor
-}
-
-func (p ProcessorDefinition) Length() *uint64 {
-	panic("implement me")
-}
-
-func (p ProcessorDefinition) Reset() error {
-	panic("implement me")
-}
-
-func (p *ProcessorDefinition) Read(dest []byte) (int, error) {
-	panic("implement me")
-}
-
-func (p ProcessorDefinition) GetFullName() string {
-	return p.fullname
-}
-
 // This is the source of all processors. Add to this list if you
 // want to add your own processor. They're mapped via their Name.
 var Processors map[string]Processor = make(map[string]Processor)
-
-// todo: use package 'C' as well as dlopen to dymiaclly load all archive.
