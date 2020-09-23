@@ -141,20 +141,19 @@ func scanVariable(buffer []byte, charsource int64) (pos variablePos, oerr *Error
 		return pos, oerr
 	}
 
-	dotIndex = strings.Index(string(buffer[:length]),
-		VariableProcessorSeporator)
-	if dotIndex == -1 {
-		dotIndex = 0
-	}
-
 	pos = variablePos{
 		fullName:     string(buffer[:length]),
 		variableName: string(buffer[len(VariablePrefix) : length-len(VariableSuffix)]),
-		processorName: string(buffer[len(VariablePrefix) : len(
-			VariablePrefix)+dotIndex]),
-		charPos: charsource,
-		length:  uint(length),
+		charPos:      charsource,
+		length:       uint(length),
 	}
+
+	dotIndex = strings.Index(pos.variableName,
+		VariableProcessorSeporator)
+	if dotIndex != -1 {
+		pos.processorName = string(pos.variableName[:dotIndex])
+	}
+
 	return pos, nil
 }
 
