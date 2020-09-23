@@ -88,9 +88,10 @@ type DocumentConverter interface {
 
 type variablePos struct {
 	fullName     string
-	variableName string // this will be the Processor-Variable Name if
-	// processorName is not ""
+	variableName string
+
 	processorName string // if "" then it is not a processed variable
+	processorVariableName string // if "" then it is not a processed variable
 	charPos       int64
 	length        uint
 }
@@ -152,6 +153,7 @@ func scanVariable(buffer []byte, charsource int64) (pos variablePos, oerr *Error
 		VariableProcessorSeporator)
 	if dotIndex != -1 {
 		pos.processorName = string(pos.variableName[:dotIndex])
+		pos.processorVariableName = string(pos.variableName[dotIndex+len(VariableProcessorSeporator):])
 	}
 
 	return pos, nil
@@ -400,7 +402,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		vars := p.GetVariables()
 		var i int
 		for i = range vars {
-			if vars[i].name == pos.variableName {
+			if vars[i].Name == pos.variableName {
 				break
 			}
 		}
@@ -413,7 +415,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// at this point: we've found the processor, we've foudn the variable
 		// but what about the variable's inputs... do we have everything we
 		// we need?
-		for _, n := range vars[i].inputNames {
+		for _, n := range vars[i].InputNames {
 			// Now we ask ourselves (doc) if we've been given all the right
 			// inputs
 			_, foundStatic := doc.args.staticInputs[n]
@@ -426,7 +428,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 			}
 			if foundStatic && foundStream {
 				// for some reason we have both a static and stream input with
-				// the same name that are being requested. That's an error.
+				// the same Name that are being requested. That's an error.
 				oerr := NewError(errInputInStreamAndStatic)
 				oerr.SetSubjectf("\"%s\" in %s", n, pos.fullName)
 				return nil, oerr
@@ -454,7 +456,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// we found the variable. we found all of it's inputs.
 		// lets define it.
 		var logerr error
-		foundDef, logerr = p.DefineVariable(pos.variableName,
+		foundDef, logerr = p.DefineVariable(pos.processorVariableName,
 			doc.args.staticInputs,
 			doc.args.streamInputs)
 
@@ -529,7 +531,7 @@ func (c *nonConvertedFile) Close() error {
 var _ File = &nonConvertedFile{}
 
 func (doc *Document) getConverted(sourceFile File) (converedFile File, err *Error) {
-	// todo: switch on the source file name to find a good converted (haml->html)
+	// todo: switch on the source file Name to find a good converted (haml->html)
 	file := nonConvertedFile{
 		sourceFile:         sourceFile,
 		sourceDocument:     doc,

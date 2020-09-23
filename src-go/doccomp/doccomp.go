@@ -22,10 +22,7 @@ type Definition interface {
 	// if nil is returned, doccomp will not calculate nor send content-length.
 	// however this is not prefered and should be only used for applications
 	// that truelly cannot know what their content length will be.
-	Length() *uint64
-
-	// returns the fulle variable name ie '$(myvar)'
-	GetFullName() string
+	//Length() *uint64
 }
 
 /*

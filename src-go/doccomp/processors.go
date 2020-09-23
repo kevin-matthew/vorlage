@@ -20,15 +20,15 @@ type RequestData struct {
 type ProcessorLoader interface {
 	// GetProcessor should be ready to be called multiple times with the same
 	// argument. So it's best to cache the Processors.
-	GetProcessor(name string) (*Processor, error)
+	GetProcessor(Name string) (*Processor, error)
 
 	// AddProcessor adds a p
-	AddProcessor(name string, processor Processor)
+	AddProcessor(Name string, processor Processor)
 }*/
 
 type Processor interface {
 
-	// description of the proccessor
+	// Description of the proccessor
 	GetDescription() string
 
 	// returns a list of Processor-Variable
@@ -47,14 +47,14 @@ type Processor interface {
 }
 
 type ProcessorVariable struct {
-	name        string
-	description string
-	inputNames  []string
+	Name        string
+	Description string
+	InputNames  []string
 
-	// streamed inputs are mutually exclusive from inputNames.
-	// streamedInputNames will be passed into Processor.DefineVariable as an
+	// streamed inputs are mutually exclusive from InputNames.
+	// StreamedInputNames will be passed into Processor.DefineVariable as an
 	// io.Reader under the streams argument.
-	streamedInputNames []string
+	StreamedInputNames []string
 }
 
 var _ Definition = &ProcessorDefinition{}
@@ -81,7 +81,7 @@ func (p ProcessorDefinition) GetFullName() string {
 }
 
 // This is the source of all processors. Add to this list if you
-// want to add your own processor. They're mapped via their name.
+// want to add your own processor. They're mapped via their Name.
 var Processors map[string]Processor = make(map[string]Processor)
 
 // todo: use package 'C' as well as dlopen to dymiaclly load all archive.
