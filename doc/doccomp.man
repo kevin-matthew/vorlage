@@ -1,3 +1,0 @@
-.TH DOCCOMP 1
-.SH MAN PAGE NOT SUPPORTED
-man pages are hard to write, please see /usr/share/doc/doccomp/readme.org
