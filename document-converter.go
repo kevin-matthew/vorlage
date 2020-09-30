@@ -3,7 +3,6 @@ package doccomp
 import (
 	"io"
 	"os"
-	"strings"
 )
 
 // its a io.Reader that will read from the file but will NOT read the macros.

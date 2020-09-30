@@ -1,5 +1,7 @@
 package doccomp
 
+import "strings"
+
 // variablePos is a struct that shows where a varible is, and it's componennts.
 type variablePos struct {
 	fullName     string
