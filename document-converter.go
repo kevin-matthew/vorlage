@@ -90,10 +90,10 @@ type variablePos struct {
 	fullName     string
 	variableName string
 
-	processorName string // if "" then it is not a processed variable
+	processorName         string // if "" then it is not a processed variable
 	processorVariableName string // if "" then it is not a processed variable
-	charPos       int64
-	length        uint
+	charPos               int64
+	length                uint
 }
 
 // helper-function for detectVariables
@@ -402,7 +402,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		vars := p.GetVariables()
 		var i int
 		for i = range vars {
-			if vars[i].Name == pos.variableName {
+			if vars[i].Name == pos.processorVariableName {
 				break
 			}
 		}
@@ -463,7 +463,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// as per the documentation, if there's an error with the definition,
 		// it is ignored. All proc vars MUST be defined as long as they're loaded.
 		if logerr != nil {
-			verbosef("error defining %s: %s", pos.variableName, logerr.Error())
+			verbosef("error defining %s: %s", pos.fullName, logerr.Error())
 		}
 	} else {
 		// its a normal variable.
