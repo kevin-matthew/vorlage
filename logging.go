@@ -1,21 +1,22 @@
 package doccomp
 
-import (
-	"fmt"
-	"io"
-)
+func SetLogger(l Logger) {
+	logger = l
+}
 
+type Logger interface {
+	Errorf(format string, args ...interface{})
+	Infof(format string, args ...interface{})
+	Debugf(format string, args ...interface{})
+}
 
-// if set to non-nil, Verbose output will be written to io.Writer.
-// io errors will be ignored. Verbose output will basically be very
-// vocal in what the library is doing. It's good for debugging, but,
-// when handling multithreaded request it may become overwelming.
-var VerboseOutput io.Writer
+var logger Logger = nullLog{}
 
-func verbosef(format string, args ...interface{}) {
-	if VerboseOutput != nil {
-		message := fmt.Sprintf(format, args...)
-		_, _ = fmt.Fprintf(VerboseOutput, "%s",
-			message)
-	}
+type nullLog struct{}
+
+func (n nullLog) Errorf(format string, args ...interface{}) {
+}
+func (n nullLog) Infof(format string, args ...interface{}) {
+}
+func (n nullLog) Debugf(format string, args ...interface{}) {
 }

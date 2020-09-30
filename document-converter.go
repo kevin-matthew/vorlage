@@ -463,7 +463,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// as per the documentation, if there's an error with the definition,
 		// it is ignored. All proc vars MUST be defined as long as they're loaded.
 		if logerr != nil {
-			verbosef("error defining %s: %s", pos.fullName, logerr.Error())
+			logger.Errorf("error defining %s: %s", pos.fullName, logerr.Error())
 		}
 	} else {
 		// its a normal variable.
