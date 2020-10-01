@@ -83,4 +83,5 @@ const (
 	errBufferTooShort               = "the buffer is too short"
 	errVariableDraw                 = "cannot draw variable"
 	errVariableName                 = "variable has an invalid Name"
+	errBadReservedInput             = "reserved input not formatted correctly"
 )

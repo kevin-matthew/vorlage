@@ -4,6 +4,8 @@ import (
 	"io"
 )
 
+const reservedPrefix = "__"
+
 /*
  * This is a definition, they can be made either by using '#define' in a file or
  * if the page processor
@@ -41,10 +43,44 @@ type Compiler struct {
  * defined in the 'Highlevel Process' chapter in the readme.
  * Be sure you've added the right processors via the Processors field
  */
-func Process(filepath string, input map[string]string, streamInput map[string]io.Reader) (docstream io.ReadCloser, err error) {
+func Process(filepath string,
+	reservedInput map[string]string,
+	input map[string]string,
+	streamInput map[string]io.Reader) (docstream io.ReadCloser, err error) {
 	var reqdoc *Document
-	//step 2
-	//step 3,4
+
+	// prepare reserved inptu
+	// todo: Process need to be a function based on a reciver like 'request'
+	// or something. that way I can do this logic only once and not every
+	// request.
+	for k,_ := range input {
+		if len(k) >= len(reservedPrefix) &&
+			k[:len(reservedInput)] == reservedPrefix {
+			logger.Infof("input variable cannot start with " + reservedPrefix + " ("+k+"), ignoring")
+			delete(input,k)
+		}
+	}
+	for k,_ := range streamInput {
+		if len(k) >= len(reservedPrefix) &&
+			k[:len(reservedInput)] == reservedPrefix {
+			logger.Infof("input variable cannot start with " + reservedPrefix + " ("+k+"), ignoring")
+			delete(streamInput,k)
+		}
+	}
+	if input == nil {
+		input = make(map[string]string, len(reservedInput))
+	}
+	for k,v := range reservedInput {
+		if len(k) <= len(reservedPrefix) ||
+			k[:len(reservedInput)] != reservedPrefix {
+			cerr := NewError(errBadReservedInput)
+			cerr.SetSubject(k)
+			return nil, cerr
+		}
+		input[k] = v
+	}
+
+
 	doc, errd := LoadDocument(filepath, input, streamInput)
 	if errd != nil {
 		erro := NewError("loading a requested document")
