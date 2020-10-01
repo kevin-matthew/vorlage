@@ -1,7 +1,5 @@
 package doccomp
 
-import "io"
-
 type RequestData struct {
 	// cookies?
 	// request data?
@@ -42,8 +40,8 @@ type Processor interface {
 	// All errors returned by this method will simply be logged. def WILL ALWAYS
 	// be used to define the processor variable.
 	DefineVariable(name string,
-		input map[string]string,
-		streams map[string]io.Reader) (def Definition, err error)
+		input Input,
+		streams StreamInput) (def Definition, err error)
 }
 
 type ProcessorVariable struct {

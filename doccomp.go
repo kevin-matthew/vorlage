@@ -27,13 +27,10 @@ type Definition interface {
 	//Length() *uint64
 }
 
-/*
- * A request is anything that consitutes a client asking for a compiled page.
- */
-type Request interface {
-	GetFilePath() string
-} // this will probably stay an interface.
+type Input map[string]string
+type StreamInput map[string]io.Reader
 
+// todo: put this as a reciver for process
 type Compiler struct {
 	cache Cache
 }
@@ -45,32 +42,32 @@ type Compiler struct {
  */
 func Process(filepath string,
 	reservedInput map[string]string,
-	input map[string]string,
-	streamInput map[string]io.Reader) (docstream io.ReadCloser, err error) {
+	input Input,
+	streamInput StreamInput) (docstream io.ReadCloser, err error) {
 	var reqdoc *Document
 
 	// prepare reserved inptu
 	// todo: Process need to be a function based on a reciver like 'request'
 	// or something. that way I can do this logic only once and not every
 	// request.
-	for k,_ := range input {
+	for k, _ := range input {
 		if len(k) >= len(reservedPrefix) &&
 			k[:len(reservedInput)] == reservedPrefix {
-			logger.Infof("input variable cannot start with " + reservedPrefix + " ("+k+"), ignoring")
-			delete(input,k)
+			logger.Infof("input variable cannot start with " + reservedPrefix + " (" + k + "), ignoring")
+			delete(input, k)
 		}
 	}
-	for k,_ := range streamInput {
+	for k, _ := range streamInput {
 		if len(k) >= len(reservedPrefix) &&
 			k[:len(reservedInput)] == reservedPrefix {
-			logger.Infof("input variable cannot start with " + reservedPrefix + " ("+k+"), ignoring")
-			delete(streamInput,k)
+			logger.Infof("input variable cannot start with " + reservedPrefix + " (" + k + "), ignoring")
+			delete(streamInput, k)
 		}
 	}
 	if input == nil {
 		input = make(map[string]string, len(reservedInput))
 	}
-	for k,v := range reservedInput {
+	for k, v := range reservedInput {
 		if len(k) <= len(reservedPrefix) ||
 			k[:len(reservedInput)] != reservedPrefix {
 			cerr := NewError(errBadReservedInput)
@@ -79,7 +76,6 @@ func Process(filepath string,
 		}
 		input[k] = v
 	}
-
 
 	doc, errd := LoadDocument(filepath, input, streamInput)
 	if errd != nil {

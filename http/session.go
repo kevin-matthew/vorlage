@@ -1,5 +1,9 @@
-package http
+// +build none
 
+// as you can see this file is excluded for now... there's some architectual issues
+// I must sort through first
+
+package http
 
 import (
 	"crypto/rand"
@@ -10,18 +14,30 @@ import (
 	"strings"
 	"time"
 )
-import "../lmlog"
+
+import ".."
+
+type SessionToken [32]byte
+
+type SessionStorage interface {
+	SaveSession(token SessionToken) error
+
+	DeleteSession(token SessionToken)
+}
+
+func GetSession(input doccomp.Input) Session {
+
+}
 
 // must be a directory.
 var SessionStoragePath = "."
 
 // the time in which a session is deleted after the client leaves the site
-var SessionLife = 60 * 60 * 48 // 48 hours
 
 const CookieName = "DossibaySession"
 
 type Session struct {
-	id         string
+	token      SessionToken
 	expireDate time.Time // set to time.
 	// Time{} for it to expire when browser close
 	filePath string
@@ -342,4 +358,3 @@ func DeleteExpiredSessions() (err error) {
 	}
 	return nil
 }
-

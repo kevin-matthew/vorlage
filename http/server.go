@@ -141,8 +141,24 @@ func (h Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		}
 	}
 
+	// do the same with cookies
+	cookies := request.Cookies()
+	for i := range cookies {
+		inputs[cookies[i].Name] = cookies[i].Value
+	}
+
 	// do the actual processing
-	stream, err = doccomp.Process(fileToUse, inputs, streaminputs)
+	reservedInput := map[string]string{
+		"__HOST":      request.Host,
+		"__USERAGENT": request.UserAgent(),
+		"__IP":        request.RemoteAddr,
+		"__REFERER":   request.Referer(),
+		"__URI":       request.RequestURI,
+	}
+	stream, err = doccomp.Process(fileToUse,
+		reservedInput,
+		inputs,
+		streaminputs)
 	if err != nil {
 		writer.WriteHeader(http.StatusInternalServerError)
 		_, _ = writer.Write([]byte("failed to process document"))
