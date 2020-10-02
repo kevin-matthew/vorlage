@@ -52,14 +52,14 @@ func Process(filepath string,
 	// request.
 	for k, _ := range input {
 		if len(k) >= len(reservedPrefix) &&
-			k[:len(reservedInput)] == reservedPrefix {
+			k[:len(reservedPrefix)] == reservedPrefix {
 			logger.Infof("input variable cannot start with " + reservedPrefix + " (" + k + "), ignoring")
 			delete(input, k)
 		}
 	}
 	for k, _ := range streamInput {
 		if len(k) >= len(reservedPrefix) &&
-			k[:len(reservedInput)] == reservedPrefix {
+			k[:len(reservedPrefix)] == reservedPrefix {
 			logger.Infof("input variable cannot start with " + reservedPrefix + " (" + k + "), ignoring")
 			delete(streamInput, k)
 		}
@@ -69,7 +69,7 @@ func Process(filepath string,
 	}
 	for k, v := range reservedInput {
 		if len(k) <= len(reservedPrefix) ||
-			k[:len(reservedInput)] != reservedPrefix {
+			k[:len(reservedPrefix)] != reservedPrefix {
 			cerr := NewError(errBadReservedInput)
 			cerr.SetSubject(k)
 			return nil, cerr
