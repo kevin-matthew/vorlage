@@ -2,7 +2,6 @@ package simple
 
 import (
 	".."
-	"io"
 	"strings"
 )
 
@@ -24,7 +23,7 @@ var _ doccomp.Processor = lowVolumeProcessor{}
  */
 type CallbackDefinition struct {
 	Description    string
-	DefineFunc     func(args map[string]string) string
+	DefineFunc     func(args doccomp.Input) string
 	RequiredFields []string
 }
 
@@ -84,7 +83,7 @@ func (l lowVolumeProcessor) GetVariables() []doccomp.ProcessorVariable {
 /*
  * implemented doccomp.Processor
  */
-func (l lowVolumeProcessor) DefineVariable(name string, input map[string]string, streams map[string]io.Reader) (def doccomp.Definition, err error) {
+func (l lowVolumeProcessor) DefineVariable(name string, input doccomp.Input, streams doccomp.StreamInput) (def doccomp.Definition, err error) {
 	ret := l.Variables[name].DefineFunc(input)
 	return newStringDef(ret), nil
 }

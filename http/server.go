@@ -86,6 +86,8 @@ func (h Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	var stream io.ReadCloser
 	var inputs map[string]string
 	var streaminputs map[string]io.Reader
+	var reservedInput map[string]string
+	var cookies []*http.Cookie
 
 	// does it have the file extension we don't want?
 	if len(fileToUse) < len(FileExt) ||
@@ -142,13 +144,13 @@ func (h Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	// do the same with cookies
-	cookies := request.Cookies()
+	cookies = request.Cookies()
 	for i := range cookies {
 		inputs[cookies[i].Name] = cookies[i].Value
 	}
 
 	// do the actual processing
-	reservedInput := map[string]string{
+	reservedInput = map[string]string{
 		"__HOST":      request.Host,
 		"__USERAGENT": request.UserAgent(),
 		"__IP":        request.RemoteAddr,
