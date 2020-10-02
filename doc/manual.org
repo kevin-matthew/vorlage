@@ -267,7 +267,7 @@ Some input that is passed into the processor is supplied by the
 doccomp implementation itself, and not by the request. This input is
 gathered by the doccomp implementation from the enviroment it is
 operating in. The same Reserved Input scheme must be provided for all
-requests for a given implementation.
+requests for a given implementation for a single execution.
 
 For example, in the command line, enviroment variables are passed as
 reserved input into the processors (such as =$PATH=, =$USER=,
