@@ -262,7 +262,8 @@ to replace the use of 2 Streamed Values with 1 Streamed Values and 2
 other Processed Variables that will read from a file saved by Streamed
 Value Input and output the conversions.
 
-*** Reserved Input
+*** 
+*** TODO ( Reserved Input) I may not want this in leu of linking 'implemetation libraries'
 Some input that is passed into the processor is supplied by the
 doccomp implementation itself, and not by the request. This input is
 gathered by the doccomp implementation from the enviroment it is
@@ -379,10 +380,83 @@ Compile gains maturaty. As of now, the following supported file types
    objects
  - myproc.go.a - go pluging made using ~go build -buildmode=plugin~
 
-*Required exports for myproc.a and libmyproc.so*
+*Building a processor*
+In this example, we'll be building a processor that was written in
+=main.c=:
+
+=<doccomp/doccom.h>=
 #+BEGIN_SRC c
-//TODO
+#include "sys/types.h"
+
+typedef struct {
+// TODO
+} dc_proc_info_t;
+
+typedef struct {
+// TODO
+} dc_proc_definer_t;
+
+typedef u_int64_t dc_rid;
 #+END_SRC
+
+=<doccomp/processor.h>=
+#+BEGIN_SRC
+#include "doccomp.h"
+
+// do not touch.
+int dcp_version = 1;
+
+// if you're making a processor, you must define these:
+dc_proc_info_t dcp_info;
+dc_proc_definer_t dcp_define(dc_rid);
+#+END_SRC
+
+Now you can choose to write your processor using only
+=<doccomp/processor.h>= making it universal, but you have the opition
+to make a *domainTODO:FINDBUZZWORD-specific* processor. To which you
+can include /one/ of the following header files and use their
+repsective functions during each call. Each request's rid (=dc_rid=)
+will be used with these implements to gather further
+domainTODO-specific information and functionaility. If you include
+these headers, you must link against the subsequent library as well.
+
+| domainTODO:BUZZWORD | header             | library              | description                |
+|---------------------+--------------------+----------------------+----------------------------|
+| =http=              | =<doccomp/http.h>= | =doccomp/libhttp.so= | enabled for http           |
+| =cli=               | =<doccomp/cli.h>=  | =doccomp/libcli.so=  | enabled for cli/bash       |
+| =pdf=               | =<doccomp/pdf.h>=  | =doccomp/libpdf.so=  | enabled for pdf generation |
+
+*** TODO is there really no way for them to include more than one? should that be a good idea?
+It would make sense because =http= processors should always output
+html. Don't want it trying to output pdf binary.
+
+I mean if you don't include any of them, your processor can still be
+linked by all implmenets. It encourages people not to get too needy
+
+
+
+todo: remove all the other stuff in this section that does not reflect
+of my desicion in the above C code... I make that my finaly descision.
+
+*all compiler implements must have*
+
+All implements (ie doccomp/http, doccomp/pdf, doccomp/cli) must have:
+#+BEGIN_SRC c
+
+#+END_SRC
+
+
+and to build it we need to link the proper libraries, in this example,
+we need to use the doccomp http library. Note that sense this
+processor links against doccomp-http, it cannot run without it. Thus
+this processor would not work in the command line.
+
+#+BEGIN_SRC bash
+~$ gcc -c -Wall -Werror -fpic myproc.c
+~$ gcc -shared -o libmyproc.so myproc.o -ldoccomp -ldoccomp-http
+~$ cp libmyproc.so /usr/local/doccomp-processors/
+#+END_SRC
+
 
 ** Library Path
 Processor Files must be placed somewhere in the filesystem. Finding
