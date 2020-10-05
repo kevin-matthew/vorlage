@@ -190,22 +190,16 @@ that any errors that occour during definition will be logged and will
 not stop the overall request.
 
 ** Input
-TODO: I'm thinking about remvoing input in favor of just supplying all
-of the input to all the procvars. Because otherwise the use of
-"required fields" will leave the page half-processed.
+User input is only used for Processed Variables.
 
-User input is only used for Processed Variables. Each Processed
-Variable can define what Input it requires to function properly. The
-Processed Variable will not be defined if the Document Compiler was
-not given adequent input, and will result in an error which will be
-blamed on the user.
-
-TODO: as of now the software passes ALL INPUT to the processor, not
-just the matching input... Not sure if this is right or not. On one
-hand, input can be treaed like envrioment variables (where everything
-should be avaialbe). On the other hand, Input can be treaed as
-function arguments working only with the data that you asked
-for... hmmm...
+When a processor is loaded, it will provide the implementation with a
+list of it's processed variable. And each Processed Variable will
+specify it's *Input*. Each item in the input is known as a *Input
+Argument*. Each Input Argument will have a name and description. Each
+Processed Variable must specify a finite list of Input Arguments. When
+the Processed Variable is defined, it will only be provided the input
+argument it had specified. If the user had not provided an argument, a
+0string ("") will be used.
 
 For example, if =$(mytranslator.german)= is detected inside the
 document, the processor =mytranslator= will be loaded and that
@@ -225,7 +219,7 @@ passed along to the processor. However; Values comes in two forms:
 given Processor Variable must be mutually exclusive between Static and
 Streamed.
 
-*** Static Values
+*** TODO - refacting using "Input Argument" Static Values
 Static Values are simple, and should be used more or less 95% of the
 time with Document Compiler. Static Values are given to the Processor
 in entirety. The transloator above is an example of static values.
@@ -233,7 +227,7 @@ in entirety. The transloator above is an example of static values.
 So you're probably wondering, "static values seems like everything
 I'll ever need... what is this other type of value?", Let's move on.
 
-*** Streamed Values
+*** TODO - refacting using "Input Argument" Streamed Values
 Streamed Values are complex in nature but very powerful. Streamed
 values are NOT given to the Processor in entirety. The Processor is
 instead given a file descriptor to which it can read from.
@@ -262,7 +256,6 @@ to replace the use of 2 Streamed Values with 1 Streamed Values and 2
 other Processed Variables that will read from a file saved by Streamed
 Value Input and output the conversions.
 
-*** 
 *** TODO ( Reserved Input) I may not want this in leu of linking 'implemetation libraries'
 Some input that is passed into the processor is supplied by the
 doccomp implementation itself, and not by the request. This input is
@@ -284,7 +277,6 @@ same prefix it will be ignored.
 If a processor at any point uses reserved input in its calculations
 then that processor becomes implementation-dependant. Thus Processors
 should avoid using Reserved Input unesscacarly.
-
 
 * Macros
 Macros are actions to perform during the compolation of a
@@ -456,7 +448,6 @@ this processor would not work in the command line.
 ~$ gcc -shared -o libmyproc.so myproc.o -ldoccomp -ldoccomp-http
 ~$ cp libmyproc.so /usr/local/doccomp-processors/
 #+END_SRC
-
 
 ** Library Path
 Processor Files must be placed somewhere in the filesystem. Finding

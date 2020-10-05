@@ -1,39 +1,27 @@
 package doccomp
 
-type RequestData struct {
-	// cookies?
-	// request data?
-	// session?
-	// should we even care about what they expect to cache their variables on?
-	// what if we just allow them to pass a function pointer that when we
-	//call answers if we should recalculate this?...
-	//no thats dumb they might as well just manage it themselves.
 
-	//
-}
+type Rid uint64
 
-/*
- * note: I was going too have this as an interface so that way I can load
- * proocessors multiple ways. But I'll transfer these methods to namespace-wide.
-type ProcessorLoader interface {
-	// GetProcessor should be ready to be called multiple times with the same
-	// argument. So it's best to cache the Processors.
-	GetProcessor(Name string) (*Processor, error)
-
-	// AddProcessor adds a p
-	AddProcessor(Name string, processor Processor)
-}*/
-
-type Processor interface {
-
-	// Description of the proccessor
-	GetDescription() string
+type ProcessorInfo struct {
+	Description string
 
 	// returns a list of Processor-Variable
 	// Names. Note this may be called multiple times so it's best to make the
 	//list as static as possible.
-	GetVariables() []ProcessorVariable
+	Variables []ProcessorVariable
+}
 
+type Processor interface {
+	Info() ProcessorInfo
+
+	// Called when the document compiler backend gets a new request, the request
+	// is given a unique Rid
+	Process(Rid) Definer
+}
+
+
+type Definer interface {
 	// defines a given variable only if that variable was a match to what
 	// was provided by GetVariables, thus this method will never be called with
 	// unfimiliar arguments to the processor.
