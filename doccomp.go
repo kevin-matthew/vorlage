@@ -74,7 +74,7 @@ func NewCompiler(proc []Processor) (c Compiler, err error) {
 func (info *ProcessorInfo) Validate() error {
 
 	// name
-	if validProcessorName.MatchString(info.Name) {
+	if !validProcessorName.MatchString(info.Name) {
 		cerr := NewError(errProcessorName)
 		cerr.SetSubject(info.Name)
 		return cerr
