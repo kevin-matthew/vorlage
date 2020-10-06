@@ -59,10 +59,9 @@ func NewCompiler(proc []Processor) (c Compiler, err error) {
 	c.processorInfos = make([]ProcessorInfo, len(proc))
 	for i := range c.processors {
 		c.processorInfos[i] = c.processors[i].Info()
-		if validProcessorName.MatchString(c.processorInfos[i].Name) {
-			cerr := NewError(errProcessorName)
-			cerr.SetSubject(c.processorInfos[i].Name)
-			return c, cerr
+		err = c.processorInfos[i].Validate()
+		if err != nil {
+			return c, err
 		}
 		logger.Infof("new compiler: loaded processor %s - %s",
 			c.processorInfos[i].Name,
@@ -70,6 +69,31 @@ func NewCompiler(proc []Processor) (c Compiler, err error) {
 	}
 
 	return c, nil
+}
+
+func (info *ProcessorInfo) Validate() error {
+
+	// name
+	if validProcessorName.MatchString(info.Name) {
+		cerr := NewError(errProcessorName)
+		cerr.SetSubject(info.Name)
+		return cerr
+	}
+
+	// make sure stream and static don't have the same name.
+	for _, v := range info.Variables {
+		// make sure no statics are also streams
+		for k := range v.Input {
+			if _, ok := v.StreamedInput[k]; ok {
+				oerr := NewError(errInputInStreamAndStatic)
+				oerr.SetSubjectf("\"%s\"", k)
+				return oerr
+			}
+		}
+	}
+
+	return nil
+
 }
 
 // will be written to in all threads, and in all compilers.
@@ -86,7 +110,7 @@ var nextRid uint64 = 0
 func (comp *Compiler) Compile(req *Request) (docstream io.ReadCloser, err error) {
 	atomic.AddUint64(&nextRid, 1)
 	req.Rid = Rid(nextRid)
-	doc, errd := LoadDocument(*req)
+	doc, errd := comp.loadDocument(*req)
 	if errd != nil {
 		erro := NewError("loading a requested document")
 		erro.SetSubject(req.Filepath)
