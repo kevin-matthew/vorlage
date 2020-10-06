@@ -68,6 +68,8 @@ func NewCompiler(proc []Processor) (c Compiler, err error) {
 			c.processorInfos[i].Name,
 			c.processorInfos[i].Description)
 	}
+
+	return c, nil
 }
 
 // will be written to in all threads, and in all compilers.
