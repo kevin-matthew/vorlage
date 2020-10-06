@@ -1,46 +1,57 @@
 package doccomp
 
+import (
+	"io"
+	"regexp"
+)
 
 type Rid uint64
 
+var validProcessorName = regexp.MustCompile(`^[a-z0-9]+$`)
+
 type ProcessorInfo struct {
+	// todo: I should probably make this private so I can make sure it loads in
+	// via the filename.
+	Name string
+
 	Description string
 
-	// returns a list of Processor-Variable
-	// Names. Note this may be called multiple times so it's best to make the
-	//list as static as possible.
-	Variables []ProcessorVariable
+	// returns a list ProcessorVariable pointers (that all point to valid
+	// memory).
+	Variables []*ProcessorVariable
 }
 
 type Processor interface {
+	// called when loaded into the impl
 	Info() ProcessorInfo
 
 	// Called when the document compiler backend gets a new request, the request
 	// is given a unique Rid
-	Process(Rid) Definer
-}
+	PreProcess(Rid)
+	PostProcess(Rid)
 
-
-type Definer interface {
-	// defines a given variable only if that variable was a match to what
-	// was provided by GetVariables, thus this method will never be called with
-	// unfimiliar arguments to the processor.
-	// All errors returned by this method will simply be logged. def WILL ALWAYS
-	// be used to define the processor variable.
-	DefineVariable(name string,
-		input Input,
-		streams StreamInput) (def Definition, err error)
+	// Called multiple times (after PreProcess and before PostProcess).
+	// rid will be the same used in preprocess and post process.
+	// variable pointer will be equal to what was provided from Info().Variables.
+	DefineVariable(rid Rid, variable *ProcessorVariable) Definition
 }
 
 type ProcessorVariable struct {
 	Name        string
 	Description string
-	InputNames  []string
 
-	// streamed inputs are mutually exclusive from InputNames.
-	// StreamedInputNames will be passed into Processor.DefineVariable as an
+	// before Definer.DefineVariable is called, this map will be populated.
+	// When passing into NewCompiler, the map keys need to be present, but
+	// the values will be ignored.
+	Input map[string]string
+
+	// When passing into NewCompiler, the map keys need to be present, but
+	// the values will be ignored.
+	// before Definer.DefineVariable is called, this map will be populated
+	// streamed inputs are mutually exclusive from Input.
+	// StreamedInput will be passed into Processor.DefineVariable as an
 	// io.Reader under the streams argument.
-	StreamedInputNames []string
+	StreamedInput map[string]io.Reader
 }
 
 // This is the source of all processors. Add to this list if you
