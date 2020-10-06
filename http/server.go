@@ -236,11 +236,13 @@ func isUpwardTransversal(path string) bool {
  * (confroming too: net/http/server.go)
  */
 func Serve(l net.Listener, procs []doccomp.Processor, documentRoot string) error {
+
 	c, err := doccomp.NewCompiler(procs)
 	if err != nil {
 		return err
 	}
 
+	currentConnectionPool = make(map[doccomp.Rid]Request)
 	h := handler{
 		docroot:  documentRoot,
 		compiler: c,

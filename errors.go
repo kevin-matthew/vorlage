@@ -73,6 +73,7 @@ const (
 	errFailedToSeek                 = "failed to seek through file"
 	errConvert                      = "could not convert file"
 	errNotDefined                   = "a variable was left undefined"
+	errNotDefinedInProcessor        = "processor did not define variable"
 	errInputNotProvided             = "an input was requested but not provided"
 	errInputInStreamAndStatic       = "a processor variable is asking for the same input in both static and stream formats"
 	errDoubleInputStream            = "the same streamed input was requested twice in the same request"

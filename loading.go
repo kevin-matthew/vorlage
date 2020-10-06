@@ -181,12 +181,10 @@ type Document struct {
  */
 func (compiler *Compiler) loadDocument(request Request) (doc Document,
 	oerr *Error) {
-	d, err := loadDocumentFromPath(request.Filepath, nil, nil)
+	d, err := loadDocumentFromPath(request.Filepath, compiler, request, nil, nil)
 	if err != nil {
 		return d, err
 	}
-	d.compiler = compiler
-	d.request = request
 
 	// so these 2 lines are bit... out of place. Let me explain.
 	// first, loadDocumentFromPath will indeed point d.arguments and
@@ -210,6 +208,8 @@ func (doc Document) GetFileName() string {
 }
 
 func loadDocumentFromPath(path string,
+	compiler *Compiler,
+	request Request,
 	parent *Document,
 	root *Document) (doc Document, oerr *Error) {
 
@@ -222,6 +222,8 @@ func loadDocumentFromPath(path string,
 	doc.root = root
 	doc.path = path
 	doc.convertedFileDoneReading = false
+	doc.request = request
+	doc.compiler = compiler
 	// zero-out the variable detection buffer
 	for i := range doc.VariableDetectionBuffer {
 		doc.VariableDetectionBuffer[i] = 0
@@ -524,6 +526,8 @@ func (doc *Document) include(path string) (incdoc *Document, oerr *Error) {
 	}
 
 	adoc, err := loadDocumentFromPath(relPath,
+		doc.compiler,
+		doc.request,
 		doc,
 		doc.root)
 

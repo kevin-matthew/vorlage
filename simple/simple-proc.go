@@ -16,7 +16,7 @@ type lowVolumeProcessor struct {
 	variables   []*doccomp.ProcessorVariable
 }
 
-func (l lowVolumeProcessor) Info() doccomp.ProcessorInfo {
+func (l *lowVolumeProcessor) Info() doccomp.ProcessorInfo {
 	l.GetVariables()
 	return doccomp.ProcessorInfo{
 		Name:        l.Name,
@@ -25,15 +25,7 @@ func (l lowVolumeProcessor) Info() doccomp.ProcessorInfo {
 	}
 }
 
-func (l lowVolumeProcessor) PreProcess(rid doccomp.Rid) {
-	return
-}
-
-func (l lowVolumeProcessor) PostProcess(rid doccomp.Rid) {
-	return
-}
-
-var _ doccomp.Processor = lowVolumeProcessor{}
+var _ doccomp.Processor = &lowVolumeProcessor{}
 
 /*
  * CallbackDefinition is a doccomp.Processor that has been simplified into
@@ -83,7 +75,7 @@ func (l lowVolumeProcessor) GetDescription() string {
 }
 
 // helper to info
-func (l lowVolumeProcessor) GetVariables() {
+func (l *lowVolumeProcessor) GetVariables() {
 	var ret []*doccomp.ProcessorVariable
 	for k, v := range l.Variables {
 		inputM := make(map[string]string, len(v.RequiredFields))
@@ -117,5 +109,5 @@ func (l lowVolumeProcessor) DefineVariable(rid doccomp.Rid, variable *doccomp.Pr
  * will have to be treated independantly.
  */
 func NewProcessor(name string, Description string, Variables map[string]CallbackDefinition) doccomp.Processor {
-	return lowVolumeProcessor{Name: name, Description: Description, Variables: Variables}
+	return &lowVolumeProcessor{Name: name, Description: Description, Variables: Variables}
 }

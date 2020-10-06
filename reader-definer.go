@@ -38,7 +38,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		}
 		if i == len(vars) {
 			// we didn't find the variable in the processor
-			oerr := NewError(errNotDefined)
+			oerr := NewError(errNotDefinedInProcessor)
 			oerr.SetSubject(pos.String())
 			return nil, oerr
 		}
