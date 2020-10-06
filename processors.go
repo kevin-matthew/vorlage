@@ -53,7 +53,3 @@ type ProcessorVariable struct {
 	// io.Reader under the streams argument.
 	StreamedInput map[string]io.Reader
 }
-
-// This is the source of all processors. Add to this list if you
-// want to add your own processor. They're mapped via their Name.
-var Processors map[string]Processor = make(map[string]Processor)
