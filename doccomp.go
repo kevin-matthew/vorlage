@@ -2,9 +2,8 @@ package doccomp
 
 import (
 	"io"
+	"sync/atomic"
 )
-
-const reservedPrefix = "__"
 
 /*
  * This is a definition, they can be made either by using '#define' in a file or
@@ -30,103 +29,68 @@ type Definition interface {
 type Input map[string]string
 type StreamInput map[string]io.Reader
 
-// todo: put this as a reciver for process
-type Compiler struct {
-	cache Cache
+// Request is all the information needed to be known to compiler a document
+type Request struct {
+	Filepath string
+
+	// Input can be nil
+	Input Input
+
+	// StreamInput can be nil
+	StreamInput StreamInput
+
+	// Rid will be set by Compiler.Compile (will be globally unique)
+	// treat it as read-only.
+	Rid Rid
 }
+
+// everything we'd see in both doccomp-http and doccomp-cli and doccomp-pdf
+type Compiler struct {
+
+	// these two arrays are associative
+	processors     []Processor
+	processorInfos []ProcessorInfo
+}
+
+func NewCompiler(proc []Processor) (c Compiler, err error) {
+	c.processors = proc
+
+	// load all the infos
+	c.processorInfos = make([]ProcessorInfo, len(proc))
+	for i := range c.processors {
+		c.processorInfos[i] = c.processors[i].Info()
+		if validProcessorName.MatchString(c.processorInfos[i].Name) {
+			cerr := NewError(errProcessorName)
+			cerr.SetSubject(c.processorInfos[i].Name)
+			return c, cerr
+		}
+		logger.Infof("new compiler: loaded processor %s - %s",
+			c.processorInfos[i].Name,
+			c.processorInfos[i].Description)
+	}
+}
+
+// will be written to in all threads, and in all compilers.
+var nextRid uint64 = 0
 
 /*
  * The best way to describe this function is by reading through the steps
  * defined in the 'Highlevel Process' chapter in the readme.
  * Be sure you've added the right processors via the Processors field
+ * Will update req.Rid regardless.
+ * Do not attempt to use the streams pointed to by req... they'll be read
+ * when the docstream is read.
  */
-func Process(filepath string,
-	reservedInput map[string]string,
-	input Input,
-	streamInput StreamInput) (docstream io.ReadCloser, err error) {
-	var reqdoc *Document
-
-	// prepare reserved inptu
-	// todo: Process need to be a function based on a reciver like 'request'
-	// or something. that way I can do this logic only once and not every
-	// request.
-	for k, _ := range input {
-		if len(k) >= len(reservedPrefix) &&
-			k[:len(reservedPrefix)] == reservedPrefix {
-			logger.Infof("input variable cannot start with " + reservedPrefix + " (" + k + "), ignoring")
-			delete(input, k)
-		}
-	}
-	for k, _ := range streamInput {
-		if len(k) >= len(reservedPrefix) &&
-			k[:len(reservedPrefix)] == reservedPrefix {
-			logger.Infof("input variable cannot start with " + reservedPrefix + " (" + k + "), ignoring")
-			delete(streamInput, k)
-		}
-	}
-	if input == nil {
-		input = make(map[string]string, len(reservedInput))
-	}
-	for k, v := range reservedInput {
-		if len(k) <= len(reservedPrefix) ||
-			k[:len(reservedPrefix)] != reservedPrefix {
-			cerr := NewError(errBadReservedInput)
-			cerr.SetSubject(k)
-			return nil, cerr
-		}
-		input[k] = v
-	}
-
-	doc, errd := LoadDocument(filepath, input, streamInput)
+func (comp *Compiler) Compile(req *Request) (docstream io.ReadCloser, err error) {
+	atomic.AddUint64(&nextRid, 1)
+	req.Rid = Rid(nextRid)
+	doc, errd := LoadDocument(*req)
 	if errd != nil {
 		erro := NewError("loading a requested document")
-		erro.SetSubject(filepath)
+		erro.SetSubject(req.Filepath)
 		erro.SetBecause(errd)
 		return docstream, erro
 	}
 
-	//step 5,6
-	/*verbosef("storing '%s' in cache", request.GetFilePath())
-	cerr := cache.AddToCache(doc)
-	if cerr != nil {
-		erro := NewError("adding a document to the cache")
-		erro.SetSubject(request.GetFilePath())
-		erro.SetBecause(NewError(cerr.Error()))
-		doc.Close()
-		return docstream, erro
-	}*/
-
-	reqdoc = &doc
-
-	// step 7
-	return reqdoc, nil
-
-	/*
-
-		definitions, err := pageProcessor.Process(request)
-		if err != nil {
-			erro := NewError("in processing")
-			erro.SetBecause(err)
-			reqdoc.Close()
-			return docstream, erro
-		}
-
-		for _, d := range definitions {
-			reqdoc.AddDefinition(d)
-		}
-		docstream = reqdoc
-
-		// step 9
-		verbosef("post-processing document '%s'", request.GetFilePath())
-		err = pageProcessor.Postprocess(request)
-		if err != nil {
-			erro := NewError("in post-processing")
-			erro.SetBecause(err)
-			reqdoc.Close()
-			return docstream, erro
-		}
-
-		// step 10,11
-		docstream = reqdoc
-		return docstream, nil*/
+	return doc, nil
 }
