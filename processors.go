@@ -25,11 +25,6 @@ type Processor interface {
 	// called when loaded into the impl
 	Info() ProcessorInfo
 
-	// Called when the document compiler backend gets a new request, the request
-	// is given a unique Rid
-	PreProcess(Rid)
-	PostProcess(Rid)
-
 	// Called multiple times (after PreProcess and before PostProcess).
 	// rid will be the same used in preprocess and post process.
 	// variable pointer will be equal to what was provided from Info().Variables.
