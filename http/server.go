@@ -165,9 +165,9 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	// now that we have the Rid, add everything in the connection pool.
+	// now that we have the Rid, add everything in the Request pool.
 	// be sure to de allocate when we're done writting to stream.
-	currentConnectionPool[req.Rid] = connection{writer, request}
+	currentConnectionPool[req.Rid] = Request{writer, request}
 	defer func() { delete(currentConnectionPool, req.Rid) }()
 
 writeStream:
@@ -182,13 +182,6 @@ writeStream:
 	}
 	// at this point we've successfully found, processed, and served the file.
 }
-
-type connection struct {
-	w http.ResponseWriter
-	r *http.Request
-}
-
-var currentConnectionPool map[doccomp.Rid]connection
 
 func (h handler) writeError(err error) {
 	println("error: " + err.Error())
