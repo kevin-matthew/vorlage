@@ -10,11 +10,12 @@ import (
 
 import doccomp ".."
 
-type Handler struct {
-	docroot string
+type handler struct {
+	docroot  string
+	compiler doccomp.Compiler
 }
 
-func (h Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	// transversal attacks
 	if BlockTransversalAttack {
@@ -86,8 +87,8 @@ func (h Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	var stream io.ReadCloser
 	var inputs map[string]string
 	var streaminputs map[string]io.Reader
-	var reservedInput map[string]string
 	var cookies []*http.Cookie
+	var req doccomp.Request
 
 	// does it have the file extension we don't want?
 	if len(fileToUse) < len(FileExt) ||
@@ -149,24 +150,25 @@ func (h Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		inputs[cookies[i].Name] = cookies[i].Value
 	}
 
-	// do the actual processing
-	reservedInput = map[string]string{
-		"__HOST":      request.Host,
-		"__USERAGENT": request.UserAgent(),
-		"__IP":        request.RemoteAddr,
-		"__REFERER":   request.Referer(),
-		"__URI":       request.RequestURI,
+	// prepare the request in doccomp terms
+	req = doccomp.Request{
+		Filepath:    fileToUse,
+		Input:       inputs,
+		StreamInput: streaminputs,
 	}
-	stream, err = doccomp.Process(fileToUse,
-		reservedInput,
-		inputs,
-		streaminputs)
+	// compile the document and get an Rid
+	stream, err = h.compiler.Compile(&req)
 	if err != nil {
 		writer.WriteHeader(http.StatusInternalServerError)
 		_, _ = writer.Write([]byte("failed to process document"))
 		h.writeError(err)
 		return
 	}
+
+	// now that we have the Rid, add everything in the connection pool.
+	// be sure to de allocate when we're done writting to stream.
+	currentConnectionPool[req.Rid] = connection{writer, request}
+	defer func() { delete(currentConnectionPool, req.Rid) }()
 
 writeStream:
 	buff := make([]byte, ProcessingBufferSize)
@@ -181,7 +183,14 @@ writeStream:
 	// at this point we've successfully found, processed, and served the file.
 }
 
-func (h Handler) writeError(err error) {
+type connection struct {
+	w http.ResponseWriter
+	r *http.Request
+}
+
+var currentConnectionPool map[doccomp.Rid]connection
+
+func (h handler) writeError(err error) {
 	println("error: " + err.Error())
 }
 
@@ -233,9 +242,15 @@ func isUpwardTransversal(path string) bool {
  *
  * (confroming too: net/http/server.go)
  */
-func Serve(l net.Listener, documentRoot string) error {
-	h := Handler{
-		docroot: documentRoot,
+func Serve(l net.Listener, procs []doccomp.Processor, documentRoot string) error {
+	c, err := doccomp.NewCompiler(procs)
+	if err != nil {
+		return err
+	}
+
+	h := handler{
+		docroot:  documentRoot,
+		compiler: c,
 	}
 	return http.Serve(l, h)
 }
