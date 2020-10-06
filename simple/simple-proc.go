@@ -33,8 +33,10 @@ var _ doccomp.Processor = &lowVolumeProcessor{}
  * return this string".
  */
 type CallbackDefinition struct {
-	Description    string
-	DefineFunc     func(Rid doccomp.Rid, args doccomp.Input) string
+	// todo: change to 'output description'
+	Description string
+	DefineFunc  func(Rid doccomp.Rid, args doccomp.Input) string
+	// todo: make the supply a description for each field too.
 	RequiredFields []string
 }
 
