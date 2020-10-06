@@ -171,11 +171,9 @@ type Document struct {
  * be used. If no converters return true, the document is not converted and will
  * be read as normal (via io.OpenFile).
  */
-func LoadDocument(path string,
-	args map[string]string,
-	streamedArgs map[string]io.Reader) (doc Document,
+func LoadDocument(request Request) (doc Document,
 	oerr *Error) {
-	d, err := loadDocumentFromPath(path, nil, nil)
+	d, err := loadDocumentFromPath(request.Filepath, nil, nil)
 	if err != nil {
 		return d, err
 	}
@@ -187,9 +185,9 @@ func LoadDocument(path string,
 	// And what's also weird is args and streamedArgs are both input for
 	// LoadDocument but not loadDocumentFromPath. This makes me think we have
 	// and architectual error.
-	(*(d.args)).staticInputs = args
-	(*(d.args)).streamInputs = streamedArgs
-	(*(d.args)).streamInputsUsed = make(map[string]string, len(streamedArgs))
+	(*(d.args)).staticInputs = request.Input
+	(*(d.args)).streamInputs = request.StreamInput
+	(*(d.args)).streamInputsUsed = make(map[string]string, len(request.StreamInput))
 	return d, nil
 }
 
