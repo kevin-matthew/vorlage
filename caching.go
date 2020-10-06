@@ -29,7 +29,8 @@ type Cache interface {
 	GetFromCache(path string) (io.ReadCloser, error)
 }
 
-func (v variablePos) ToString() string {
+// stringer
+func (v variablePos) String() string {
 	return fmt.Sprintf("'%s'", v.fullName)
 }
 
