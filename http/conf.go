@@ -30,7 +30,7 @@ var TryFiles []string = []string{"index.html", "index.proc.html"}
  * Proc indicator. The file extension to look for that will activate
  * the processing. Otherwise a normal file request will take place.
  */
-var FileExt = ".proc.html"
+var FileExt []string = []string{".proc.html", ".proc.json"}
 
 /*
  * if SessionCookie is enabled, a HttpOnly cookie will be created with the value

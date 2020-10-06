@@ -91,9 +91,17 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	var req doccomp.Request
 
 	// does it have the file extension we don't want?
-	if len(fileToUse) < len(FileExt) ||
-		fileToUse[len(fileToUse)-len(FileExt):] != FileExt {
-		// If so, just serve it as a normal download.
+	var ei int
+	var e string
+	for ei, e = range FileExt {
+		if len(fileToUse) >= len(e) &&
+			fileToUse[len(fileToUse)-len(e):] == e {
+			break
+		}
+	}
+	if ei == len(FileExt) {
+		// we don't want to process this file... doesn't have an acceptable
+		// extension
 		stream, err = os.Open(fileToUse)
 		goto writeStream
 	}
