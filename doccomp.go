@@ -92,5 +92,5 @@ func (comp *Compiler) Compile(req *Request) (docstream io.ReadCloser, err error)
 		return docstream, erro
 	}
 
-	return doc, nil
+	return &doc, nil
 }
