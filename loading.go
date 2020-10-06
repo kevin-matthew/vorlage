@@ -161,6 +161,12 @@ type Document struct {
 
 	//variablePos []variablePos // note: these positions are in the CONVERTED
 	// file
+
+	// request is the original requested passed into loadDocument.
+	request Request
+
+	// compiler is the original compiler passed into loadDocument.
+	compiler *Compiler
 }
 
 /*
@@ -171,19 +177,21 @@ type Document struct {
  * be used. If no converters return true, the document is not converted and will
  * be read as normal (via io.OpenFile).
  */
-func LoadDocument(request Request) (doc Document,
+func (compiler *Compiler) loadDocument(request Request) (doc Document,
 	oerr *Error) {
 	d, err := loadDocumentFromPath(request.Filepath, nil, nil)
 	if err != nil {
 		return d, err
 	}
+	d.compiler = compiler
+	d.request = request
 
 	// so these 2 lines are bit... out of place. Let me explain.
 	// first, loadDocumentFromPath will indeed point d.arguments and
 	// d.streamArguments to valid memory. So we can dereference them without
 	// worry.
 	// And what's also weird is args and streamedArgs are both input for
-	// LoadDocument but not loadDocumentFromPath. This makes me think we have
+	// loadDocument but not loadDocumentFromPath. This makes me think we have
 	// and architectual error.
 	(*(d.args)).staticInputs = request.Input
 	(*(d.args)).streamInputs = request.StreamInput
