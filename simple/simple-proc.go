@@ -12,6 +12,25 @@ import (
 type lowVolumeProcessor struct {
 	Description string
 	Variables   map[string]CallbackDefinition
+	Name        string
+	variables   []*doccomp.ProcessorVariable
+}
+
+func (l lowVolumeProcessor) Info() doccomp.ProcessorInfo {
+	l.GetVariables()
+	return doccomp.ProcessorInfo{
+		Name:        l.Name,
+		Description: l.Description,
+		Variables:   l.variables,
+	}
+}
+
+func (l lowVolumeProcessor) PreProcess(rid doccomp.Rid) {
+	return
+}
+
+func (l lowVolumeProcessor) PostProcess(rid doccomp.Rid) {
+	return
 }
 
 var _ doccomp.Processor = lowVolumeProcessor{}
@@ -23,7 +42,7 @@ var _ doccomp.Processor = lowVolumeProcessor{}
  */
 type CallbackDefinition struct {
 	Description    string
-	DefineFunc     func(args doccomp.Input) string
+	DefineFunc     func(Rid doccomp.Rid, args doccomp.Input) string
 	RequiredFields []string
 }
 
@@ -63,29 +82,31 @@ func (l lowVolumeProcessor) GetDescription() string {
 	return l.Description
 }
 
-/*
- * implemented doccomp.Processor
- */
-func (l lowVolumeProcessor) GetVariables() []doccomp.ProcessorVariable {
-	var ret []doccomp.ProcessorVariable
+// helper to info
+func (l lowVolumeProcessor) GetVariables() {
+	var ret []*doccomp.ProcessorVariable
 	for k, v := range l.Variables {
-		r := doccomp.ProcessorVariable{
-			Name:               k,
-			Description:        v.Description,
-			InputNames:         v.RequiredFields,
-			StreamedInputNames: nil,
+		inputM := make(map[string]string, len(v.RequiredFields))
+		for i := range v.RequiredFields {
+			inputM[v.RequiredFields[i]] = ""
 		}
-		ret = append(ret, r)
+		r := doccomp.ProcessorVariable{
+			Name:          k,
+			Description:   v.Description,
+			Input:         inputM,
+			StreamedInput: nil,
+		}
+		ret = append(ret, &r)
 	}
-	return ret
+	l.variables = ret
 }
 
 /*
  * implemented doccomp.Processor
  */
-func (l lowVolumeProcessor) DefineVariable(name string, input doccomp.Input, streams doccomp.StreamInput) (def doccomp.Definition, err error) {
-	ret := l.Variables[name].DefineFunc(input)
-	return newStringDef(ret), nil
+func (l lowVolumeProcessor) DefineVariable(rid doccomp.Rid, variable *doccomp.ProcessorVariable) doccomp.Definition {
+	ret := l.Variables[variable.Name].DefineFunc(rid, variable.Input)
+	return newStringDef(ret)
 }
 
 /*
@@ -95,6 +116,6 @@ func (l lowVolumeProcessor) DefineVariable(name string, input doccomp.Input, str
  * Note that this processor is met for low-volume traffic and each definition
  * will have to be treated independantly.
  */
-func NewProcessor(Description string, Variables map[string]CallbackDefinition) doccomp.Processor {
-	return lowVolumeProcessor{Description: Description, Variables: Variables}
+func NewProcessor(name string, Description string, Variables map[string]CallbackDefinition) doccomp.Processor {
+	return lowVolumeProcessor{Name: name, Description: Description, Variables: Variables}
 }

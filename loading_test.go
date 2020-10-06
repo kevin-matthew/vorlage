@@ -93,7 +93,7 @@ func TestLoadDocument(t *testing.T) {
 	// now we break it
 
 	// circular dep error
-	d, err = LoadDocument("tests/documents/include-self.dc")
+	d, err = loadDocument("tests/documents/include-self.dc")
 	_ = d.Close()
 	if err == nil {
 		t.Log("include-self.dc did not raise a cirular dependcie error")
@@ -101,7 +101,7 @@ func TestLoadDocument(t *testing.T) {
 		return
 	}
 	t.Log("when testing circular dependices (1) got: " + err.ErrorHighlight())
-	d, err = LoadDocument("tests/documents/include-cycle-1.dc")
+	d, err = loadDocument("tests/documents/include-cycle-1.dc")
 	_ = d.Close()
 	if err == nil {
 		t.Log("tests/documents/include-cycle-1." +

@@ -167,6 +167,8 @@ type Document struct {
 
 	// compiler is the original compiler passed into loadDocument.
 	compiler *Compiler
+
+	preProcessed bool
 }
 
 /*
@@ -196,6 +198,13 @@ func (compiler *Compiler) loadDocument(request Request) (doc Document,
 	(*(d.args)).staticInputs = request.Input
 	(*(d.args)).streamInputs = request.StreamInput
 	(*(d.args)).streamInputsUsed = make(map[string]string, len(request.StreamInput))
+
+	// document ready. Do the PreProcess
+	for _, p := range doc.compiler.processors {
+		p.PreProcess(doc.request.Rid)
+		d.preProcessed = true
+	}
+
 	return d, nil
 }
 
@@ -702,6 +711,7 @@ func (doc *Document) close() error {
 }
 
 // recursively closes
+// should only be called
 func (doc *Document) Close() error {
 	if doc == nil {
 		logger.Infof("warning, closing nil documnet")
@@ -713,6 +723,13 @@ func (doc *Document) Close() error {
 	}
 	for _, d := range doc.appends {
 		_ = d.Close()
+	}
+
+	// run postprocess if we're closing out the parent document.
+	if doc.parent == nil && doc.preProcessed == true {
+		for _, p := range doc.compiler.processors {
+			p.PostProcess(doc.request.Rid)
+		}
 	}
 	return nil
 }
