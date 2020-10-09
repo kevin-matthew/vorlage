@@ -25,7 +25,6 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		}
 	}
 
-	var tryFilesIndex = 0
 	var fileToUse = h.docroot + request.URL.Path
 
 	// does this file exist at all?
@@ -51,9 +50,9 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		for i = 0; i < len(TryFiles); i++ {
 			// make sure we don't add an extra '/' if it's already there.
 			if request.URL.Path[len(request.URL.Path)-1] == '/' {
-				fileToUse = h.docroot + request.URL.Path + TryFiles[tryFilesIndex]
+				fileToUse = h.docroot + request.URL.Path + TryFiles[i]
 			} else {
-				fileToUse = h.docroot + request.URL.Path + "/" + TryFiles[tryFilesIndex]
+				fileToUse = h.docroot + request.URL.Path + "/" + TryFiles[i]
 			}
 
 			// check the stat of the path+tryfile to see if we have an
