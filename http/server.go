@@ -2,6 +2,7 @@ package http
 
 import (
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"os"
@@ -178,6 +179,15 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	defer func() { delete(currentConnectionPool, req.Rid) }()
 
 writeStream:
+	// lets clear out some headers
+	// content type
+	extI := strings.LastIndex(fileToUse, ".")
+	if extI != -1 {
+		mimeT := mime.TypeByExtension(fileToUse[extI:])
+		writer.Header().Add("Content-Type", mimeT)
+	} else {
+		writer.Header().Add("Content-Type", "application/octet-stream")
+	}
 	buff := make([]byte, ProcessingBufferSize)
 	_, err = io.CopyBuffer(writer, stream, buff)
 	_ = stream.Close()
