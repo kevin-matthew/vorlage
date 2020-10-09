@@ -175,8 +175,8 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	// now that we have the Rid, add everything in the Request pool.
 	// be sure to de allocate when we're done writting to stream.
-	currentConnectionPool[req.Rid] = Request{writer, request}
-	defer func() { delete(currentConnectionPool, req.Rid) }()
+	addToConnectionPool(req.Rid, writer, request)
+	defer removeFromConnectionPool(req.Rid)
 
 writeStream:
 	// lets clear out some headers
@@ -198,6 +198,21 @@ writeStream:
 		return
 	}
 	// at this point we've successfully found, processed, and served the file.
+}
+
+// thread safe
+func addToConnectionPool(rid doccomp.Rid, writer http.ResponseWriter, r *http.Request) {
+	connectionMu.Lock()
+	currentConnectionPool[rid] = Request{writer, r}
+	connectionMu.Unlock()
+}
+
+// thread safe
+func removeFromConnectionPool(rid doccomp.Rid) {
+	connectionMu.Lock()
+	delete(currentConnectionPool, rid)
+	connectionMu.Unlock()
+
 }
 
 func (h handler) writeError(err error) {

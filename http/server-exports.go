@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"sync"
 	"time"
 )
 import ".."
@@ -11,6 +12,7 @@ type Request struct {
 	r *http.Request
 }
 
+var connectionMu sync.Mutex
 var currentConnectionPool map[doccomp.Rid]Request
 
 // returns nil if request
