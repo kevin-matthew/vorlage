@@ -1,6 +1,7 @@
 package http
 
 import (
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -8,8 +9,9 @@ import (
 import ".."
 
 type Request struct {
-	w http.ResponseWriter
-	r *http.Request
+	w         http.ResponseWriter
+	r         *http.Request
+	docstream io.ReadCloser
 }
 
 var connectionMu sync.Mutex
@@ -22,6 +24,11 @@ func GetRequestEditor(rid doccomp.Rid) *Request {
 		return nil
 	}
 	return &r
+}
+
+func (r *Request) Redirect(dest string) {
+	_ = r.docstream.Close()
+	http.Redirect(r.w, r.r, dest, http.StatusSeeOther)
 }
 
 // a definition that's calling this must be before any content is outputted.

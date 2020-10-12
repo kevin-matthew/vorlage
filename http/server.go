@@ -175,7 +175,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	// now that we have the Rid, add everything in the Request pool.
 	// be sure to de allocate when we're done writting to stream.
-	addToConnectionPool(req.Rid, writer, request)
+	addToConnectionPool(req.Rid, writer, request, stream)
 	defer removeFromConnectionPool(req.Rid)
 
 writeStream:
@@ -201,9 +201,9 @@ writeStream:
 }
 
 // thread safe
-func addToConnectionPool(rid doccomp.Rid, writer http.ResponseWriter, r *http.Request) {
+func addToConnectionPool(rid doccomp.Rid, writer http.ResponseWriter, r *http.Request, docstream io.ReadCloser) {
 	connectionMu.Lock()
-	currentConnectionPool[rid] = Request{writer, r}
+	currentConnectionPool[rid] = Request{writer, r, docstream}
 	connectionMu.Unlock()
 }
 
