@@ -25,7 +25,7 @@ type SessionStorage interface {
 	DeleteSession(token SessionToken)
 }
 
-func GetSession(input doccomp.Input) Session {
+func GetSession(input vorlag.Input) Session {
 
 }
 

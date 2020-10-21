@@ -1,4 +1,4 @@
-package doccomp
+package vorlag
 
 import "strings"
 
