@@ -91,9 +91,11 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	var req doccomp.Request
 
 	// does it have the file extension we don't want?
+
 	var ei int
 	var e string
-	for ei, e = range FileExt {
+	for ei = 0; ei < len(FileExt); ei++ {
+		e = FileExt[ei]
 		if len(fileToUse) >= len(e) &&
 			fileToUse[len(fileToUse)-len(e):] == e {
 			break
