@@ -5,6 +5,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/http/fcgi"
 	"os"
 	"strings"
 )
@@ -269,7 +270,7 @@ func isUpwardTransversal(path string) bool {
  *
  * (confroming too: net/http/server.go)
  */
-func Serve(l net.Listener, procs []doccomp.Processor, documentRoot string) error {
+func Serve(l net.Listener, procs []doccomp.Processor, useFcgi bool, documentRoot string) error {
 
 	c, err := doccomp.NewCompiler(procs)
 	if err != nil {
@@ -281,5 +282,9 @@ func Serve(l net.Listener, procs []doccomp.Processor, documentRoot string) error
 		docroot:  documentRoot,
 		compiler: c,
 	}
-	return http.Serve(l, h)
+	if useFcgi {
+		return fcgi.Serve(l, h)
+	} else {
+		return http.Serve(l, h)
+	}
 }
