@@ -31,7 +31,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// i  = the index of vars (array of pointers)
 		vars := doc.compiler.processorInfos[pi].Variables
 		var i int
-		for i = range vars {
+		for i = 0; i < len(vars); i++ {
 			if vars[i].Name == pos.processorVariableName {
 				break
 			}
