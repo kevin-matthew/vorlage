@@ -106,6 +106,19 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		// we don't want to process this file... doesn't have an acceptable
 		// extension
 		stream, err = os.Open(fileToUse)
+		if err != nil {
+			if os.IsNotExist(err) {
+				writer.WriteHeader(http.StatusNotFound)
+				return
+			}
+			if os.IsPermission(err) {
+				writer.WriteHeader(http.StatusForbidden)
+				return
+			}
+			writer.WriteHeader(http.StatusBadRequest)
+			h.writeError(err)
+			return
+		}
 		goto writeStream
 	}
 
@@ -219,7 +232,7 @@ func removeFromConnectionPool(rid doccomp.Rid) {
 }
 
 func (h handler) writeError(err error) {
-	println("error: " + err.Error())
+	println("vorlag-http error: " + err.Error())
 }
 
 /*
