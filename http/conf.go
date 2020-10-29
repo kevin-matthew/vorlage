@@ -33,8 +33,8 @@ var TryFiles []string = []string{"index.html", "index.proc.html"}
 var FileExt []string = []string{".proc.html", ".proc.json"}
 
 /*
- * If a requested filepath (regardless of its validity) has a substring
- * equal to any entry found in AuthDirectories, authencation will be needed
+ * If a requested filepath (regardless of its validity) is prefixed by
+ * any entry found in AuthPrefixes, authencation will be needed
  * When this happens, the ValidAuth callback will be used. If
  * ValidAuth returns false, a 403 will be returned to the request.
  * If ValidAuth is null, 403 will always be returned.
@@ -42,13 +42,14 @@ var FileExt []string = []string{".proc.html", ".proc.json"}
  * name to which had invoked the auth request.
  *
  * Notes:
- * If len(AuthDirectories) == 0, this feature will be disabled.
- * If AuthDirectories includes a 0string ("") or slash ("/"), auth will be used on every
+ * All entries in AuthPrefixes must begin with '/'
+ * If len(AuthPrefixes) == 0, this feature will be disabled.
+ * If AuthPrefixes includes a 0string ("") or slash ("/"), auth will be used on every
  * request, and this realm will be simply "/".
- * Whatever is first matched in AuthDirectories is used as the realm.
- * The use of '"' in AuthDirectories will result in undefined behaviour.
+ * Whatever is first matched in AuthPrefixes is used as the realm.
+ * The use of '"' in AuthPrefixes will result in undefined behaviour.
  */
-var AuthDirectories []string = []string{}
+var AuthPrefixes []string = []string{}
 var ValidAuth func(realm string, username string, password string) bool = nil
 
 /*

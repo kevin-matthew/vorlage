@@ -32,18 +32,18 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	// run auth
-	if len(AuthDirectories) != 0 {
+	if len(AuthPrefixes) != 0 {
 		if ValidAuth == nil {
 			writer.WriteHeader(http.StatusForbidden)
 			return
 		}
 		var i = 0
-		for i = 0; i < len(AuthDirectories); i++ {
-			var realm = AuthDirectories[i]
+		for i = 0; i < len(AuthPrefixes); i++ {
+			var realm = AuthPrefixes[i]
 			if realm == "" {
 				realm = "/"
 			}
-			if !strings.Contains(request.URL.Path, realm) {
+			if !strings.HasPrefix(request.URL.Path, realm) {
 				continue
 			}
 			user, pass, ok := request.BasicAuth()
