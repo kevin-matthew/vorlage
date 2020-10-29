@@ -33,16 +33,23 @@ var TryFiles []string = []string{"index.html", "index.proc.html"}
 var FileExt []string = []string{".proc.html", ".proc.json"}
 
 /*
- * If a requested file (regardless of its existance) is located as a decendent
- * of any directory name found in AuthDirectories, http's basic auth header
- * will be used. When this happens, the ValidAuth callback will be used. If
+ * If a requested filepath (regardless of its validity) has a substring
+ * equal to any entry found in AuthDirectories, authencation will be needed
+ * When this happens, the ValidAuth callback will be used. If
  * ValidAuth returns false, a 403 will be returned to the request.
  * If ValidAuth is null, 403 will always be returned.
  * The relm of the basic authentication will be the same as the directory
  * name to which had invoked the auth request.
+ *
+ * Notes:
+ * If len(AuthDirectories) == 0, this feature will be disabled.
+ * If AuthDirectories includes a 0string ("") or slash ("/"), auth will be used on every
+ * request, and this realm will be simply "/".
+ * Whatever is first matched in AuthDirectories is used as the realm.
+ * The use of '"' in AuthDirectories will result in undefined behaviour.
  */
 var AuthDirectories []string = []string{}
-var ValidAuth func(username string, password string) bool = nil
+var ValidAuth func(realm string, username string, password string) bool = nil
 
 /*
  * if SessionCookie is enabled, a HttpOnly cookie will be created with the value

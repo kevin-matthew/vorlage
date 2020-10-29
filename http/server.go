@@ -17,6 +17,10 @@ type handler struct {
 	compiler doccomp.Compiler
 }
 
+func auth() {
+
+}
+
 func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	// transversal attacks
@@ -24,6 +28,37 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		if isUpwardTransversal(request.URL.Path) {
 			writer.WriteHeader(http.StatusBadRequest)
 			return
+		}
+	}
+
+	// run auth
+	if len(AuthDirectories) != 0 {
+		if ValidAuth == nil {
+			writer.WriteHeader(http.StatusForbidden)
+			return
+		}
+		var i = 0
+		for i = 0; i < len(AuthDirectories); i++ {
+			var realm = AuthDirectories[i]
+			if realm == "" {
+				realm = "/"
+			}
+			if !strings.Contains(request.URL.Path, realm) {
+				continue
+			}
+			user, pass, ok := request.BasicAuth()
+			if !ok {
+				writer.Header().Add("WWW-Authenticate",
+					"Basic realm=\""+realm+"\"")
+				writer.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+
+			if !ValidAuth(realm, user, pass) {
+				writer.WriteHeader(http.StatusForbidden)
+				return
+			}
+			break
 		}
 	}
 
@@ -39,6 +74,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		}
 		if os.IsPermission(err) {
 			writer.WriteHeader(http.StatusForbidden)
+			println("failed to access file " + fileToUse + ": " + err.Error())
 			return
 		}
 		writer.WriteHeader(http.StatusBadRequest)
@@ -48,14 +84,17 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	// if we hit a directory, add an existing 'tryfile' to the path
 	if stat.IsDir() {
+		// if they had requested a directory but had not included a trailing '/'
+		// then that's not supported as it breaks relative paths for imports.
+		if request.URL.Path[len(request.URL.Path)-1] != '/' {
+			http.Redirect(writer, request, request.URL.Path+"/", http.StatusFound)
+			return
+		}
 		var i int
 		for i = 0; i < len(TryFiles); i++ {
-			// make sure we don't add an extra '/' if it's already there.
-			if request.URL.Path[len(request.URL.Path)-1] == '/' {
-				fileToUse = h.docroot + request.URL.Path + TryFiles[i]
-			} else {
-				fileToUse = h.docroot + request.URL.Path + "/" + TryFiles[i]
-			}
+			// we know at this point that request.URL.Path includes a trailing '/'
+			// so lets just combine it all together.
+			fileToUse = h.docroot + request.URL.Path + TryFiles[i]
 
 			// check the stat of the path+tryfile to see if we have an
 			// existing one
