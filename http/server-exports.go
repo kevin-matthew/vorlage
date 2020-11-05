@@ -22,6 +22,10 @@ func GetRequestEditor(rid doccomp.Rid) *Request {
 	return &r
 }
 
+func (r *Request) GetHost() string {
+	return r.r.URL.Host
+}
+
 // a definition that's calling this must be before any content is outputted.
 func (r *Request) SetCookie(cookieName string, value string) {
 
