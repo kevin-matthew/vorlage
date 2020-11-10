@@ -1,4 +1,4 @@
-package doccomp
+package vorlag
 
 func SetLogger(l Logger) {
 	logger = l

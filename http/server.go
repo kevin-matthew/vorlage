@@ -5,6 +5,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/http/fcgi"
 	"os"
 	"strings"
 )
@@ -91,9 +92,11 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	var req doccomp.Request
 
 	// does it have the file extension we don't want?
+
 	var ei int
 	var e string
-	for ei, e = range FileExt {
+	for ei = 0; ei < len(FileExt); ei++ {
+		e = FileExt[ei]
 		if len(fileToUse) >= len(e) &&
 			fileToUse[len(fileToUse)-len(e):] == e {
 			break
@@ -267,7 +270,7 @@ func isUpwardTransversal(path string) bool {
  *
  * (confroming too: net/http/server.go)
  */
-func Serve(l net.Listener, procs []doccomp.Processor, documentRoot string) error {
+func Serve(l net.Listener, procs []doccomp.Processor, useFcgi bool, documentRoot string) error {
 
 	c, err := doccomp.NewCompiler(procs)
 	if err != nil {
@@ -279,5 +282,9 @@ func Serve(l net.Listener, procs []doccomp.Processor, documentRoot string) error
 		docroot:  documentRoot,
 		compiler: c,
 	}
-	return http.Serve(l, h)
+	if useFcgi {
+		return fcgi.Serve(l, h)
+	} else {
+		return http.Serve(l, h)
+	}
 }

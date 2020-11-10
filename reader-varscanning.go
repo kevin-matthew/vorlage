@@ -1,4 +1,4 @@
-package doccomp
+package vorlag
 
 import "strings"
 
@@ -165,7 +165,7 @@ func drawParseVar(dest []byte, src []byte,
 			for j = 0; j < len(dest); j++ {
 				dest[j] = 0
 			}
-			return nonVarBytes, nil, nil
+			return len(src), nil, nil
 
 		}
 

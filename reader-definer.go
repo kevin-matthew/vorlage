@@ -1,4 +1,4 @@
-package doccomp
+package vorlag
 
 // todo: I don't think this method should belong to Document...
 // ARCHITECTUAL ERROR.

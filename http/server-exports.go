@@ -15,10 +15,10 @@ type Request struct {
 }
 
 var connectionMu sync.Mutex
-var currentConnectionPool map[doccomp.Rid]Request
+var currentConnectionPool map[vorlag.Rid]Request
 
 // returns nil if request
-func GetRequestEditor(rid doccomp.Rid) *Request {
+func GetRequestEditor(rid vorlag.Rid) *Request {
 	r, ok := currentConnectionPool[rid]
 	if !ok {
 		return nil
