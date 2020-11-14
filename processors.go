@@ -25,6 +25,11 @@ type Processor interface {
 	// called when loaded into the impl
 	Info() ProcessorInfo
 
+	// todo: should I send OnRequest to all processors even those who have no
+	//       variables present on the document? Or should I put a level of
+	//       abstraction between the webserver and processors (ie multiple webservers?)
+	OnRequest(Request) stopcode
+
 	// Called multiple times (after PreProcess and before PostProcess).
 	// rid will be the same used in preprocess and post process.
 	// variable pointer will be equal to what was provided from Info().Variables.
