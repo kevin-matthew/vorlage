@@ -13,19 +13,19 @@ type lowVolumeProcessor struct {
 	Description string
 	Variables   map[string]CallbackDefinition
 	Name        string
-	variables   []*vorlag.ProcessorVariable
+	variables   []*vorlage.ProcessorVariable
 }
 
-func (l *lowVolumeProcessor) Info() vorlag.ProcessorInfo {
+func (l *lowVolumeProcessor) Info() vorlage.ProcessorInfo {
 	l.GetVariables()
-	return vorlag.ProcessorInfo{
+	return vorlage.ProcessorInfo{
 		Name:        l.Name,
 		Description: l.Description,
 		Variables:   l.variables,
 	}
 }
 
-var _ vorlag.Processor = &lowVolumeProcessor{}
+var _ vorlage.Processor = &lowVolumeProcessor{}
 
 /*
  * CallbackDefinition is a doccomp.Processor that has been simplified into
@@ -35,7 +35,7 @@ var _ vorlag.Processor = &lowVolumeProcessor{}
 type CallbackDefinition struct {
 	// todo: change to 'output description'
 	Description string
-	DefineFunc  func(Rid vorlag.Rid, args vorlag.Input) string
+	DefineFunc  func(Rid vorlage.Rid, args vorlage.Input) string
 	// todo: make the supply a description for each field too.
 	RequiredFields []string
 }
@@ -78,13 +78,13 @@ func (l lowVolumeProcessor) GetDescription() string {
 
 // helper to info
 func (l *lowVolumeProcessor) GetVariables() {
-	var ret []*vorlag.ProcessorVariable
+	var ret []*vorlage.ProcessorVariable
 	for k, v := range l.Variables {
 		inputM := make(map[string]string, len(v.RequiredFields))
 		for i := range v.RequiredFields {
 			inputM[v.RequiredFields[i]] = ""
 		}
-		r := vorlag.ProcessorVariable{
+		r := vorlage.ProcessorVariable{
 			Name:          k,
 			Description:   v.Description,
 			Input:         inputM,
@@ -98,7 +98,7 @@ func (l *lowVolumeProcessor) GetVariables() {
 /*
  * implemented doccomp.Processor
  */
-func (l lowVolumeProcessor) DefineVariable(rid vorlag.Rid, variable *vorlag.ProcessorVariable) vorlag.Definition {
+func (l lowVolumeProcessor) DefineVariable(rid vorlage.Rid, variable *vorlage.ProcessorVariable) vorlage.Definition {
 	ret := l.Variables[variable.Name].DefineFunc(rid, variable.Input)
 	return newStringDef(ret)
 }
@@ -110,6 +110,6 @@ func (l lowVolumeProcessor) DefineVariable(rid vorlag.Rid, variable *vorlag.Proc
  * Note that this processor is met for low-volume traffic and each definition
  * will have to be treated independantly.
  */
-func NewProcessor(name string, Description string, Variables map[string]CallbackDefinition) vorlag.Processor {
+func NewProcessor(name string, Description string, Variables map[string]CallbackDefinition) vorlage.Processor {
 	return &lowVolumeProcessor{Name: name, Description: Description, Variables: Variables}
 }
