@@ -26,6 +26,10 @@ func GetRequestEditor(rid vorlag.Rid) *Request {
 	return &r
 }
 
+func (r *Request) GetHost() string {
+	return r.r.URL.Host
+}
+
 func (r *Request) Redirect(dest string) {
 	_ = r.docstream.Close()
 	http.Redirect(r.w, r.r, dest, http.StatusSeeOther)
