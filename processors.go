@@ -21,6 +21,19 @@ type ProcessorInfo struct {
 	Variables []*ProcessorVariable
 }
 
+const (
+	// General
+	ActionCritical   = 0x1
+	ActionAccessFail = 0xd
+
+	// http only
+	ActionHttpRedirect = 0x47790001
+	ActionHttpCookie   = 0x47790002
+)
+
+type Action struct {
+}
+
 type Processor interface {
 	// called when loaded into the impl
 	Info() ProcessorInfo
@@ -28,7 +41,7 @@ type Processor interface {
 	// todo: should I send OnRequest to all processors even those who have no
 	//       variables present on the document? Or should I put a level of
 	//       abstraction between the webserver and processors (ie multiple webservers?)
-	OnRequest(Request) stopcode
+	OnRequest(Request) []Action
 
 	// Called multiple times (after PreProcess and before PostProcess).
 	// rid will be the same used in preprocess and post process.
