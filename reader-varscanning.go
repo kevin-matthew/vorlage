@@ -85,6 +85,10 @@ func scanVariable(buffer []byte, charsource int64) (pos variablePos, oerr *Error
 // returns 0,nil,nil if the VariablePrefix hasn't been fully read
 // returns >0,nil,nil if a variable has been found but not completely done scanned, send the next block of src over. Be sure to add n to charsource next call.
 // returns _,pos,nil if a variable was found and fully scanned
+//
+// todo: what if we scan a partial prefix on one block,
+//       but then we didn't find it on the second block? We need a way to roll
+//       back a half-prefix-scan... we could try return a negative number?
 func drawParseVar(dest []byte, src []byte,
 	charsource int64) (n int, pos *variablePos, oerr *Error) {
 
@@ -144,7 +148,7 @@ func drawParseVar(dest []byte, src []byte,
 			// so we didn't scan in a full variable into dest...
 			// now we ask: are we out of room in dest?
 			if j == len(dest) {
-				// if we are, then the caller can't draw anymore. so send em the
+				// we are, then the caller can't draw anymore. so send em the
 				// error. This will happen if len(dest) < MaxVariableLength or
 				// if the variable is simply too long and/or is not terminated
 
