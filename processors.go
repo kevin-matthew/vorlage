@@ -1,7 +1,6 @@
 package vorlage
 
 import (
-	"io"
 	"regexp"
 )
 
@@ -16,14 +15,19 @@ type ProcessorInfo struct {
 
 	Description string
 
-	Input       Input
-	StreamInput Input
+	InputPrototype
+	StreamInputPrototype
 
 	// returns a list ProcessorVariable pointers (that all point to valid
 	// memory).
 	Variables []ProcessorVariable
 }
-
+type ProcessorVariable struct {
+	Name        string
+	Description string
+	InputPrototype
+	StreamInputPrototype
+}
 const (
 	// General
 	ActionCritical   = 0x1
@@ -50,9 +54,6 @@ type Processor interface {
 	// called when loaded into the impl
 	Startup() ProcessorInfo
 
-	// todo: should I send OnRequest to all processors even those who have no
-	//       variables present on the document? Or should I put a level of
-	//       abstraction between the webserver and processors (ie multiple webservers?)
 	OnRequest(RequestInfo) []Action
 
 	// Called multiple times (after PreProcess and before PostProcess).
@@ -63,20 +64,4 @@ type Processor interface {
 	Shutdown() ExitInfo
 }
 
-type ProcessorVariable struct {
-	Name        string
-	Description string
 
-	// before Definer.DefineVariable is called, this map will be populated.
-	// When passing into NewCompiler, the map keys need to be present, but
-	// the values will be ignored.
-	Input map[string]string
-
-	// When passing into NewCompiler, the map keys need to be present, but
-	// the values will be ignored.
-	// before Definer.DefineVariable is called, this map will be populated
-	// streamed inputs are mutually exclusive from Input.
-	// StreamedInput will be passed into Processor.DefineVariable as an
-	// io.Reader under the streams argument.
-	StreamedInput map[string]io.Reader
-}
