@@ -163,7 +163,7 @@ type Document struct {
 	// file
 
 	// request is the original requested passed into loadDocument.
-	request Request
+	request RequestInfo
 
 	// compiler is the original compiler passed into loadDocument.
 	compiler *Compiler
@@ -179,7 +179,7 @@ type Document struct {
  * be used. If no converters return true, the document is not converted and will
  * be read as normal (via io.OpenFile).
  */
-func (compiler *Compiler) loadDocument(request Request) (doc Document,
+func (compiler *Compiler) loadDocument(request RequestInfo) (doc Document,
 	oerr *Error) {
 	d, err := loadDocumentFromPath(request.Filepath, compiler, request, nil, nil)
 	if err != nil {
@@ -209,7 +209,7 @@ func (doc Document) GetFileName() string {
 
 func loadDocumentFromPath(path string,
 	compiler *Compiler,
-	request Request,
+	request RequestInfo,
 	parent *Document,
 	root *Document) (doc Document, oerr *Error) {
 

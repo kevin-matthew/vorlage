@@ -16,9 +16,12 @@ type ProcessorInfo struct {
 
 	Description string
 
+	Input       Input
+	StreamInput Input
+
 	// returns a list ProcessorVariable pointers (that all point to valid
 	// memory).
-	Variables []*ProcessorVariable
+	Variables []ProcessorVariable
 }
 
 const (
@@ -34,19 +37,30 @@ const (
 type Action struct {
 }
 
+type ExitInfo struct {
+}
+type DefineInfo struct {
+	*RequestInfo
+	*ProcessorVariable
+	Input
+	StreamInput
+}
+
 type Processor interface {
 	// called when loaded into the impl
-	Info() ProcessorInfo
+	Startup() ProcessorInfo
 
 	// todo: should I send OnRequest to all processors even those who have no
 	//       variables present on the document? Or should I put a level of
 	//       abstraction between the webserver and processors (ie multiple webservers?)
-	OnRequest(Request) []Action
+	OnRequest(RequestInfo) []Action
 
 	// Called multiple times (after PreProcess and before PostProcess).
 	// rid will be the same used in preprocess and post process.
 	// variable pointer will be equal to what was provided from Info().Variables.
-	DefineVariable(rid Rid, variable *ProcessorVariable) Definition
+	DefineVariable(DefineInfo) Definition
+
+	Shutdown() ExitInfo
 }
 
 type ProcessorVariable struct {

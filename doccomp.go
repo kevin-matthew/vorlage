@@ -26,22 +26,26 @@ type Definition interface {
 	//Length() *uint64
 }
 
-type Input map[string]string
-type StreamInput map[string]io.Reader
+// simply a list of variables
+type InputPrototype []string
 
-// Request is all the information needed to be known to compiler a document
-type Request struct {
+// Input will be associtive to InputPrototype
+type Input []string
+type StreamInputPrototype []string
+type StreamInput []io.Reader
+
+// RequestInfo is sent to processors
+type RequestInfo struct {
+	*ProcessorInfo
+
 	Filepath string
 
-	// Input can be nil
-	Input Input
-
-	// StreamInput can be nil
-	StreamInput StreamInput
+	Input
+	StreamInput
 
 	// Rid will be set by Compiler.Compile (will be globally unique)
 	// treat it as read-only.
-	Rid Rid
+	Rid
 }
 
 // everything we'd see in both doccomp-http and doccomp-cli and doccomp-pdf
@@ -58,7 +62,7 @@ func NewCompiler(proc []Processor) (c Compiler, err error) {
 	// load all the infos
 	c.processorInfos = make([]ProcessorInfo, len(proc))
 	for i := range c.processors {
-		c.processorInfos[i] = c.processors[i].Info()
+		c.processorInfos[i] = c.processors[i].Startup()
 		err = c.processorInfos[i].Validate()
 		if err != nil {
 			return c, err
@@ -107,7 +111,7 @@ var nextRid uint64 = 0
  * Do not attempt to use the streams pointed to by req... they'll be read
  * when the docstream is read.
  */
-func (comp *Compiler) Compile(req *Request) (docstream io.ReadCloser, err error) {
+func (comp *Compiler) Compile(req *RequestInfo) (docstream io.ReadCloser, err error) {
 	atomic.AddUint64(&nextRid, 1)
 	req.Rid = Rid(nextRid)
 	doc, errd := comp.loadDocument(*req)
