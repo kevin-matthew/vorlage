@@ -124,7 +124,11 @@ use the Document Compiler, not develop for it.
     parsed, docuemnt and child documents loaded into their Target
     Format, and all [[#define]] macros evaluated, the Output Phase can
     begin. A document in the Output Phase can be streamed to the user
-    who had requested the document in the first place.
+    who had requested the document in the first place. This is the end
+    of the life cycle for the document.
+ 5. *Shutdown Phase*: Vorlage unloads all the processors and deloads
+    all supporting libraries. All connections and requests will be
+    terminated.
 
 * Documents
 Documents are UTF-8 encoded files. The text is not canonicalized, so a
@@ -285,11 +289,12 @@ cause all instances of =$(mytanslator.german)= in
 #+BEGIN_COMMENT  I don't want to specify static/streamed in here. leave it impl-sepcficic
 
 The values (ie. =hello=) are ignored by Vorlage and are simply passed
-along to the processor. However; Values comes in two forms: *[[Static Argument values][Static]]* [[Stream Argument values][]]  and *[[Streamed Values]]*. The list of Input Names for a given
-Processor Variable must be mutually exclusive between Static and
-Streamed.
+along to the processor. However; Values comes in two forms: *[[Static Argument values][Static]]*
+[[Stream Argument values][]] and *[[Streamed Values]]*. The list of Input
+Names for a given Processor Variable must be mutually exclusive
+between Static and Streamed.
 
-*** Static Argument values
+** Static Argument values
 Static Values are simple, and should be used more or less 95% of the
 time with Document Compiler. Static Values are given to the Processor
 in entirety. The transloator above is an example of static values.
@@ -297,7 +302,7 @@ in entirety. The transloator above is an example of static values.
 So you're probably wondering, "static values seems like everything
 I'll ever need... what is this other type of value?", Let's move on.
 
-*** TODO - refacting using "Input Argument" Streamed Values
+** Streamed Argument Values
 Streamed Values are complex in nature but very powerful. Streamed
 values are NOT given to the Processor in entirety. The Processor is
 instead given a file descriptor to which it can read from.
@@ -326,30 +331,23 @@ to replace the use of 2 Streamed Values with 1 Streamed Values and 2
 other Processed Variables that will read from a file saved by Streamed
 Value Input and output the conversions.
 
-*** TODO ( Reserved Input) I may not want this in leu of linking 'implemetation libraries'
-Some input that is passed into the processor is supplied by the
-doccomp implementation itself, and not by the request. This input is
-gathered by the doccomp implementation from the enviroment it is
-operating in. The same Reserved Input scheme must be provided for all
-requests for a given implementation for a single execution.
-
-For example, in the command line, enviroment variables are passed as
-reserved input into the processors (such as =$PATH=, =$USER=,
-=$SHELL=, ect.). In the context of an http, information about the http
-request itself will be passed in as reserved input (such as the
-connecting IP, ssl info, domain, ect).
-
-Reserved Input is passed in to the the processors as if it were normal
-input execpt with the distinction that the input variable is prefixed
-with two underscores (=__=). If user attempts to pass innput with the
-same prefix it will be ignored.
-
-If a processor at any point uses reserved input in its calculations
-then that processor becomes implementation-dependant. Thus Processors
-should avoid using Reserved Input unesscacarly.
-
 
 #+END_COMMENT
+** Processor Input
+During the Startup Phase, the procinfo supplied by each processor may
+also request that the processor itself be given Input known as
+*Processor Input*. During the Request Phase, each processor will be
+given their respective Processor Input in the same form as if it was
+being given to a Processor Variable.
+
+This give the processors an opertunity to react to the request itself,
+at this time the processor may demand that the overall request be
+terminated or perform other actions that is proper to the protocol
+that Vorlage is using. For example, a processor may want to set
+cookies in an HTTP request. And of course this cannot be done during
+the Output Phase as HTTP disallows setting cookies during the
+outputting of the page.
+
 
 * Processors
 Processors provide you with the ability to perform arbitrary code
