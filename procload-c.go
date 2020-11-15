@@ -27,11 +27,15 @@ func (c *cProc) Startup() ProcessorInfo {
 	panic("implement me")
 }
 
-func (c *cProc) OnRequest(request RequestInfo) []Action {
+func (c *cProc) OnRequest(info RequestInfo) []Action {
 	panic("implement me")
 }
 
-func (c *cProc) DefineVariable(rid Rid, variable *ProcessorVariable) Definition {
+func (c *cProc) DefineVariable(info DefineInfo) Definition {
+	panic("implement me")
+}
+
+func (c *cProc) Shutdown() ExitInfo {
 	panic("implement me")
 }
 
@@ -74,7 +78,8 @@ func dlOpen(libPath string) (*cProc, error) {
 }
 
 func (c *cProc) loadVorlageSymbols() error {
-
+	// check vorlage_proc_interfaceversion to make sure it's the same as ours.
+	// get functions
 }
 
 func (c *cProc) getSymbolPointer(symbol string) (unsafe.Pointer, error) {
