@@ -70,16 +70,24 @@ wordpress. Why have all these products and technologies been made?
 What problem is so big that there needs to have an endless amount of
 solutions to support it? The problem is simple:
 
-*HTTP sucks*.
+*HTTP sucks.*
 
 The entire planet has adopted a standard that was never in a million
 years supposed to be as widley used as it is now. HTML was made in a
 weekend by 1 man who had no advanced knowlege in computer
 engineering. HTTP was made by a small team trying to solve a problem
 they had between a team of 50 people. Javascript was made in 2 weeks
-and is named after another language to trick people in to using it.
+and is named after another language to trick people in to using
+it. But now: we've chosen these crappy technologies to serve as the
+backbone to the most important wealth of knowledge in the history of
+the solar system.
 
-But now: The electrons that are used to process HTML, HTTP, and JS
+Ellem plans to mend the damage caused by the Internet's choice of
+protocol with Vorlage. People using Vorlage will be forced to do
+everything very deliberately and explicitly, all while being forced to
+provide comprehendsive documentation to every step.
+
+*No more chaos. Vorlage demands order.*
 
 * Components
 There's four distinct components to the Document Compiler:
@@ -347,7 +355,6 @@ that Vorlage is using. For example, a processor may want to set
 cookies in an HTTP request. And of course this cannot be done during
 the Output Phase as HTTP disallows setting cookies during the
 outputting of the page.
-
 
 * Processors
 Processors provide you with the ability to perform arbitrary code
