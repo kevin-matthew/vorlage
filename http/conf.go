@@ -49,7 +49,7 @@ var FileExt []string = []string{".proc.html", ".proc.json"}
  * Whatever is first matched in AuthPrefixes is used as the realm.
  * The use of '"' in AuthPrefixes will result in undefined behaviour.
  */
-var AuthPrefixes []string = []string{}
+var AuthPrefixes []string = []string{"/auth"}
 var ValidAuth func(realm string, username string, password string) bool = nil
 
 /*

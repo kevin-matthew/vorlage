@@ -128,7 +128,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	var inputs map[string]string
 	var streaminputs map[string]io.Reader
 	var cookies []*http.Cookie
-	var req doccomp.Request
+	var req doccomp.RequestInfo
 
 	// does it have the file extension we don't want?
 
@@ -214,7 +214,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	// prepare the request in doccomp terms
-	req = doccomp.Request{
+	req = doccomp.RequestInfo{
 		Filepath:    fileToUse,
 		Input:       inputs,
 		StreamInput: streaminputs,
@@ -228,7 +228,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	// now that we have the Rid, add everything in the Request pool.
+	// now that we have the Rid, add everything in the RequestInfo pool.
 	// be sure to de allocate when we're done writting to stream.
 	addToConnectionPool(req.Rid, writer, request, stream)
 	defer removeFromConnectionPool(req.Rid)

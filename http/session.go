@@ -213,7 +213,7 @@ func sessionDestroy(w http.ResponseWriter, r *http.Request) error {
  */
 func (ses Session) ToCookie(r *http.Request) *http.Cookie {
 	if r != nil {
-		// if TLS is nil, its an http Request
+		// if TLS is nil, its an http RequestInfo
 		if r.TLS == nil {
 			return &http.Cookie{
 				Name:       CookieName,
