@@ -1,13 +1,39 @@
 package vorlage
 
 import (
+	"io"
 	"regexp"
 )
 
 type Rid uint64
 
 var validProcessorName = regexp.MustCompile(`^[a-z0-9]+$`)
+/*
+ * This is a definition, they can be made either by using '#define' in a file or
+ * if the page processor
+ */
+type Definition interface {
+	// reset the reader to the beginning,
+	// this is called before the every instance of the variable by the loader
+	// Thus repetitions of large definitions should be advised against,
+	// or at least have a sophisticated caching system.
+	Reset() error
 
+	// must return EOF when complete (no more bytes left to read)
+	Read(p []byte) (int, error)
+
+	// needed for content-length to be sent.
+	// if nil is returned, doccomp will not calculate nor send content-length.
+	// however this is not prefered and should be only used for applications
+	// that truelly cannot know what their content length will be.
+	//Length() *uint64
+}
+
+// simply a list of variables
+type InputPrototype struct {
+	name string
+	description string
+}
 type ProcessorInfo struct {
 	// todo: I should probably make this private so I can make sure it loads in
 	// via the filename.
@@ -33,13 +59,17 @@ const (
 	// General
 	ActionCritical   = 0x1
 	ActionAccessFail = 0xd
+	ActionSee        = 0xb
 
 	// http only
-	ActionHttpRedirect = 0x47790001
 	ActionHttpCookie   = 0x47790002
 )
 
 type Action struct {
+
+	// see above enum
+	Action int
+	Data []byte
 }
 
 type ExitInfo struct {
@@ -47,8 +77,31 @@ type ExitInfo struct {
 type DefineInfo struct {
 	*RequestInfo
 	*ProcessorVariable
-	Input
-	StreamInput
+	Input []Input
+	StreamInput []StreamInput
+}
+// Input will be associtive to InputPrototype
+type Input struct {
+	*InputPrototype
+	string
+}
+type StreamInput struct {
+	*InputPrototype
+	io.ReadCloser
+}
+
+// RequestInfo is sent to processors
+type RequestInfo struct {
+	*ProcessorInfo
+
+	Filepath string
+
+	Input []Input
+	StreamInput []StreamInput
+
+	// Rid will be set by Compiler.Compile (will be globally unique)
+	// treat it as read-only.
+	Rid
 }
 
 type Processor interface {

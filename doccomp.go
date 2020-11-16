@@ -5,50 +5,9 @@ import (
 	"sync/atomic"
 )
 
-/*
- * This is a definition, they can be made either by using '#define' in a file or
- * if the page processor
- */
-type Definition interface {
-	// reset the reader to the beginning,
-	// this is called before the every instance of the variable by the loader
-	// Thus repetitions of large definitions should be advised against,
-	// or at least have a sophisticated caching system.
-	Reset() error
 
-	// must return EOF when complete (no more bytes left to read)
-	Read(p []byte) (int, error)
 
-	// needed for content-length to be sent.
-	// if nil is returned, doccomp will not calculate nor send content-length.
-	// however this is not prefered and should be only used for applications
-	// that truelly cannot know what their content length will be.
-	//Length() *uint64
-}
 
-// simply a list of variables
-type InputPrototype struct {
-	name string
-	description string
-}
-
-// Input will be associtive to InputPrototype
-type Input []string
-type StreamInput []io.Reader
-
-// RequestInfo is sent to processors
-type RequestInfo struct {
-	*ProcessorInfo
-
-	Filepath string
-
-	Input
-	StreamInput
-
-	// Rid will be set by Compiler.Compile (will be globally unique)
-	// treat it as read-only.
-	Rid
-}
 
 // everything we'd see in both doccomp-http and doccomp-cli and doccomp-pdf
 type Compiler struct {
@@ -89,8 +48,8 @@ func (info *ProcessorInfo) Validate() error {
 	// make sure stream and static don't have the same name.
 	for _, v := range info.Variables {
 		// make sure no statics are also streams
-		for k := range v.Input {
-			if _, ok := v.StreamedInput[k]; ok {
+		for k := range v.InputProto {
+			if _, ok := v.StreamInputProto[k]; ok {
 				oerr := NewError(errInputInStreamAndStatic)
 				oerr.SetSubjectf("\"%s\"", k)
 				return oerr

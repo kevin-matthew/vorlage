@@ -1,18 +1,21 @@
 package vorlage
 
 // #cgo LDFLAGS: -ldl
-// #include "processors.h"
+// #include "c.src/processors.h"
 // #include <stdlib.h>
 // #include <dlfcn.h>
 // #include <stdio.h>
 // typedef void *(*voidfunc) (void *args);
 // typedef vorlage_proc_info (*startupwrap)();
-//   vorlage_proc_info execstartupwrap(startupwrap f) {
+// vorlage_proc_info execstartupwrap(startupwrap f) {
 //   return f();
 // }
+//typedef vorlage_proc_actions (*onrequestwrap)(vorlage_proc_requestinfo);
+//vorlage_proc_actions execonrequest(onrequestwrap f, vorlage_proc_requestinfo r) {
+//   return f(r);
+//}
 import "C"
 import (
-	"fmt"
 	"unsafe"
 )
 import "../lmgo/errors"
@@ -28,9 +31,17 @@ type cProc struct {
 	vorlageOnRequest unsafe.Pointer
 	vorlageDefine    unsafe.Pointer
 	vorlageShutdown  unsafe.Pointer
+
+	// raw pointers
+	volageProcInfo C.vorlage_proc_info
 }
 
 func (c *cProc) OnRequest(info RequestInfo) []Action {
+	f := C.onrequestwrap(c.vorlageStartup)
+	var reqinfo C.vorlage_proc_requestinfo
+	reqinfo.procinfo = &c.volageProcInfo
+
+	_ = C.execonrequest(f, reqinfo)
 	panic("implement me")
 }
 
@@ -45,6 +56,7 @@ func (c *cProc) Shutdown() ExitInfo {
 func (c *cProc) Startup() ProcessorInfo {
 	f := C.startupwrap(c.vorlageStartup)
 	d := C.execstartupwrap(f)
+	c.volageProcInfo = d
 	p := ProcessorInfo{}
 	// description
 	p.Description = C.GoString(d.description);
@@ -55,21 +67,39 @@ func (c *cProc) Startup() ProcessorInfo {
 	p.Variables         = parseVariables(int(d.variablesc), d.variablesv)
 	return p
 }
-func parseVariables(varsc int, varsv unsafe.Pointer) []ProcessorVariable {
-
-}
-func parseInputProtoType(protoc int, protov unsafe.Pointer) []InputPrototype {
-	for i := 0; i < inputprotoCount; i++ {
-		adr := (*C.vorlage_proc_inputproto)(inputprotoPtr + i * C.sizeof_vorlage_proc_inputproto)
-		inputCount := int((*adr).inputc);
-
+func parseVariables(varsc int, varsv *C.vorlage_proc_variable) []ProcessorVariable {
+	if varsc == 0 {
+		return nil
 	}
+	ret := make([]ProcessorVariable, varsc)
+	slice := (*[1 << 28]C.vorlage_proc_variable)(unsafe.Pointer(varsv))[:varsc:varsc]
+	for i := 0; i < varsc; i++ {
+		iproto := slice[i]
+		ret[i].Name = C.GoString(iproto.name)
+		ret[i].Description = C.GoString(iproto.description)
+		ret[i].InputProto        = parseInputProtoType(int(iproto.inputprotoc), iproto.inputprotov)
+		ret[i].StreamInputProto  = parseInputProtoType(int(iproto.streaminputprotoc), iproto.streaminputprotov)
+	}
+	return ret
+}
+func parseInputProtoType(protoc int, protov *C.vorlage_proc_inputproto) []InputPrototype {
+	if protoc == 0 {
+		return nil
+	}
+	slice := (*[1 << 28]C.vorlage_proc_inputproto)(unsafe.Pointer(protov))[:protoc:protoc]
+	ret := make([]InputPrototype, protoc)
+	for i := 0; i < protoc; i++ {
+		iproto := slice[i]
+		ret[i].name = C.GoString(iproto.name)
+		ret[i].description = C.GoString(iproto.description)
+	}
+	return ret
 }
 
-var _ Processor = cProc{}
+var _ Processor = &cProc{}
 
 func LoadCProcessors(libpath string) (error, []Processor) {
-
+	return nil,nil
 }
 
 // dlOpen tries to get a handle to a library (.so), attempting to access it

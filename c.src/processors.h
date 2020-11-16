@@ -27,18 +27,21 @@ typedef struct {
 typedef struct {
 	// back-reference pointer
 	vorlage_proc_inputproto *proto;
+
+	// array of nullterm strings. len found in proto.input.c and reflects
+	// that of proto.name
+	const char *input;
 } vorlage_proc_input;
 typedef struct {
 	// back-reference pointer
 	vorlage_proc_inputproto *proto;
 
-	// array of file stream pointers. note that the processor must
-	// close the stream, vorlage will not close the stream. All stream
-	// will be read-only.
+	// note that the processor must
+	// close the stream, vorlage will not close the stream. All streams
+	// will be read-only. Equal len found in proto.inputc
 	//
 	// note: streams are not guaranteed to be seekable.
-	int    streamc;
-	FILE **streamv;
+	FILE *stream;
 } vorlage_proc_streaminput;
 
 /*
@@ -57,8 +60,10 @@ typedef struct {
 
 	// Specify what input field names this variable needs during the
 	// output phase (can be nil)
-	const vorlage_proc_inputproto       *inputproto;
-	const vorlage_proc_inputproto *streaminputproto;
+	int                            inputprotoc;
+	const vorlage_proc_inputproto *inputprotov;
+	int                            streaminputprotoc;
+	const vorlage_proc_inputproto *streaminputprotov;
 } vorlage_proc_variable;
 
 
@@ -85,7 +90,7 @@ typedef struct {
 	// an array of variables that this processor provides to
 	// documents.
 	const vorlage_proc_variable *variablesv;
-	int                    variablesc;
+	int                          variablesc;
 } vorlage_proc_info;
 
 /*
@@ -100,8 +105,10 @@ typedef struct {
 	const char *filepath;
 
 	// the input that reflects the scheme provided by inputproto.
-	const vorlage_proc_input *input;
-	const vorlage_proc_streaminput *streaminput;
+	int                       inputc;
+	const vorlage_proc_input *inputv;
+	int                             streaminputc;
+	const vorlage_proc_streaminput *streaminputv;
 
 	// request id
 	rid rid;
@@ -121,19 +128,19 @@ enum vorlage_proc_actionenum {
 	// This action will stop the request. vorlage_proc_action.data can
 	// be set to a null-terminated string that will be shown to the
 	// user.
-	VORLAGE_PROC_ACTION_CRITICAL,
+	VORLAGE_PROC_ACTION_CRITICAL = 0x1,
 
 	// The processor recongizes that the request is a violation of the
 	// access granted to the user. vorlage_proc_action.data can be
 	// set to a null-term string that will be shown to the user.
 	// tip: use this in conjunction with VORLAGE_PROC_ACTION_SEE to
 	//      invoke a redirect to a longin page.
-	VORLAGE_PROC_ACTION_ACCESSFAIL,
+	VORLAGE_PROC_ACTION_ACCESSFAIL = 0xd ,
 
 	// The processor request that the user see another
 	// file. vorlage_proc_action.data must be set to a file path to
 	// which the user will be directed to.
-	VORLAGE_PROC_ACTION_SEE,
+	VORLAGE_PROC_ACTION_SEE = 0xb,
 
 
 	/**** HTTP only ****/
@@ -144,7 +151,7 @@ enum vorlage_proc_actionenum {
 	// vorlage_proc_action.data must NOT include header name. (don't
 	// dictate the "Set-Cookie:" part but dictate everything after
 	// that)
-	VORLAGE_PROC_ACTION_HTTPCOOKIE,
+	VORLAGE_PROC_ACTION_HTTPCOOKIE = 0x47790002,
 };
 // action struct (see above enum)
 typedef struct {
