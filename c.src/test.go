@@ -1,4 +1,4 @@
-package vorlage
+package main
 
 // #cgo LDFLAGS: -ldl
 // #include "processors.h"
@@ -7,39 +7,55 @@ package vorlage
 // #include <stdio.h>
 // typedef void *(*voidfunc) (void *args);
 // typedef vorlage_proc_info (*startupwrap)();
-//   vorlage_proc_info execstartupwrap(startupwrap f) {
-//   return f();
+// vorlage_proc_info execstartupwrap(startupwrap f) {
+// return f();
 // }
+// typedef int fuckingfuckfuckgodamn;
+// void *fuckyou(void *p, fuckingfuckfuckgodamn i, int fuckingsize) {
+//      return (void*)((uint64_t)p+i*fuckingsize);
+// }
+//
 import "C"
 import (
 	"fmt"
+	"io"
+	"regexp"
 	"unsafe"
 )
-import "../lmgo/errors"
+import "../../lmgo/errors"
 
 type cProc struct {
 	libname string
 	handle  unsafe.Pointer
 
-	vorlageInterfaceVersion uint32
-
 	// function pointers
+	vorlageInterfaceVersion uint32
 	vorlageStartup   unsafe.Pointer
 	vorlageOnRequest unsafe.Pointer
 	vorlageDefine    unsafe.Pointer
 	vorlageShutdown  unsafe.Pointer
+
+
+	test unsafe.Pointer
 }
 
-func (c *cProc) OnRequest(info RequestInfo) []Action {
-	panic("implement me")
-}
+type rawCProcInfo C.vorlage_proc_info
 
-func (c *cProc) DefineVariable(info DefineInfo) Definition {
-	panic("implement me")
-}
-
-func (c *cProc) Shutdown() ExitInfo {
-	panic("implement me")
+func main() {
+	ourVersion   := int(C.vorlage_proc_interfaceversion);
+	fmt.Printf("our version: %d\n", ourVersion)
+	p,err := dlOpen("./libtest.so")
+	if err != nil {
+		fmt.Printf("failed to open dl: %#v\n", err)
+		return
+	}
+	err = p.loadVorlageSymbols()
+	if err != nil {
+		fmt.Printf("failed to load syms: %#v\n", err)
+		return
+	}
+	p.Startup()
+	println("done")
 }
 
 func (c *cProc) Startup() ProcessorInfo {
@@ -51,25 +67,22 @@ func (c *cProc) Startup() ProcessorInfo {
 
 	// input proto
 	p.InputProto        = parseInputProtoType(int(d.inputprotoc), d.inputprotov)
-	p.StreamInputProto  = parseInputProtoType(int(d.streaminputprotoc), d.streaminputprotov)
-	p.Variables         = parseVariables(int(d.variablesc), d.variablesv)
+	//p.StreamInputProto  = parseInputProtoType(int(d.streaminputprotoc), d.streaminputprotov)
+	//p.Variables         = parseVariables(int(d.variablesc), d.variablesv)
 	return p
 }
 func parseVariables(varsc int, varsv unsafe.Pointer) []ProcessorVariable {
-
+	return nil
 }
-func parseInputProtoType(protoc int, protov unsafe.Pointer) []InputPrototype {
-	for i := 0; i < inputprotoCount; i++ {
-		adr := (*C.vorlage_proc_inputproto)(inputprotoPtr + i * C.sizeof_vorlage_proc_inputproto)
-		inputCount := int((*adr).inputc);
-
+func parseInputProtoType(protoc int, protov *C.vorlage_proc_inputproto) []InputPrototype {
+	ret := make([]InputPrototype, protoc)
+	fmt.Printf("before : %d\n", protov)
+	for i := 0; i < protoc; i++ {
+		adr := (*C.vorlage_proc_inputproto)(C.fuckyou(unsafe.Pointer(protov), C.fuckingfuckfuckgodamn(i), C.sizeof_vorlage_proc_inputproto))
+		ret[i].name = C.GoString((*adr).name)
+		ret[i].description = C.GoString((*adr).description)
 	}
-}
-
-var _ Processor = cProc{}
-
-func LoadCProcessors(libpath string) (error, []Processor) {
-
+	return ret
 }
 
 // dlOpen tries to get a handle to a library (.so), attempting to access it
@@ -137,6 +150,7 @@ func (c *cProc) loadVorlageSymbols() error {
 		{"vorlage_proc_onrequest", &c.vorlageOnRequest},
 		{"vorlage_proc_define", &c.vorlageDefine},
 		{"vorlage_proc_shutdown", &c.vorlageShutdown},
+		{"test", &c.test},
 	}
 
 	for _,s := range goodsyms {
@@ -182,3 +196,102 @@ func (c *cProc) Close() error {
 	}
 	return nil
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+type Rid uint64
+
+var validProcessorName = regexp.MustCompile(`^[a-z0-9]+$`)
+
+type ProcessorInfo struct {
+	// todo: I should probably make this private so I can make sure it loads in
+	// via the filename.
+	Name string
+
+	Description string
+
+	InputProto []InputPrototype
+	StreamInputProto []InputPrototype
+
+	// returns a list ProcessorVariable pointers (that all point to valid
+	// memory).
+	Variables []ProcessorVariable
+}
+type ProcessorVariable struct {
+	Name        string
+	Description string
+	InputProto []InputPrototype
+	StreamInputProto []InputPrototype
+}
+const (
+	// General
+	ActionCritical   = 0x1
+	ActionAccessFail = 0xd
+
+	// http only
+	ActionHttpRedirect = 0x47790001
+	ActionHttpCookie   = 0x47790002
+)
+
+type Action struct {
+}
+
+type ExitInfo struct {
+}
+type DefineInfo struct {
+	*RequestInfo
+	*ProcessorVariable
+	Input
+	StreamInput
+}
+// RequestInfo is sent to processors
+type RequestInfo struct {
+	*ProcessorInfo
+
+	Filepath string
+
+	Input
+	StreamInput
+
+	// Rid will be set by Compiler.Compile (will be globally unique)
+	// treat it as read-only.
+	Rid
+}
+type Processor interface {
+	// called when loaded into the impl
+	Startup() ProcessorInfo
+
+	OnRequest(RequestInfo) []Action
+
+	// Called multiple times (after PreProcess and before PostProcess).
+	// rid will be the same used in preprocess and post process.
+	// variable pointer will be equal to what was provided from Info().Variables.
+	//DefineVariable(DefineInfo) Definition
+
+	Shutdown() ExitInfo
+}
+
+// simply a list of variables
+type InputPrototype struct {
+	name string
+	description string
+}
+
+// Input will be associtive to InputPrototype
+type Input []string
+type StreamInputPrototype []string
+type StreamInput []io.Reader

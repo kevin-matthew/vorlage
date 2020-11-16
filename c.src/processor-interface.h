@@ -7,11 +7,15 @@
  * functions which deal with the overall life cycle of a request.
  *
  * Vorlage will call these functions when this processor is loaded.
+ *
+ * note: these functions are marked inline for the purpose of forcing you to
+ *       define them, as the compiler will fail if inline funcs are
+ *       left undefined.
  */
-const vorlage_proc_info     vorlage_proc_startup  ();
-const vorlage_proc_actions  vorlage_proc_onrequest(const vorlage_proc_requestinfo *rinfo);
-const vorlage_proc_definer  vorlage_proc_define   (const vorlage_proc_defineinfo  *dinfo);
-const vorlage_proc_exitinfo vorlage_proc_shutdown ();
+inline vorlage_proc_info     vorlage_proc_startup  ();
+inline vorlage_proc_actions  vorlage_proc_onrequest(const vorlage_proc_requestinfo *rinfo);
+inline vorlage_proc_definer  vorlage_proc_define   (const vorlage_proc_defineinfo  *dinfo);
+inline vorlage_proc_exitinfo vorlage_proc_shutdown ();
 
 
 #endif /* VORLAGE_PROCESSORS_INTERFACE_H_ */

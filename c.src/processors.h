@@ -5,7 +5,7 @@
 #include "vorlage.h"
 
 
-const int vorlage_proc_interfaceversion = 0x0;
+const uint32_t vorlage_proc_interfaceversion = 0x1;
 
 /*
  * All structs that handle the input request scheme (proto) and handle
@@ -19,17 +19,14 @@ const int vorlage_proc_interfaceversion = 0x0;
  * name, and input description.
  *
  */
+
 typedef struct {
-	// an array of structs with each item holding the input's name
-	// (aka argument name) and a description of what the input is.
-	int                                                inputc;
-	struct{const char *name; const char *description;} *inputv;
+	const char *name;
+	const char *description;
 } vorlage_proc_inputproto;
 typedef struct {
 	// back-reference pointer
 	vorlage_proc_inputproto *proto;
-
-
 } vorlage_proc_input;
 typedef struct {
 	// back-reference pointer
@@ -79,14 +76,15 @@ typedef struct {
 	const char *description;
 
 	// Specify what input field names this processor needs during the
-	// request phase (can be nil)
-	vorlage_proc_inputproto       *inputproto;
-	vorlage_proc_inputproto *streaminputproto;
-
+	// request phase
+	int                      inputprotoc;
+	const vorlage_proc_inputproto *inputprotov;
+	int                      streaminputprotoc;
+	const vorlage_proc_inputproto *streaminputprotov;
 
 	// an array of variables that this processor provides to
 	// documents.
-	vorlage_proc_variable *variablesv;
+	const vorlage_proc_variable *variablesv;
 	int                    variablesc;
 } vorlage_proc_info;
 

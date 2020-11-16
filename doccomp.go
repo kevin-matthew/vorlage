@@ -27,11 +27,13 @@ type Definition interface {
 }
 
 // simply a list of variables
-type InputPrototype []string
+type InputPrototype struct {
+	name string
+	description string
+}
 
 // Input will be associtive to InputPrototype
 type Input []string
-type StreamInputPrototype []string
 type StreamInput []io.Reader
 
 // RequestInfo is sent to processors

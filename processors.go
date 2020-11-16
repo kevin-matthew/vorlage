@@ -15,8 +15,9 @@ type ProcessorInfo struct {
 
 	Description string
 
-	InputPrototype
-	StreamInputPrototype
+	InputProto []InputPrototype
+	StreamInputProto []InputPrototype
+
 
 	// returns a list ProcessorVariable pointers (that all point to valid
 	// memory).
@@ -25,8 +26,8 @@ type ProcessorInfo struct {
 type ProcessorVariable struct {
 	Name        string
 	Description string
-	InputPrototype
-	StreamInputPrototype
+	InputProto []InputPrototype
+	StreamInputProto []InputPrototype
 }
 const (
 	// General
