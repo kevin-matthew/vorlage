@@ -104,11 +104,11 @@ typedef struct {
 	// nullterm string of the filepath that's being requested.
 	const char *filepath;
 
-	// the input that reflects the scheme provided by inputproto.
-	int                       inputc;
-	const vorlage_proc_input *inputv;
-	int                             streaminputc;
-	const vorlage_proc_streaminput *streaminputv;
+	// the input that reflects the scheme provided by
+	// procinfo.inputproto. hense why no counts are provided.
+	const char **inputv;
+	// file descriptors
+	const int   *streaminputv;
 
 	// request id
 	rid rid;
@@ -161,12 +161,12 @@ typedef struct {
 
 	// data is arbitrary data that is context-specific to whatever
 	// action was set. So see the aformentioned action list.
-	void *data;
+	const void *data;
 } vorlage_proc_action;
 // action array struct (see above struct)
 typedef struct {
-	vorlage_proc_action *actionv;
-	int                  actionc;
+	const vorlage_proc_action *actionv;
+	int                        actionc;
 } vorlage_proc_actions;
 
 
@@ -182,8 +182,8 @@ typedef struct {
 	const vorlage_proc_variable *procvar;
 
 	// the input that reflects the scheme provided by inputproto.
-	const vorlage_proc_input       *input;
-	const vorlage_proc_streaminput *streaminput;
+	const char **input;
+	const int   *streaminput;
 } vorlage_proc_defineinfo;
 
 

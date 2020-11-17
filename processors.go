@@ -2,12 +2,14 @@ package vorlage
 
 import (
 	"io"
+	"os"
 	"regexp"
 )
 
 type Rid uint64
 
 var validProcessorName = regexp.MustCompile(`^[a-z0-9]+$`)
+
 /*
  * This is a definition, they can be made either by using '#define' in a file or
  * if the page processor
@@ -31,7 +33,7 @@ type Definition interface {
 
 // simply a list of variables
 type InputPrototype struct {
-	name string
+	name        string
 	description string
 }
 type ProcessorInfo struct {
@@ -41,20 +43,20 @@ type ProcessorInfo struct {
 
 	Description string
 
-	InputProto []InputPrototype
+	InputProto       []InputPrototype
 	StreamInputProto []InputPrototype
-
 
 	// returns a list ProcessorVariable pointers (that all point to valid
 	// memory).
 	Variables []ProcessorVariable
 }
 type ProcessorVariable struct {
-	Name        string
-	Description string
-	InputProto []InputPrototype
+	Name             string
+	Description      string
+	InputProto       []InputPrototype
 	StreamInputProto []InputPrototype
 }
+
 const (
 	// General
 	ActionCritical   = 0x1
@@ -62,14 +64,14 @@ const (
 	ActionSee        = 0xb
 
 	// http only
-	ActionHttpCookie   = 0x47790002
+	ActionHttpCookie = 0x47790002
 )
 
 type Action struct {
 
 	// see above enum
 	Action int
-	Data []byte
+	Data   []byte
 }
 
 type ExitInfo struct {
@@ -77,9 +79,10 @@ type ExitInfo struct {
 type DefineInfo struct {
 	*RequestInfo
 	*ProcessorVariable
-	Input []Input
+	Input       []Input
 	StreamInput []StreamInput
 }
+
 // Input will be associtive to InputPrototype
 type Input struct {
 	*InputPrototype
@@ -96,8 +99,11 @@ type RequestInfo struct {
 
 	Filepath string
 
-	Input []Input
-	StreamInput []StreamInput
+	// muse be same lengths as ProcessorInfo.InputProto and
+	// ProcessorInfo.StreamInputProto otherwise everything goes to shit.
+	Input []string
+	// list of file descriptors
+	StreamInput []*os.File
 
 	// Rid will be set by Compiler.Compile (will be globally unique)
 	// treat it as read-only.
@@ -117,5 +123,3 @@ type Processor interface {
 
 	Shutdown() ExitInfo
 }
-
-

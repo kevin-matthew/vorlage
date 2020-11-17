@@ -14,6 +14,12 @@ package vorlage
 //vorlage_proc_actions execonrequest(onrequestwrap f, vorlage_proc_requestinfo r) {
 //   return f(r);
 //}
+//
+//
+// // make sure to free the return array!!!
+// const char **gostrings2cstrings(_GoString_ *s, int len) {
+// }
+//
 import "C"
 import (
 	"unsafe"
@@ -37,12 +43,33 @@ type cProc struct {
 }
 
 func (c *cProc) OnRequest(info RequestInfo) []Action {
-	f := C.onrequestwrap(c.vorlageStartup)
-	var reqinfo C.vorlage_proc_requestinfo
+	f := C.onrequestwrap(c.vorlageOnRequest)
+	var reqinfo = C.vorlage_proc_requestinfo{}
 	reqinfo.procinfo = &c.volageProcInfo
+	reqinfo.filepath = C.CString(info.Filepath)
+	defer C.free(unsafe.Pointer(reqinfo.filepath))
+	reqinfo.rid = C.rid(info.Rid)
 
+	inputVArray := make([]*C.char, len(info.Input))
+	for i := range inputVArray {
+		inputVArray[i] = C.CString(info.Input[i])
+	}
+	defer func() {
+		for i := range inputVArray {
+			C.free(unsafe.Pointer(inputVArray[i]))
+		}
+	}()
+	inputStreamArray := make([]C.int, len(info.StreamInput))
+	for i := range inputStreamArray {
+		inputStreamArray[i] = C.int(info.StreamInput[i].Fd())
+	}
+
+	//reqinfo.inputv = C.gostrings2cstrings(&(info.Input[0]), len(info.Input))
+	// todo: this may fuck it up
+	reqinfo.inputv = &(inputVArray[0])
+	reqinfo.streaminputv = &(inputStreamArray[0])
 	_ = C.execonrequest(f, reqinfo)
-	panic("implement me")
+	return nil
 }
 
 func (c *cProc) DefineVariable(info DefineInfo) Definition {
@@ -59,12 +86,12 @@ func (c *cProc) Startup() ProcessorInfo {
 	c.volageProcInfo = d
 	p := ProcessorInfo{}
 	// description
-	p.Description = C.GoString(d.description);
+	p.Description = C.GoString(d.description)
 
 	// input proto
-	p.InputProto        = parseInputProtoType(int(d.inputprotoc), d.inputprotov)
-	p.StreamInputProto  = parseInputProtoType(int(d.streaminputprotoc), d.streaminputprotov)
-	p.Variables         = parseVariables(int(d.variablesc), d.variablesv)
+	p.InputProto = parseInputProtoType(int(d.inputprotoc), d.inputprotov)
+	p.StreamInputProto = parseInputProtoType(int(d.streaminputprotoc), d.streaminputprotov)
+	p.Variables = parseVariables(int(d.variablesc), d.variablesv)
 	return p
 }
 func parseVariables(varsc int, varsv *C.vorlage_proc_variable) []ProcessorVariable {
@@ -77,8 +104,8 @@ func parseVariables(varsc int, varsv *C.vorlage_proc_variable) []ProcessorVariab
 		iproto := slice[i]
 		ret[i].Name = C.GoString(iproto.name)
 		ret[i].Description = C.GoString(iproto.description)
-		ret[i].InputProto        = parseInputProtoType(int(iproto.inputprotoc), iproto.inputprotov)
-		ret[i].StreamInputProto  = parseInputProtoType(int(iproto.streaminputprotoc), iproto.streaminputprotov)
+		ret[i].InputProto = parseInputProtoType(int(iproto.inputprotoc), iproto.inputprotov)
+		ret[i].StreamInputProto = parseInputProtoType(int(iproto.streaminputprotoc), iproto.streaminputprotov)
 	}
 	return ret
 }
@@ -99,7 +126,7 @@ func parseInputProtoType(protoc int, protov *C.vorlage_proc_inputproto) []InputP
 var _ Processor = &cProc{}
 
 func LoadCProcessors(libpath string) (error, []Processor) {
-	return nil,nil
+	return nil, nil
 }
 
 // dlOpen tries to get a handle to a library (.so), attempting to access it
@@ -142,7 +169,7 @@ func isInterfaceVersionSupported(ver uint32) bool {
 }
 
 func (c *cProc) loadVorlageSymbols() error {
-	theirVersion,err := c.getSymbolPointer("vorlage_proc_interfaceversion")
+	theirVersion, err := c.getSymbolPointer("vorlage_proc_interfaceversion")
 	if err != nil {
 		return errors.Newf(0x7852b,
 			"failed to find vorlage_proc_interfaceversion symbol",
@@ -160,17 +187,19 @@ func (c *cProc) loadVorlageSymbols() error {
 			"version %x.8", *tv)
 	}
 
-
 	// make sure it has all the symbols we're interested with.
-	var goodsyms = []struct{string;ptr *unsafe.Pointer} {
+	var goodsyms = []struct {
+		string
+		ptr *unsafe.Pointer
+	}{
 		{"vorlage_proc_startup", &c.vorlageStartup},
 		{"vorlage_proc_onrequest", &c.vorlageOnRequest},
 		{"vorlage_proc_define", &c.vorlageDefine},
 		{"vorlage_proc_shutdown", &c.vorlageShutdown},
 	}
 
-	for _,s := range goodsyms {
-		p,err := c.getSymbolPointer(s.string)
+	for _, s := range goodsyms {
+		p, err := c.getSymbolPointer(s.string)
 		if err != nil {
 			return errors.New(0xaab151,
 				"could not find required symbol in library",
