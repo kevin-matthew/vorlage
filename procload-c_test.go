@@ -6,7 +6,7 @@ import (
 )
 
 func TestLoadc(t *testing.T) {
-	p,err := dlOpen("./c.src/libtest.so")
+	p, err := dlOpen("./c.src/libtest.so")
 	if err != nil {
 		t.Logf("failed to open dl: %s\n", err)
 		t.Fail()
@@ -24,18 +24,15 @@ func TestLoadc(t *testing.T) {
 	r := RequestInfo{
 		ProcessorInfo: &info,
 		Filepath:      "./c.src/test.txt",
-		Input:         []Input{
-			{
-				&info.InputProto[0],
-				"hey this is a test dude log this",
-			},
+		Input: []string{
+			"hey this is a test dude log this",
 		},
-		StreamInput:   nil,
-		Rid:           0,
+		StreamInput: nil,
+		Rid:         0,
 	}
-	
+
 	actions := p.OnRequest(r)
-	for _,a := range actions {
+	for _, a := range actions {
 		t.Logf("action id: %0.8x\n", a.Action)
 		t.Logf("action data: %v\n", a.Data)
 	}
@@ -43,24 +40,24 @@ func TestLoadc(t *testing.T) {
 	def := DefineInfo{
 		RequestInfo:       &r,
 		ProcessorVariable: &info.Variables[0],
-		Input:             []Input{
+		Input: []Input{
 			{
 				&(info.Variables[0].InputProto[0]),
 				"echo me god damnit!",
 			},
 		},
-		StreamInput:       nil,
+		StreamInput: nil,
 	}
 	varible := p.DefineVariable(def)
 
-	bytes,err := ioutil.ReadAll(varible)
+	bytes, err := ioutil.ReadAll(varible)
 	if err != nil {
 		t.Logf("error when reading def: %s\n", err.Error())
 		t.Fail()
 		return
 	}
 	t.Logf("variable: %s\n", string(bytes))
-	
+
 	err = p.Close()
 	if err != nil {
 		t.Logf("failed to close: %s\n", err)

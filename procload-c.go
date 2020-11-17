@@ -43,7 +43,6 @@ type cProc struct {
 }
 
 func (c *cProc) OnRequest(info RequestInfo) []Action {
-	f := C.onrequestwrap(c.vorlageOnRequest)
 	var reqinfo = C.vorlage_proc_requestinfo{}
 	reqinfo.procinfo = &c.volageProcInfo
 	reqinfo.filepath = C.CString(info.Filepath)
@@ -66,8 +65,13 @@ func (c *cProc) OnRequest(info RequestInfo) []Action {
 
 	//reqinfo.inputv = C.gostrings2cstrings(&(info.Input[0]), len(info.Input))
 	// todo: this may fuck it up
-	reqinfo.inputv = &(inputVArray[0])
-	reqinfo.streaminputv = &(inputStreamArray[0])
+	if len(info.Input) > 0 {
+		reqinfo.inputv = &(inputVArray[0])
+	}
+	if len(info.StreamInput) > 0 {
+		reqinfo.streaminputv = &(inputStreamArray[0])
+	}
+	f := C.onrequestwrap(c.vorlageOnRequest)
 	_ = C.execonrequest(f, reqinfo)
 	return nil
 }
