@@ -8,6 +8,7 @@
 const uint32_t vorlage_proc_interfaceversion = 0x1;
 
 /*
+ * todo: note to self: before I delete these, transferthe documentation.
  * All structs that handle the input request scheme (proto) and handle
  * the actual input.
  *
@@ -19,7 +20,6 @@ const uint32_t vorlage_proc_interfaceversion = 0x1;
  * name, and input description.
  *
  */
-
 typedef struct {
 	const char *name;
 	const char *description;
@@ -126,20 +126,20 @@ enum vorlage_proc_actionenum {
 
 	// The processor has hit a critical error that is it's own fault.
 	// This action will stop the request. vorlage_proc_action.data can
-	// be set to a null-terminated string that will be shown to the
+	// be set to a NON-null-terminated string that will be shown to the
 	// user.
 	VORLAGE_PROC_ACTION_CRITICAL = 0x1,
 
 	// The processor recongizes that the request is a violation of the
 	// access granted to the user. vorlage_proc_action.data can be
-	// set to a null-term string that will be shown to the user.
+	// set to a NON-null-term string that will be shown to the user.
 	// tip: use this in conjunction with VORLAGE_PROC_ACTION_SEE to
 	//      invoke a redirect to a longin page.
 	VORLAGE_PROC_ACTION_ACCESSFAIL = 0xd ,
 
 	// The processor request that the user see another
 	// file. vorlage_proc_action.data must be set to a file path to
-	// which the user will be directed to.
+	// which the user will be directed to (NON-null-term)
 	VORLAGE_PROC_ACTION_SEE = 0xb,
 
 
@@ -150,7 +150,7 @@ enum vorlage_proc_actionenum {
 	// that is a valid cookie syntax defined in rfc6265 section 4.1.1.
 	// vorlage_proc_action.data must NOT include header name. (don't
 	// dictate the "Set-Cookie:" part but dictate everything after
-	// that)
+	// that) (NON-null-term)
 	VORLAGE_PROC_ACTION_HTTPCOOKIE = 0x47790002,
 };
 // action struct (see above enum)
@@ -162,6 +162,8 @@ typedef struct {
 	// data is arbitrary data that is context-specific to whatever
 	// action was set. So see the aformentioned action list.
 	const void *data;
+	// length bytes found in data
+	int datac;
 } vorlage_proc_action;
 // action array struct (see above struct)
 typedef struct {

@@ -72,8 +72,14 @@ func (c *cProc) OnRequest(info RequestInfo) []Action {
 		reqinfo.streaminputv = &(inputStreamArray[0])
 	}
 	f := C.onrequestwrap(c.vorlageOnRequest)
-	_ = C.execonrequest(f, reqinfo)
-	return nil
+	cactions := C.execonrequest(f, reqinfo)
+	cactionsslice := (*[1 << 28]C.vorlage_proc_action)(unsafe.Pointer(cactions.actionv))[:cactions.actionc:cactions.actionc]
+	ret := make([]Action, len(cactionsslice))
+	for i := range cactionsslice {
+		ret[i].Action = int(cactionsslice[i].action)
+		ret[i].Data = C.GoBytes(cactionsslice[i].data, cactionsslice[i].datac)
+	}
+	return ret
 }
 
 func (c *cProc) DefineVariable(info DefineInfo) Definition {

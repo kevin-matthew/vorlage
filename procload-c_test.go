@@ -34,7 +34,7 @@ func TestLoadc(t *testing.T) {
 	actions := p.OnRequest(r)
 	for _, a := range actions {
 		t.Logf("action id: %0.8x\n", a.Action)
-		t.Logf("action data: %v\n", a.Data)
+		t.Logf("action data: %#v\n", string(a.Data))
 	}
 
 	def := DefineInfo{
