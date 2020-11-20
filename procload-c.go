@@ -21,6 +21,7 @@ package vorlage
 //
 import "C"
 import (
+	"fmt"
 	"io"
 	"os"
 	"syscall"
@@ -114,6 +115,7 @@ func (d descriptorReader) Reset() error {
 }
 
 func (d descriptorReader) Read(p []byte) (int, error) {
+	fmt.Printf("reder %d\n",int(d))
 	return syscall.Read(int(d), p)
 }
 
