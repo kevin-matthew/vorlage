@@ -78,9 +78,9 @@ type ExitInfo struct {
 }
 type DefineInfo struct {
 	*RequestInfo
-	*ProcessorVariable
-	Input       []Input
-	StreamInput []StreamInput
+	ProcVarIndex  int
+	Input       []string
+	StreamInput []*os.File
 }
 
 // Input will be associtive to InputPrototype

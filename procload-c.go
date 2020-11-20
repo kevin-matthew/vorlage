@@ -14,14 +14,16 @@ package vorlage
 //vorlage_proc_actions execonrequest(onrequestwrap f, vorlage_proc_requestinfo r) {
 //   return f(r);
 //}
-//
-//
-// // make sure to free the return array!!!
-// const char **gostrings2cstrings(_GoString_ *s, int len) {
-// }
+//typedef int (*definewrap)(vorlage_proc_defineinfo);
+//int execdefine(definewrap f, vorlage_proc_defineinfo r) {
+// return f(r);
+//}
 //
 import "C"
 import (
+	"io"
+	"os"
+	"syscall"
 	"unsafe"
 )
 import "../lmgo/errors"
@@ -42,37 +44,59 @@ type cProc struct {
 	volageProcInfo C.vorlage_proc_info
 }
 
-func (c *cProc) OnRequest(info RequestInfo) []Action {
-	var reqinfo = C.vorlage_proc_requestinfo{}
-	reqinfo.procinfo = &c.volageProcInfo
+func requestInfoToCRinfo(info RequestInfo, procinfo *C.vorlage_proc_info) *C.vorlage_proc_requestinfo {
+	var reqinfo = (*C.vorlage_proc_requestinfo)(C.malloc(C.sizeof_vorlage_proc_requestinfo))
+	reqinfo.procinfo = procinfo
 	reqinfo.filepath = C.CString(info.Filepath)
-	defer C.free(unsafe.Pointer(reqinfo.filepath))
 	reqinfo.rid = C.rid(info.Rid)
+	inputv, streaminputv := inputToCInput(info.Input, info.StreamInput)
+	reqinfo.inputv = inputv
+	reqinfo.streaminputv = streaminputv
+	return reqinfo
+}
 
-	inputVArray := make([]*C.char, len(info.Input))
+func inputToCInput(input []string, streams []*os.File) (**C.char, *C.int) {
+	// normal (must be freed)
+	inputVArray := make([]*C.char, len(input))
 	for i := range inputVArray {
-		inputVArray[i] = C.CString(info.Input[i])
+		inputVArray[i] = C.CString(input[i])
 	}
-	defer func() {
-		for i := range inputVArray {
-			C.free(unsafe.Pointer(inputVArray[i]))
-		}
-	}()
-	inputStreamArray := make([]C.int, len(info.StreamInput))
+	// stream
+	inputStreamArray := make([]C.int, len(streams))
 	for i := range inputStreamArray {
-		inputStreamArray[i] = C.int(info.StreamInput[i].Fd())
+		inputStreamArray[i] = C.int(streams[i].Fd())
 	}
+	var inputv **C.char
+	var streaminputv *C.int
+	if len(input) > 0 {
+		inputv = &(inputVArray[0])
+	}
+	if len(streams) > 0 {
+		streaminputv = &(inputStreamArray[0])
+	}
+	return inputv, streaminputv
+}
 
-	//reqinfo.inputv = C.gostrings2cstrings(&(info.Input[0]), len(info.Input))
-	// todo: this may fuck it up
-	if len(info.Input) > 0 {
-		reqinfo.inputv = &(inputVArray[0])
+func freeCInput(input **C.char, inputc C.int) {
+	inputVArray := (*[1 << 28]*C.char)(unsafe.Pointer(input))[:inputc:inputc]
+	for i := range inputVArray {
+		C.free(unsafe.Pointer(inputVArray[i]))
 	}
-	if len(info.StreamInput) > 0 {
-		reqinfo.streaminputv = &(inputStreamArray[0])
-	}
+}
+
+func freeCRinfo(info *C.vorlage_proc_requestinfo) {
+	C.free(unsafe.Pointer(info.filepath))
+	freeCInput(info.inputv, info.procinfo.inputprotoc)
+	C.free(unsafe.Pointer(info))
+}
+
+func (c *cProc) OnRequest(info RequestInfo) []Action {
+	var reqinfo = requestInfoToCRinfo(info, &c.volageProcInfo)
+	defer freeCRinfo(reqinfo)
+
+	// exec the function and prepare the return in gostyle.
 	f := C.onrequestwrap(c.vorlageOnRequest)
-	cactions := C.execonrequest(f, reqinfo)
+	cactions := C.execonrequest(f, *reqinfo)
 	cactionsslice := (*[1 << 28]C.vorlage_proc_action)(unsafe.Pointer(cactions.actionv))[:cactions.actionc:cactions.actionc]
 	ret := make([]Action, len(cactionsslice))
 	for i := range cactionsslice {
@@ -82,8 +106,30 @@ func (c *cProc) OnRequest(info RequestInfo) []Action {
 	return ret
 }
 
+type descriptorReader int
+
+func (d descriptorReader) Reset() error {
+	_,err := syscall.Seek(int(d), 0, io.SeekStart)
+	return err
+}
+
+func (d descriptorReader) Read(p []byte) (int, error) {
+	return syscall.Read(int(d), p)
+}
+
 func (c *cProc) DefineVariable(info DefineInfo) Definition {
-	panic("implement me")
+	var reqinfo = requestInfoToCRinfo(*info.RequestInfo, &c.volageProcInfo)
+	defer freeCRinfo(reqinfo)
+	var d C.vorlage_proc_defineinfo
+	d.requestinfo = reqinfo
+	d.procvarindex = C.int(info.ProcVarIndex)
+	inputv, streaminputv := inputToCInput(info.Input, info.StreamInput)
+	d.inputv = inputv
+	d.streaminputv = streaminputv
+	defer freeCInput(d.inputv, C.int(len(info.RequestInfo.ProcessorInfo.Variables[info.ProcVarIndex].InputProto)))
+	f := C.definewrap(c.vorlageDefine)
+	filedes := C.execdefine(f, d)
+	return descriptorReader(int(filedes))
 }
 
 func (c *cProc) Shutdown() ExitInfo {
@@ -101,7 +147,7 @@ func (c *cProc) Startup() ProcessorInfo {
 	// input proto
 	p.InputProto = parseInputProtoType(int(d.inputprotoc), d.inputprotov)
 	p.StreamInputProto = parseInputProtoType(int(d.streaminputprotoc), d.streaminputprotov)
-	p.Variables = parseVariables(int(d.variablesc), d.variablesv)
+	p.Variables        = parseVariables(int(d.variablesc), d.variablesv)
 	return p
 }
 func parseVariables(varsc int, varsv *C.vorlage_proc_variable) []ProcessorVariable {

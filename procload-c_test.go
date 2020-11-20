@@ -39,12 +39,9 @@ func TestLoadc(t *testing.T) {
 
 	def := DefineInfo{
 		RequestInfo:       &r,
-		ProcessorVariable: &info.Variables[0],
-		Input: []Input{
-			{
-				&(info.Variables[0].InputProto[0]),
+		ProcVarIndex: 0,
+		Input: []string{
 				"echo me god damnit!",
-			},
 		},
 		StreamInput: nil,
 	}

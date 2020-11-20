@@ -180,12 +180,13 @@ typedef struct {
 	// the request info
 	const vorlage_proc_requestinfo *requestinfo;
 
-	// the variable which needs to be defined
-	const vorlage_proc_variable *procvar;
+	// the variable which needs to be defined. it is the index that can be used
+	// in requestinfo.procinfo.variablesv[procvarindex]
+	const int procvarindex;
 
 	// the input that reflects the scheme provided by inputproto.
-	const char **input;
-	const int   *streaminput;
+	const char **inputv;
+	const int   *streaminputv;
 } vorlage_proc_defineinfo;
 
 
