@@ -13,8 +13,9 @@
  *       left undefined.
  */
 inline vorlage_proc_info     vorlage_proc_startup  ();
-inline vorlage_proc_actions  vorlage_proc_onrequest(const vorlage_proc_requestinfo rinfo);
-inline int                   vorlage_proc_define   (const vorlage_proc_defineinfo  dinfo);
+inline vorlage_proc_actions  vorlage_proc_onrequest(const vorlage_proc_requestinfo rinfo, void **context);
+inline vorlage_cstream       vorlage_proc_define   (const vorlage_proc_defineinfo  dinfo, void  *context);
+inline void                  vorlage_proc_onfinish (const vorlage_proc_requestinfo rinfo, void  *context);
 inline vorlage_proc_exitinfo vorlage_proc_shutdown ();
 
 

@@ -32,17 +32,6 @@ typedef struct {
 	// that of proto.name
 	const char *input;
 } vorlage_proc_input;
-typedef struct {
-	// back-reference pointer
-	vorlage_proc_inputproto *proto;
-
-	// note that the processor must
-	// close the stream, vorlage will not close the stream. All streams
-	// will be read-only. Equal len found in proto.inputc
-	//
-	// note: streams are not guaranteed to be seekable.
-	FILE *stream;
-} vorlage_proc_streaminput;
 
 /*
  * The vorlage_proc_variable struct is used to by the processor to
@@ -94,6 +83,36 @@ typedef struct {
 } vorlage_proc_info;
 
 /*
+ * The vorlage_steam structure is more of an 'interface'. It is modeled after
+ * fopencookie(3) with a few differences in the return types.
+ * So, to best understand this, see ~man fopencookie(3)~ and read through the
+ * documentation on =io_funcs=.
+ *
+ * Note: you do not need to define seek if you're returning this structure
+ *       from vorlage_proc_define.
+ */
+typedef struct {
+// see fopencookie(3) -> io_funcs -> read... note the differences:
+//  1. Read may return something not equal to size, this doesn't always mean an error occoured. Thus, returning a '0' does not conclude an EOF.
+//  2. Will return -1 on error (the error will be reported and logged by the callee, not the caller)
+//  3. Will return -2 on EOF.
+ssize_t (*read)(char *buf, size_t size);
+
+// see fopencookie(3) -> io_funcs -> seek
+int (*seek)(off64_t *offset, int whence);
+
+// see fopencookie(3) -> io_funcs -> close
+int (*close)();
+} vorlage_stream;
+typedef struct {
+// when read() and close() are called. The "cookie" argument will be set to
+// usecookie.
+void *usecookie;
+ssize_t (*read)(void *cookie, char *buf, size_t size);
+int (*close)(void *cookie);
+} vorlage_cstream;
+
+/*
  * vorlage_proc_requestinfo is provided to processors
  */
 typedef struct {
@@ -107,8 +126,9 @@ typedef struct {
 	// the input that reflects the scheme provided by
 	// procinfo.inputproto. hense why no counts are provided.
 	const char **inputv;
-	// file descriptors
-	const int   *streaminputv;
+	// array of streams associated with the streaminputprotov.
+	// when calling these functions, "cookie" should be left null.
+	const vorlage_stream *streaminputv;
 
 	// request id
 	rid rid;
@@ -145,13 +165,10 @@ enum vorlage_proc_actionenum {
 
 	/**** HTTP only ****/
 
-	// The processor will set a cookie to the user's
-	// browser. vorlage_proc_action.data must be a null-term string
-	// that is a valid cookie syntax defined in rfc6265 section 4.1.1.
-	// vorlage_proc_action.data must NOT include header name. (don't
-	// dictate the "Set-Cookie:" part but dictate everything after
-	// that) (NON-null-term)
-	VORLAGE_PROC_ACTION_HTTPCOOKIE = 0x47790002,
+	// The processor will set a header to the HTTP request
+	// browser. vorlage_proc_action.data must be a NON-null-term string of
+	// the header
+	VORLAGE_PROC_ACTION_HTTPHEADER = 0x47790002,
 };
 // action struct (see above enum)
 typedef struct {
@@ -183,25 +200,11 @@ typedef struct {
 	// the variable which needs to be defined. it is the index that can be used
 	// in requestinfo.procinfo.variablesv[procvarindex]
 	const int procvarindex;
-
-	// the input that reflects the scheme provided by inputproto.
+	// array of streams associated with the streaminputprotov.
+	// when calling these functions, "cookie" should be left null.
 	const char **inputv;
-	const int   *streaminputv;
+	const vorlage_stream *streaminputv;
 } vorlage_proc_defineinfo;
-
-
-/*
- * Processors use vorlage_proc_definer structs to provide their
- * definitions to vorlage during the outputting phase.
- */
-typedef struct {
-
-	// all definers are treated as streams. Make your stream by using
-	// either fopen(3) or fmemopen(3). vorlage only needs read access.
-	// vorlage will close filedes when it's done with it.
-	FILE *filedes;
-
-} vorlage_proc_definer;
 
 
 /*
