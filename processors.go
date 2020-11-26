@@ -2,7 +2,6 @@ package vorlage
 
 import (
 	"io"
-	"os"
 	"regexp"
 )
 
@@ -23,6 +22,9 @@ type Definition interface {
 
 	// must return EOF when complete (no more bytes left to read)
 	Read(p []byte) (int, error)
+
+	//
+	Close() error
 
 	// needed for content-length to be sent.
 	// if nil is returned, doccomp will not calculate nor send content-length.
@@ -64,7 +66,7 @@ const (
 	ActionSee        = 0xb
 
 	// http only
-	ActionHttpCookie = 0x47790002
+	ActionHTTPHeader = 0x47790002
 )
 
 type Action struct {
@@ -74,23 +76,26 @@ type Action struct {
 	Data   []byte
 }
 
-type ExitInfo struct {
+type StreamInput interface {
+	io.Reader
+	io.Closer
 }
+
+type ExitInfo struct {
+
+}
+
 type DefineInfo struct {
 	*RequestInfo
 	ProcVarIndex  int
 	Input       []string
-	StreamInput []*os.File
+	StreamInput []StreamInput
+	Context       interface{}
 }
 
 // Input will be associtive to InputPrototype
 type Input struct {
-	*InputPrototype
 	string
-}
-type StreamInput struct {
-	*InputPrototype
-	io.ReadCloser
 }
 
 // RequestInfo is sent to processors
@@ -103,7 +108,7 @@ type RequestInfo struct {
 	// ProcessorInfo.StreamInputProto otherwise everything goes to shit.
 	Input []string
 	// list of file descriptors
-	StreamInput []*os.File
+	StreamInput []StreamInput
 
 	// Rid will be set by Compiler.Compile (will be globally unique)
 	// treat it as read-only.
@@ -114,12 +119,14 @@ type Processor interface {
 	// called when loaded into the impl
 	Startup() ProcessorInfo
 
-	OnRequest(RequestInfo) []Action
+	OnRequest(RequestInfo, *interface{}) []Action
 
 	// Called multiple times (after PreProcess and before PostProcess).
 	// rid will be the same used in preprocess and post process.
 	// variable pointer will be equal to what was provided from Info().Variables.
-	DefineVariable(DefineInfo) Definition
+	DefineVariable(DefineInfo, interface{}) Definition
 
-	Shutdown() ExitInfo
+	OnFinish(RequestInfo, interface{})
+
+	Shutdown() error
 }

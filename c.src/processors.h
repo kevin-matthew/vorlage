@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include "vorlage.h"
 
-
 const uint32_t vorlage_proc_interfaceversion = 0x1;
 
 /*
@@ -82,34 +81,16 @@ typedef struct {
 	int                          variablesc;
 } vorlage_proc_info;
 
-/*
- * The vorlage_steam structure is more of an 'interface'. It is modeled after
- * fopencookie(3) with a few differences in the return types.
- * So, to best understand this, see ~man fopencookie(3)~ and read through the
- * documentation on =io_funcs=.
- *
- * Note: you do not need to define seek if you're returning this structure
- *       from vorlage_proc_define.
- */
-typedef struct {
-// see fopencookie(3) -> io_funcs -> read... note the differences:
-//  1. Read may return something not equal to size, this doesn't always mean an error occoured. Thus, returning a '0' does not conclude an EOF.
-//  2. Will return -1 on error (the error will be reported and logged by the callee, not the caller)
-//  3. Will return -2 on EOF.
-ssize_t (*read)(char *buf, size_t size);
+// returns -2 on EOF.
+int vorlage_stream_read (void *streamptr, char *buf, int size);
+//int    vorlage_stream_seek (void *streamptr, off_t offset, int whence);
+//int    vorlage_stream_close(void *streamptr);
 
-// see fopencookie(3) -> io_funcs -> seek
-int (*seek)(off64_t *offset, int whence);
-
-// see fopencookie(3) -> io_funcs -> close
-int (*close)();
-} vorlage_stream;
 typedef struct {
 // when read() and close() are called. The "cookie" argument will be set to
 // usecookie.
 void *usecookie;
-ssize_t (*read)(void *cookie, char *buf, size_t size);
-int (*close)(void *cookie);
+
 } vorlage_cstream;
 
 /*
@@ -126,9 +107,8 @@ typedef struct {
 	// the input that reflects the scheme provided by
 	// procinfo.inputproto. hense why no counts are provided.
 	const char **inputv;
-	// array of streams associated with the streaminputprotov.
-	// when calling these functions, "cookie" should be left null.
-	const vorlage_stream *streaminputv;
+	// an array of pointers to be used in vorlage_stream_... functions
+	void **streaminputv;
 
 	// request id
 	rid rid;
@@ -203,23 +183,9 @@ typedef struct {
 	// array of streams associated with the streaminputprotov.
 	// when calling these functions, "cookie" should be left null.
 	const char **inputv;
-	const vorlage_stream *streaminputv;
+	// an array of pointers to be used in vorlage_stream_... functions
+	void **streaminputv;
 } vorlage_proc_defineinfo;
-
-
-/*
- * When vorlage shuts down, it collects vorlage_proc_exitinfo from
- * all the processors for logging reasons. As of now, there's no
- * actionable items that processors can invoke during shutdown.
- */
-typedef struct {
-	// anything not 0 will be seen as an error.
-	int exitstatus;
-
-	// if existstatus != 0, error will be used to elaborate what
-	// had happened.
-	const char *error;
-} vorlage_proc_exitinfo;
 
 
 #endif /* VORLAGE_PROCESSORS_H_ */

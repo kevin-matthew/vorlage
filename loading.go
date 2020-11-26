@@ -723,6 +723,9 @@ func (doc *Document) Close() error {
 		_ = d.Close()
 	}
 
+	todo : close all definition streams
+	todo : send
+
 	return nil
 }
 

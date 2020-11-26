@@ -1,9 +1,32 @@
 package vorlage
 
 import (
+	"fmt"
+	"io"
 	"io/ioutil"
 	"testing"
 )
+type ezstream struct {
+	int
+	string
+}
+
+func (e *ezstream) Read(p []byte) (int,error ){
+	var i int
+	if e.int == len(e.string) {
+		return 0, io.EOF
+	}
+	for i = 0; i < len(p) && i+e.int < len(e.string); i++ {
+		p[i] = e.string[e.int+i]
+	}
+	e.int += i
+	return i, nil
+}
+
+func (e *ezstream) Close() error {
+	fmt.Printf("closing!\n")
+	return nil
+}
 
 func TestLoadc(t *testing.T) {
 	p, err := dlOpen("./c.src/libtest.so")
@@ -27,15 +50,19 @@ func TestLoadc(t *testing.T) {
 		Input: []string{
 			"hey this is a test dude log this",
 		},
-		StreamInput: nil,
+		StreamInput: []StreamInput{
+			&ezstream{0, "pussy ass bitch"},
+		},
 		Rid:         0,
 	}
 
-	actions := p.OnRequest(r)
+	var context interface{}
+	actions := p.OnRequest(r, &context)
 	for _, a := range actions {
 		t.Logf("action id: %0.8x\n", a.Action)
 		t.Logf("action data: %#v\n", string(a.Data))
 	}
+
 
 	def := DefineInfo{
 		RequestInfo:       &r,
@@ -45,20 +72,32 @@ func TestLoadc(t *testing.T) {
 		},
 		StreamInput: nil,
 	}
-	varible := p.DefineVariable(def)
+	varible := p.DefineVariable(def, context)
 
-	bytes, err := ioutil.ReadAll(varible)
-	if err != nil {
+	//buffer := make([]byte, 1000);
+	buffer,err := ioutil.ReadAll(varible)
+		if err != nil {
 		t.Logf("error when reading def: %s\n", err.Error())
 		t.Fail()
 		return
 	}
-	t.Logf("variable: %s\n", string(bytes))
+	t.Logf("variable: %s\n", string(buffer))
 
-	err = p.Close()
+	err = varible.Close()
 	if err != nil {
-		t.Logf("failed to close: %s\n", err)
+		t.Logf("failed to close variable: %s\n", err)
 		t.Fail()
 		return
 	}
+
+	p.OnFinish(r, context)
+
+	err = p.Shutdown()
+	if err != nil {
+		t.Logf("failed to close processor: %s\n", err)
+		t.Fail()
+		return
+	}
+
+	t.Fail()
 }

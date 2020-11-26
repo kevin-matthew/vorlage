@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
@@ -21,6 +19,13 @@ const vorlage_proc_info vorlage_proc_startup() {
 				.description="logs it",
 			},
 	};
+	v.streaminputprotoc = 1;
+	v.streaminputprotov = (const vorlage_proc_inputproto []){
+		{
+			.name="logmestream",
+			.description="outputs the stream in log format",
+		}
+	};
 	v.variablesc = 1;
 	v.variablesv = (const vorlage_proc_variable []){
 			{
@@ -32,23 +37,47 @@ const vorlage_proc_info vorlage_proc_startup() {
 						.name="echotext",
 						.description="the text to which to echo",
 					}},
-			},
+			},	
 	};
 	return v;
 }
 
-const vorlage_proc_actions  vorlage_proc_onrequest(const vorlage_proc_requestinfo rinfo)
+typedef struct {
+	char sizebuffer[30];
+} request_context;
+
+const vorlage_proc_actions  vorlage_proc_onrequest(const vorlage_proc_requestinfo rinfo, void **context)
 {
     const char *logme=rinfo.inputv[0];
 	fprintf(stderr, "hi I'm being logged from file request %s: %s\n", rinfo.filepath, logme);
+
+	void *stream = rinfo.streaminputv[0];
+	int n;
+	int bufsize = 2;
+	size_t totalsize = 0;
+	char buf[bufsize];
+	do {
+		n = vorlage_stream_read(stream, buf, bufsize);
+		for(int j = 0; j < n; j++) {
+			//fputc(buf[j], stderr);
+			totalsize ++;
+		}
+	}while(n > 0);
+	
+	request_context *reqcontx = malloc(sizeof(request_context));
+	memset(reqcontx, 0, sizeof(request_context));
+	int datac = sprintf(reqcontx->sizebuffer, "X-Stream-Input-Was-Size: %ld", totalsize);
+	*context = reqcontx;
+	
+	
 	vorlage_proc_actions v = {
 		.actionc = 1,
 		.actionv = (const vorlage_proc_action [])
 		{
 			{
-				.action = VORLAGE_PROC_ACTION_HTTPCOOKIE,
-				.data   = (void *)("lol"),
-				.datac  = 3,
+				.action = VORLAGE_PROC_ACTION_HTTPHEADER,
+				.data   = (void *)(reqcontx->sizebuffer),
+				.datac  = datac,
 			},
 		},
 	};
@@ -59,62 +88,57 @@ typedef struct {
 	char *buffer;
 	size_t pos;
 } customstream;
-ssize_t cust_read(void *cookie, char *buf, size_t size) {
-	customstream *c = (customstream *)cookie;
+int vorlage_proc_definer_read(void *definer, char *buf, size_t size) {
+	customstream *c = (customstream *)definer;
+	if(c->buffer[c->pos] == '\0') {
+		return -2;
+	}
 	int i;
 	for(i=0; i < size && c->buffer[i+c->pos] != '\0'; i++) {
 		buf[i] = c->buffer[i+c->pos];
 	}
+	c->pos += i;
 	return i;
 }
-int cust_seek(void *cookie, off64_t *offset, int whence) {
+
+int vorlage_proc_definer_reset(void *cookie) {
 	customstream *c = (customstream *)cookie;
-	switch(whence) {
-	case SEEK_SET:
-		c->pos = *offset;
-		break;
-	case SEEK_CUR:
-		c->pos += *offset;
-		break;
-	case SEEK_END:
-		c->pos = strlen(c->buffer) + *offset;
-		break;
-	}
-	return c->pos;
-	// todo!!!! see man(3) fopencookie
+	c->pos = 0;
+	return 0;
 }
-int cust_close(void *cookie) {
+int vorlage_proc_definer_close(void *cookie) {
 	customstream *c = (customstream *)cookie;
 	free(c->buffer);
+	free(c);
 	return 0;
 }
 
-const int  vorlage_proc_define(const vorlage_proc_defineinfo  dinfo){
+
+void  *vorlage_proc_define(const vorlage_proc_defineinfo  dinfo, void *context){
 	const char *whattoecho = dinfo.inputv[0];
-	const char *prefix     = "this is what you're echoing:";
+	const char *prefix     = "this is what you're echoing: ";
 
 	// dealloc'd in cust_close (called in voralge)
 	char *newstr = malloc(strlen(whattoecho) + strlen(prefix) + 1);
 	strcat(newstr, prefix);
-	strcat(&(newstr[strlen(whattoecho)]), prefix);
-	customstream c = {
-		.buffer = newstr,
-		.pos = 0,
-	};
-	cookie_io_functions_t funcs = {
-		.read = cust_read,
-		.write = 0,
-		.seek = cust_seek,
-		.close = cust_close,
-	};
-	FILE *f = fopencookie(&c, "r", funcs);
-	return fileno(f);
+	strcat(&(newstr[strlen(whattoecho)]), whattoecho);
+	customstream *c = malloc(sizeof(customstream));
+	c->buffer = newstr;
+	c->pos    = 0;
+	return c;
 };
 
 
-const vorlage_proc_exitinfo vorlage_proc_shutdown()
+void vorlage_proc_onfinish (const vorlage_proc_requestinfo rinfo, void  *context) {
+	request_context *ctx = (request_context *)(context);
+	free(ctx);
+	fprintf(stderr, "vorlage_proc_onfinish called\n");	
+};
+
+
+int vorlage_proc_shutdown()
 {
-vorlage_proc_exitinfo v ={0};
-return v;
+	fprintf(stderr, "vorlage_proc_shutdown called\n");
+	return 0;
 };
 
