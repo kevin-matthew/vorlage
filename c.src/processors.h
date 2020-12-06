@@ -70,9 +70,9 @@ typedef struct {
 
 	// Specify what input field names this processor needs during the
 	// request phase
-	int                      inputprotoc;
+	int                            inputprotoc;
 	const vorlage_proc_inputproto *inputprotov;
-	int                      streaminputprotoc;
+	int                            streaminputprotoc;
 	const vorlage_proc_inputproto *streaminputprotov;
 
 	// an array of variables that this processor provides to
@@ -99,7 +99,7 @@ void *usecookie;
 typedef struct {
 	// procinfo is a pointer to the procinfo that was returned by the
 	// processor's vorlage_startup function.
-	const vorlage_proc_info *procinfo;
+	const vorlage_proc_info procinfo;
 
 	// nullterm string of the filepath that's being requested.
 	const char *filepath;
@@ -128,18 +128,19 @@ enum vorlage_proc_actionenum {
 	// This action will stop the request. vorlage_proc_action.data can
 	// be set to a NON-null-terminated string that will be shown to the
 	// user.
+	// This action will stop the request.
 	VORLAGE_PROC_ACTION_CRITICAL = 0x1,
 
 	// The processor recongizes that the request is a violation of the
 	// access granted to the user. vorlage_proc_action.data can be
 	// set to a NON-null-term string that will be shown to the user.
-	// tip: use this in conjunction with VORLAGE_PROC_ACTION_SEE to
-	//      invoke a redirect to a longin page.
+	// This action will stop the request.
 	VORLAGE_PROC_ACTION_ACCESSFAIL = 0xd ,
 
 	// The processor request that the user see another
 	// file. vorlage_proc_action.data must be set to a file path to
 	// which the user will be directed to (NON-null-term)
+	// This action will stop the request.
 	VORLAGE_PROC_ACTION_SEE = 0xb,
 
 

@@ -9,6 +9,8 @@ import (
 
 func main() {
 
+	println("starting")
+
 	// bind to the address we'll be using for http request
 	l, err := net.Listen("tcp", "127.0.0.1:8050")
 	if err != nil {

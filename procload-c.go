@@ -56,8 +56,9 @@ import (
 import "../lmgo/errors"
 
 type cProc struct {
-	libname string
-	handle  unsafe.Pointer
+	libname  string
+	procname string
+	handle   unsafe.Pointer
 
 	vorlageInterfaceVersion uint32
 
@@ -75,7 +76,7 @@ type cProc struct {
 	volageProcInfo C.vorlage_proc_info
 }
 
-func requestInfoToCRinfo(info RequestInfo, procinfo *C.vorlage_proc_info) *C.vorlage_proc_requestinfo {
+func requestInfoToCRinfo(info RequestInfo, procinfo C.vorlage_proc_info) *C.vorlage_proc_requestinfo {
 	var reqinfo = (*C.vorlage_proc_requestinfo)(C.malloc(C.sizeof_vorlage_proc_requestinfo))
 	reqinfo.procinfo = procinfo
 	reqinfo.filepath = C.CString(info.Filepath)
@@ -145,7 +146,7 @@ type requestContext struct {
 }
 
 func (c *cProc) OnRequest(info RequestInfo, context *interface{}) []Action {
-	var reqinfo = requestInfoToCRinfo(info, &c.volageProcInfo)
+	var reqinfo = requestInfoToCRinfo(info, c.volageProcInfo)
 	// exec the function and prepare the return in gostyle.
 	var ccontext unsafe.Pointer
 
@@ -239,6 +240,7 @@ func (c *cProc) Startup() ProcessorInfo {
 	c.volageProcInfo = d
 	p := ProcessorInfo{}
 	// description
+	p.Name = c.procname
 	p.Description = C.GoString(d.description)
 
 	// input proto
@@ -277,7 +279,7 @@ func parseInputProtoType(protoc int, protov *C.vorlage_proc_inputproto) []InputP
 }
 
 var _ Processor = &cProc{}
-var libraryFilenameSig = regexp.MustCompile("^lib[^.]+.so")
+var libraryFilenameSig = regexp.MustCompile("^lib([^.]+).so")
 
 func LoadCProcessors() ([]Processor, error) {
 	var procs []Processor
@@ -289,7 +291,8 @@ func LoadCProcessors() ([]Processor, error) {
 		if f.IsDir() {
 			continue
 		}
-		if !libraryFilenameSig.MatchString(f.Name()) {
+		libnames := libraryFilenameSig.FindStringSubmatch(f.Name())
+		if libnames == nil {
 			continue
 		}
 		proc, err := dlOpen(CLoadPath + "/" + f.Name())
@@ -300,6 +303,15 @@ func LoadCProcessors() ([]Processor, error) {
 				"",
 				"when loading %s from load path %s", f.Name(), CLoadPath)
 		}
+		err = proc.loadVorlageSymbols()
+		if err != nil {
+			return procs, errors.Newf(0x6134bc2,
+				"failed to load library from library path",
+				err,
+				"",
+				"when loading %s from load path %s", f.Name(), CLoadPath)
+		}
+		proc.procname = libnames[1]
 		procs = append(procs, proc)
 	}
 	return procs, nil
