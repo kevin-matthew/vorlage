@@ -63,6 +63,39 @@ func (info *ProcessorInfo) Validate() error {
 // will be written to in all threads, and in all compilers.
 var nextRid uint64 = 0
 
+type CompileStatus struct {
+
+	// if non-nil, compile failed. If nil, you can ignore this struct all
+	// together
+	Err error
+
+	// if true, the error was because of a processor's action, meaning the
+	// ActionHandler's relevant function would have been invoked.
+	// If false (and Err is non-nil), then something happened when trying to
+	// compile the document itself.
+	WasProcessor bool
+}
+
+type ActionHandler interface {
+
+	// ActionCritical should tell the requestor that the request cannot complete
+	// due to a backend error as described by err.
+	ActionCritical(err error)
+
+	// ActionAccessFail should tell the requestor that they do not have
+	// permission to view this file as described in err.
+	ActionAccessFail(err error)
+
+	// ActionSee should tell the requestor to make a new request to this
+	// other path.
+	ActionSee(path string)
+
+	// ActionHTTPHeader is relivent only to http server/requestors. If called,
+	// you must add the header to the request before reading from the compiled
+	// document. If out of context of HTTP, leave this undefined.
+	ActionHTTPHeader(header string)
+}
+
 /*
  * The best way to describe this function is by reading through the steps
  * defined in the 'Highlevel Process' chapter in the readme.
@@ -71,24 +104,55 @@ var nextRid uint64 = 0
  * Do not attempt to use the streams pointed to by req... they'll be read
  * when the docstream is read.
  */
-func (comp *Compiler) Compile(req *RequestInfo) (docstream io.ReadCloser, err error) {
+func (comp *Compiler) Compile(req *RequestInfo, actionsHandler ActionHandler) (docstream io.ReadCloser, err CompileStatus) {
 	atomic.AddUint64(&nextRid, 1)
 	atomic.AddInt64(&comp.concurrentCompiles, 1)
 	defer atomic.AddInt64(&comp.concurrentCompiles, -1)
-	req.Rid = Rid(atomic.LoadUint64(&nextRid))
+	req.rid = Rid(atomic.LoadUint64(&nextRid))
 	req.cookie = new(interface{})
 	for i := range comp.processors {
-		comp.processors[i].OnRequest(*req, req.cookie)
+		actions := comp.processors[i].OnRequest(*req, req.cookie)
+		for a := range actions {
+			switch actions[a].Action {
+			// General
+			case ActionCritical:
+				erro := NewError("processor had critical error")
+				errz := NewError(string(actions[a].Data))
+				erro.SetBecause(errz)
+				erro.SetSubjectf("%s", comp.processorInfos[i].Name)
+				actionsHandler.ActionCritical(errz)
+				return nil, CompileStatus{erro, true}
+
+			case ActionAccessFail:
+				erro := NewError("processor denied access")
+				errz := NewError(string(actions[a].Data))
+				erro.SetBecause(errz)
+				erro.SetSubjectf("%s", comp.processorInfos[i].Name)
+				actionsHandler.ActionAccessFail(errz)
+				return nil, CompileStatus{erro, true}
+
+			case ActionSee:
+				erro := NewError("processor redirect")
+				path := string(actions[a].Data)
+				erro.SetSubjectf("%s redirecting request to %s", comp.processorInfos[i].Name, path)
+				actionsHandler.ActionSee(path)
+				return nil, CompileStatus{erro, true}
+
+			case ActionHTTPHeader:
+				header := string(actions[a].Data)
+				actionsHandler.ActionHTTPHeader(header)
+			}
+		}
 	}
 	doc, errd := comp.loadDocument(*req)
 	if errd != nil {
 		erro := NewError("loading a requested document")
 		erro.SetSubject(req.Filepath)
 		erro.SetBecause(errd)
-		return docstream, erro
+		return docstream, CompileStatus{erro, false}
 	}
 
-	return &doc, nil
+	return &doc, CompileStatus{}
 }
 
 /*
