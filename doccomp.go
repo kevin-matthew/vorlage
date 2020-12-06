@@ -5,16 +5,13 @@ import (
 	"sync/atomic"
 )
 
-
-
-
-
 // everything we'd see in both doccomp-http and doccomp-cli and doccomp-pdf
 type Compiler struct {
 
 	// these two arrays are associative
-	processors     []Processor
-	processorInfos []ProcessorInfo
+	processors         []Processor
+	processorInfos     []ProcessorInfo
+	concurrentCompiles int64
 }
 
 func NewCompiler(proc []Processor) (c Compiler, err error) {
@@ -49,10 +46,12 @@ func (info *ProcessorInfo) Validate() error {
 	for _, v := range info.Variables {
 		// make sure no statics are also streams
 		for k := range v.InputProto {
-			if _, ok := v.StreamInputProto[k]; ok {
-				oerr := NewError(errInputInStreamAndStatic)
-				oerr.SetSubjectf("\"%s\"", k)
-				return oerr
+			for j := range v.StreamInputProto {
+				if v.InputProto[k].name == v.StreamInputProto[j].name {
+					oerr := NewError(errInputInStreamAndStatic)
+					oerr.SetSubjectf("\"%s\"", k)
+					return oerr
+				}
 			}
 		}
 	}
@@ -74,7 +73,9 @@ var nextRid uint64 = 0
  */
 func (comp *Compiler) Compile(req *RequestInfo) (docstream io.ReadCloser, err error) {
 	atomic.AddUint64(&nextRid, 1)
-	req.Rid = Rid(nextRid)
+	atomic.AddInt64(&comp.concurrentCompiles, 1)
+	defer atomic.AddInt64(&comp.concurrentCompiles, -1)
+	req.Rid = Rid(atomic.LoadUint64(&nextRid))
 	doc, errd := comp.loadDocument(*req)
 	if errd != nil {
 		erro := NewError("loading a requested document")
@@ -84,4 +85,26 @@ func (comp *Compiler) Compile(req *RequestInfo) (docstream io.ReadCloser, err er
 	}
 
 	return &doc, nil
+}
+
+/*
+ * Returns all errors that occour when shutting down each processor.
+ * If there is at least 1 Compile function that has not returned, Shutdown
+ * will return an error
+ */
+func (comp *Compiler) Shutdown() []error {
+	compiles := atomic.LoadInt64(&comp.concurrentCompiles)
+	if compiles != 0 {
+		erro := NewError("compiles still running")
+		erro.SetSubjectf("%d compile request still processing", compiles)
+		return []error{erro}
+	}
+	var ret []error
+	for i := range comp.processors {
+		err := comp.processors[i].Shutdown()
+		if err != nil {
+			ret = append(ret, err)
+		}
+	}
+	return ret
 }
