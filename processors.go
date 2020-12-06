@@ -111,7 +111,7 @@ type RequestInfo struct {
 
 	// Rid will be set by Compiler.Compile (will be globally unique)
 	// treat it as read-only.
-	Rid
+	rid Rid
 
 	// void pointer of a cookie that the processor can set to anything they
 	// wish.

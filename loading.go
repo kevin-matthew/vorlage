@@ -31,6 +31,11 @@ type NormalDefinition struct {
 	seeker   int
 }
 
+func (d *NormalDefinition) Close() error {
+	d.seeker = 0
+	return nil
+}
+
 func (d *NormalDefinition) Length() *uint64 {
 	v := uint64(len(d.value))
 	return &v
@@ -97,8 +102,8 @@ type inputSet struct {
 	// input arguments by the user that will be used for defining processor
 	// variables (see Processor.DefineVariable's parameters).
 	// the maps them selves may be nil.
-	staticInputs map[string]string
-	streamInputs map[string]io.Reader
+	staticInputs []string
+	streamInputs []StreamInput
 
 	// This map will have the same keys as streamArguments. The purpose of this
 	// map is to keep track of what streamArguments have already been handed out
@@ -574,9 +579,11 @@ func (doc Document) findDefinitionByName(FullName string) *NormalDefinition {
 // truncated on the call before.
 //
 // that being said, len(p) >= MacroMaxLength.
+//
+// Calling Read on a document on a thread that is different from the original
+// thread the document was created on (via Compiler.Compile) is undefined behaviour.
 func (doc *Document) Read(dest []byte) (int,
 	error) {
-
 	// the caller is requesting we read from this document even though we've
 	// previously returned an EOF... so lets reset
 	// todo: the caller should be doing this explicitly... why did I put this here?
@@ -659,6 +666,8 @@ func (doc *Document) Read(dest []byte) (int,
 	return 0, io.EOF
 }
 
+// Calling Rewind on a document on a thread that is different from the original
+// thread the document was created on (via Compiler.Compile) is undefined behaviour.
 func (doc *Document) Rewind() error {
 	logger.Debugf("rewinding document %s", doc.path)
 	cerr := doc.ConvertedFile.Rewind()
@@ -694,28 +703,22 @@ func (doc *Document) Rewind() error {
 	return nil
 }
 
-func (doc *Document) close() error {
+// Closes the document.
+// Calling Close on a document on a thread that is different from the original
+// thread the document was created on (via Compiler.Compile) is undefined behaviour.
+func (doc *Document) Close() error {
 
+	// close self
 	logger.Debugf("closing '%s'",
 		doc.path)
 	if doc.rawFile != nil {
 		_ = doc.rawFile.Close()
 	}
-
 	if doc.ConvertedFile != nil {
 		_ = doc.ConvertedFile.Close()
 	}
-	return nil
-}
 
-// recursively closes
-// should only be called
-func (doc *Document) Close() error {
-	if doc == nil {
-		logger.Infof("warning, closing nil documnet")
-		return nil
-	}
-	_ = doc.close()
+	// close child docs
 	for _, d := range doc.prepends {
 		_ = d.Close()
 	}
@@ -723,9 +726,14 @@ func (doc *Document) Close() error {
 		_ = d.Close()
 	}
 
-	todo : close all definition streams
-	todo : send
-
+	// does this mark the finish of the request?
+	if doc.root != nil {
+		// we just closed the root document. Which means this request
+		// has been finished.
+		for i := range doc.compiler.processors {
+			doc.compiler.processors[i].OnFinish(doc.request, *doc.request.cookie)
+		}
+	}
 	return nil
 }
 
