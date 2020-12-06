@@ -60,12 +60,12 @@ type cProc struct {
 	vorlageInterfaceVersion uint32
 
 	// function pointers
-	vorlageStartup   unsafe.Pointer
-	vorlageOnRequest unsafe.Pointer
-	vorlageDefine    unsafe.Pointer
-	vorlage_proc_onfinish unsafe.Pointer
-	vorlageShutdown  unsafe.Pointer
-	vorlage_proc_definer_read unsafe.Pointer
+	vorlageStartup             unsafe.Pointer
+	vorlageOnRequest           unsafe.Pointer
+	vorlageDefine              unsafe.Pointer
+	vorlage_proc_onfinish      unsafe.Pointer
+	vorlageShutdown            unsafe.Pointer
+	vorlage_proc_definer_read  unsafe.Pointer
 	vorlage_proc_definer_close unsafe.Pointer
 	vorlage_proc_definer_reset unsafe.Pointer
 
@@ -77,7 +77,7 @@ func requestInfoToCRinfo(info RequestInfo, procinfo *C.vorlage_proc_info) *C.vor
 	var reqinfo = (*C.vorlage_proc_requestinfo)(C.malloc(C.sizeof_vorlage_proc_requestinfo))
 	reqinfo.procinfo = procinfo
 	reqinfo.filepath = C.CString(info.Filepath)
-	reqinfo.rid = C.rid(info.Rid)
+	reqinfo.rid = C.rid(info.rid)
 	inputv := inputToCInput(info.Input)
 	streaminputv := streaminputToCInput(info.StreamInput)
 	reqinfo.inputv = inputv
@@ -85,7 +85,7 @@ func requestInfoToCRinfo(info RequestInfo, procinfo *C.vorlage_proc_info) *C.vor
 	return reqinfo
 }
 
-func streaminputToCInput(streams []StreamInput) (*unsafe.Pointer) {
+func streaminputToCInput(streams []StreamInput) *unsafe.Pointer {
 	// stream
 	inputStreamArray := make([]unsafe.Pointer, len(streams))
 	for i := range inputStreamArray {
@@ -98,7 +98,7 @@ func streaminputToCInput(streams []StreamInput) (*unsafe.Pointer) {
 	return streaminputv
 }
 
-func inputToCInput(input []string) (**C.char) {
+func inputToCInput(input []string) **C.char {
 	// normal (must be freed)
 	inputVArray := make([]*C.char, len(input))
 	for i := range inputVArray {
@@ -138,7 +138,7 @@ func freeCRinfo(info *C.vorlage_proc_requestinfo) {
 }
 
 type requestContext struct {
-	rinfoInCMemory *C.vorlage_proc_requestinfo
+	rinfoInCMemory   *C.vorlage_proc_requestinfo
 	contextInCMemory unsafe.Pointer
 }
 
@@ -160,7 +160,10 @@ func (c *cProc) OnRequest(info RequestInfo, context *interface{}) []Action {
 }
 
 // must be *FILE
-type descriptorReader struct {c *cProc;ptr unsafe.Pointer}
+type descriptorReader struct {
+	c   *cProc
+	ptr unsafe.Pointer
+}
 
 func (d descriptorReader) Close() error {
 	f := C.vorlage_proc_definer_close_wrap(d.c.vorlage_proc_definer_close)
@@ -168,7 +171,7 @@ func (d descriptorReader) Close() error {
 	if returnCode != 0 {
 		return errors.NewCauseString(0x983452b,
 			"failed to close definer",
-			"error code " + strconv.Itoa(returnCode),
+			"error code "+strconv.Itoa(returnCode),
 			"",
 			"")
 	}
@@ -180,7 +183,7 @@ func (d descriptorReader) Reset() error {
 	if returnCode != 0 {
 		return errors.NewCauseString(0x983452a,
 			"failed to reset definer",
-			"error code " + strconv.Itoa(returnCode),
+			"error code "+strconv.Itoa(returnCode),
 			"",
 			"")
 	}
@@ -237,9 +240,9 @@ func (c *cProc) Startup() ProcessorInfo {
 	p.Description = C.GoString(d.description)
 
 	// input proto
-	p.InputProto       = parseInputProtoType(int(d.inputprotoc), d.inputprotov)
+	p.InputProto = parseInputProtoType(int(d.inputprotoc), d.inputprotov)
 	p.StreamInputProto = parseInputProtoType(int(d.streaminputprotoc), d.streaminputprotov)
-	p.Variables        = parseVariables(int(d.variablesc), d.variablesv)
+	p.Variables = parseVariables(int(d.variablesc), d.variablesv)
 	return p
 }
 func parseVariables(varsc int, varsv *C.vorlage_proc_variable) []ProcessorVariable {
@@ -382,12 +385,11 @@ func (c *cProc) getSymbolPointer(symbol string) (unsafe.Pointer, error) {
 
 func (c *cProc) Shutdown() error {
 
-	f   := C.vorlage_proc_shutdown_wrap(c.vorlageShutdown)
+	f := C.vorlage_proc_shutdown_wrap(c.vorlageShutdown)
 	ret := int(C.vorlage_proc_shutdown_exec(f))
 	if ret != 0 {
 		logger.Errorf("processor shutdown return non-0 exit code (%d)", ret)
 	}
-
 
 	C.dlerror() // clear last error
 	C.dlclose(c.handle)
