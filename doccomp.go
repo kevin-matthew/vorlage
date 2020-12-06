@@ -90,6 +90,10 @@ type CompileStatus struct {
 	WasProcessor bool
 }
 
+func (cs CompileStatus) Error() string {
+	return cs.Err.Error()
+}
+
 type ActionHandler interface {
 
 	// ActionCritical should tell the requestor that the compRequest cannot complete

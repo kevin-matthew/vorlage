@@ -17,6 +17,34 @@ type handler struct {
 	compiler doccomp.Compiler
 }
 
+type actionhandler struct {
+	writer  http.ResponseWriter
+	request *http.Request
+}
+
+func (a actionhandler) ActionCritical(err error) {
+	a.writer.WriteHeader(http.StatusInternalServerError)
+	_, _ = a.writer.Write([]byte(err.Error()))
+}
+
+func (a actionhandler) ActionAccessFail(err error) {
+	a.writer.WriteHeader(http.StatusUnauthorized)
+	_, _ = a.writer.Write([]byte(err.Error()))
+}
+
+func (a actionhandler) ActionSee(path string) {
+	http.Redirect(a.writer, a.request, path, http.StatusSeeOther)
+}
+
+func (a actionhandler) ActionHTTPHeader(header string) {
+	parts := strings.SplitN(header, ":", 1)
+	if len(parts) != 2 {
+		println("vorlage-http: invalid header (thus ignoring): " + header)
+		return
+	}
+	a.writer.Header().Add(parts[0], parts[1])
+}
+
 func auth() {
 
 }
@@ -126,9 +154,9 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	var stream io.ReadCloser
 	var inputs map[string]string
-	var streaminputs map[string]io.Reader
+	var streaminputs map[string]doccomp.StreamInput
 	var cookies []*http.Cookie
-	var req doccomp.RequestInfo
+	var cstat doccomp.CompileStatus
 
 	// does it have the file extension we don't want?
 
@@ -187,7 +215,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	// do the same with the multipart form
 	if request.MultipartForm != nil {
-		streaminputs = make(map[string]io.Reader)
+		streaminputs = make(map[string]doccomp.StreamInput)
 		for k, s := range request.MultipartForm.File {
 			if len(s) != 1 {
 				writer.WriteHeader(http.StatusBadRequest)
@@ -213,25 +241,24 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		inputs[cookies[i].Name] = cookies[i].Value
 	}
 
-	// prepare the request in doccomp terms
-	req = doccomp.RequestInfo{
-		Filepath:    fileToUse,
-		Input:       inputs,
-		StreamInput: streaminputs,
-	}
 	// compile the document and get an Rid
-	stream, err = h.compiler.Compile(&req)
-	if err != nil {
+	stream, cstat = h.compiler.Compile(fileToUse, inputs, streaminputs, actionhandler{writer, request})
+	if cstat.Err != nil {
 		writer.WriteHeader(http.StatusInternalServerError)
-		_, _ = writer.Write([]byte("failed to process document"))
+		if cstat.WasProcessor {
+			// don't do anything because actionhandler's interface was called
+			// and the relevant function already sent the bad headers.
+		} else {
+			_, _ = writer.Write([]byte("server failed to load document"))
+		}
 		h.writeError(err)
 		return
 	}
 
 	// now that we have the Rid, add everything in the RequestInfo pool.
 	// be sure to de allocate when we're done writting to stream.
-	addToConnectionPool(req.Rid, writer, request, stream)
-	defer removeFromConnectionPool(req.Rid)
+	//addToConnectionPool(req.Rid, writer, request, stream)
+	//defer removeFromConnectionPool(req.Rid)
 
 writeStream:
 	// lets clear out some headers
