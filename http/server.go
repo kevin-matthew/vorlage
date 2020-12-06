@@ -32,7 +32,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	// run auth
-	if len(AuthPrefixes) != 0 {
+	/*if len(AuthPrefixes) != 0 {
 		if ValidAuth == nil {
 			writer.WriteHeader(http.StatusForbidden)
 			return
@@ -60,7 +60,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 			}
 			break
 		}
-	}
+	}*/
 
 	var fileToUse = h.docroot + request.URL.Path
 

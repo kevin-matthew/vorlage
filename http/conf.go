@@ -49,17 +49,5 @@ var FileExt []string = []string{".proc.html", ".proc.json"}
  * Whatever is first matched in AuthPrefixes is used as the realm.
  * The use of '"' in AuthPrefixes will result in undefined behaviour.
  */
-var AuthPrefixes []string = []string{"/auth"}
-var ValidAuth func(realm string, username string, password string) bool = nil
-
-/*
- * if SessionCookie is enabled, a HttpOnly cookie will be created with the value
- * of 32 random bytes (in the form of 64 random hex values) and will retain on
- * the user's browser indefinitely. It's value can be accessed via the input
- * of __SESSIONCOOKIE.
- * Session is the same thing except the cookie will have the "Session" flag and
- * can be accessed by __SESSION.
- * Having both enabled will result in 2 cookies.
- */
-var SessionCookie = true
-var Session = true
+//var AuthPrefixes []string = []string{"/auth"}
+//var ValidAuth func(realm string, username string, password string) bool = nil
