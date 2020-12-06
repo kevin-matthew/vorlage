@@ -28,15 +28,15 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// at this point we've found the processor now we need to get
 		// its variables to find the right one.
 		// pi = the index of processorInfos that matches
-		// i  = the index of vars (array of pointers)
+		// procvarIndex  = the index of vars (array of pointers)
 		vars := doc.compiler.processorInfos[pi].Variables
-		var i int
-		for i = 0; i < len(vars); i++ {
-			if vars[i].Name == pos.processorVariableName {
+		var procvarIndex int
+		for procvarIndex = 0; procvarIndex < len(vars); procvarIndex++ {
+			if vars[procvarIndex].Name == pos.processorVariableName {
 				break
 			}
 		}
-		if i == len(vars) {
+		if procvarIndex == len(vars) {
 			// we didn't find the variable in the processor
 			oerr := NewError(errNotDefinedInProcessor)
 			oerr.SetSubject(pos.String())
@@ -47,38 +47,48 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// but what about the variable's inputs... let's make sure they're
 		// populated.
 
+		df := DefineInfo{
+			RequestInfo:  &doc.request,
+			ProcVarIndex: procvarIndex,
+			Input:        make([]string, len(vars[procvarIndex].InputProto)),
+			StreamInput:  make([]StreamInput, len(vars[procvarIndex].StreamInputProto)),
+		}
+
 		// static input
-		for k := range vars[i].Input {
-			if v, ok := doc.args.staticInputs[k]; ok {
-				vars[i].Input[k] = v
+		for k := range df.Input {
+			name := vars[procvarIndex].InputProto[k].name
+			if v, ok := doc.args.allstaticInputs[name]; ok {
+				df.Input[k] = v
 			} else {
 				// 0 if not given
-				vars[i].Input[k] = ""
+				logger.Debugf("variable %s was not given %s input", pos.String(), name)
+				df.Input[k] = ""
 			}
 		}
 
 		// stream input
-		for k := range vars[i].StreamedInput {
-			if v, ok := doc.args.streamInputs[k]; ok {
+		for k := range df.StreamInput {
+			name := vars[procvarIndex].StreamInputProto[k].name
+			if v, ok := doc.args.allstreamInputs[name]; ok {
 
 				// mark it as used
 				// or fail if it already was used.
-				if err := doc.consumeInputStringOk(k, pos.fullName); err != nil {
+				if err := doc.consumeInputStringOk(name, pos.fullName); err != nil {
 					return nil, err
 				}
 
 				// now actually set the stream
-				vars[i].StreamedInput[k] = v
+				df.StreamInput[procvarIndex] = v
 			} else {
 				// nil if input name not given
-				vars[i].StreamedInput[k] = nil
+				df.StreamInput[procvarIndex] = nil
 			}
 		}
 
 		// lets recap, it's a processor variable. We found the processor.
 		// we found the variable. we found all of it's inputs.
 		// lets define it.
-		foundDef = doc.compiler.processors[pi].DefineVariable(doc.request.Rid, vars[i])
+		foundDef = doc.compiler.processors[pi].DefineVariable(df, vars[procvarIndex])
 	} else {
 		// its a normal variable. Easy.
 		// look through all the doucment's normal definitions.
