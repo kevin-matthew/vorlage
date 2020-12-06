@@ -104,14 +104,21 @@ type ActionHandler interface {
  * Do not attempt to use the streams pointed to by req... they'll be read
  * when the docstream is read.
  */
-func (comp *Compiler) Compile(req *RequestInfo, actionsHandler ActionHandler) (docstream io.ReadCloser, err CompileStatus) {
+func (comp *Compiler) Compile(filepath string, allInput map[string]string, allStreams map[string]StreamInput, actionsHandler ActionHandler) (docstream io.ReadCloser, err CompileStatus) {
 	atomic.AddUint64(&nextRid, 1)
 	atomic.AddInt64(&comp.concurrentCompiles, 1)
 	defer atomic.AddInt64(&comp.concurrentCompiles, -1)
+	req := RequestInfo{
+		ProcessorInfo: nil,
+		Filepath:      filepath,
+		Input:         nil,
+		StreamInput:   nil,
+	}
 	req.rid = Rid(atomic.LoadUint64(&nextRid))
 	req.cookie = new(interface{})
 	for i := range comp.processors {
-		actions := comp.processors[i].OnRequest(*req, req.cookie)
+		req.ProcessorInfo = comp.processors[i]
+		actions := comp.processors[i].OnRequest(req, req.cookie)
 		for a := range actions {
 			switch actions[a].Action {
 			// General
