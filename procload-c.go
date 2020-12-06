@@ -2,6 +2,8 @@ package vorlage
 
 import (
 	"fmt"
+	"io/ioutil"
+	"regexp"
 	"unsafe"
 )
 
@@ -275,9 +277,32 @@ func parseInputProtoType(protoc int, protov *C.vorlage_proc_inputproto) []InputP
 }
 
 var _ Processor = &cProc{}
+var libraryFilenameSig = regexp.MustCompile("^lib[^.]+.so")
 
-func LoadCProcessors(libpath string) (error, []Processor) {
-	return nil, nil
+func LoadCProcessors() ([]Processor, error) {
+	var procs []Processor
+	files, err := ioutil.ReadDir(CLoadPath)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		if !libraryFilenameSig.MatchString(f.Name()) {
+			continue
+		}
+		proc, err := dlOpen(CLoadPath + "/" + f.Name())
+		if err != nil {
+			return procs, errors.Newf(0x6134bc1,
+				"failed to load library from library path",
+				err,
+				"",
+				"when loading %s from load path %s", f.Name(), CLoadPath)
+		}
+		procs = append(procs, proc)
+	}
+	return procs, nil
 }
 
 // dlOpen tries to get a handle to a library (.so), attempting to access it

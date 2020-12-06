@@ -1,4 +1,4 @@
-package http
+package main
 
 /*
  * if false, Transversal request will be allowed.
