@@ -108,20 +108,36 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 	atomic.AddUint64(&nextRid, 1)
 	atomic.AddInt64(&comp.concurrentCompiles, 1)
 	defer atomic.AddInt64(&comp.concurrentCompiles, -1)
-	req := RequestInfo{
-		ProcessorInfo: nil,
-		Filepath:      filepath,
-		Input:         nil,
-		StreamInput:   nil,
-	}
+	req := RequestInfo{}
+	req.Filepath = filepath
 	req.rid = Rid(atomic.LoadUint64(&nextRid))
 	req.cookie = new(interface{})
 	for i := range comp.processors {
-		req.ProcessorInfo = comp.processors[i]
+		req.Input = make([]string, len(comp.processorInfos[i].InputProto))
+		req.StreamInput = make([]StreamInput, len(comp.processorInfos[i].StreamInputProto))
+		// assigne the req fields so they match the processor's spec
+		req.ProcessorInfo = &comp.processorInfos[i]
+		// now the input...
+		for inpti, inpt := range comp.processorInfos[i].InputProto {
+			if str, ok := allInput[inpt.name]; ok {
+				req.Input[inpti] = str
+			} else {
+				logger.Debugf("processor %s was given an empty %s", comp.processorInfos[i].Name, inpt.name)
+				req.Input[inpti] = ""
+			}
+		}
+		for inpti, inpt := range comp.processorInfos[i].StreamInputProto {
+			if stream, ok := allStreams[inpt.name]; ok {
+				req.StreamInput[inpti] = stream
+			} else {
+				logger.Debugf("processor %s was given an empty stream %s", comp.processorInfos[i].Name, inpt.name)
+				req.StreamInput[inpti] = nil
+			}
+		}
+
 		actions := comp.processors[i].OnRequest(req, req.cookie)
 		for a := range actions {
 			switch actions[a].Action {
-			// General
 			case ActionCritical:
 				erro := NewError("processor had critical error")
 				errz := NewError(string(actions[a].Data))
@@ -129,7 +145,6 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 				erro.SetSubjectf("%s", comp.processorInfos[i].Name)
 				actionsHandler.ActionCritical(errz)
 				return nil, CompileStatus{erro, true}
-
 			case ActionAccessFail:
 				erro := NewError("processor denied access")
 				errz := NewError(string(actions[a].Data))
@@ -137,21 +152,19 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 				erro.SetSubjectf("%s", comp.processorInfos[i].Name)
 				actionsHandler.ActionAccessFail(errz)
 				return nil, CompileStatus{erro, true}
-
 			case ActionSee:
 				erro := NewError("processor redirect")
 				path := string(actions[a].Data)
 				erro.SetSubjectf("%s redirecting request to %s", comp.processorInfos[i].Name, path)
 				actionsHandler.ActionSee(path)
 				return nil, CompileStatus{erro, true}
-
 			case ActionHTTPHeader:
 				header := string(actions[a].Data)
 				actionsHandler.ActionHTTPHeader(header)
 			}
 		}
 	}
-	doc, errd := comp.loadDocument(*req)
+	doc, errd := comp.loadDocument()
 	if errd != nil {
 		erro := NewError("loading a requested document")
 		erro.SetSubject(req.Filepath)
