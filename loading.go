@@ -102,8 +102,8 @@ type inputSet struct {
 	// input arguments by the user that will be used for defining processor
 	// variables (see Processor.DefineVariable's parameters).
 	// the maps them selves may be nil.
-	staticInputs []string
-	streamInputs []StreamInput
+	allstaticInputs map[string]string
+	allstreamInputs map[string]StreamInput
 
 	// This map will have the same keys as streamArguments. The purpose of this
 	// map is to keep track of what streamArguments have already been handed out
@@ -184,22 +184,18 @@ type Document struct {
  * be used. If no converters return true, the document is not converted and will
  * be read as normal (via io.OpenFile).
  */
-func (compiler *Compiler) loadDocument(request RequestInfo) (doc Document,
+func (compiler *Compiler) loadDocument(request RequestInfo, allstaticInputs map[string]string, allstreamInputs map[string]StreamInput) (doc Document,
 	oerr *Error) {
 	d, err := loadDocumentFromPath(request.Filepath, compiler, request, nil, nil)
 	if err != nil {
 		return d, err
 	}
 
-	// so these 2 lines are bit... out of place. Let me explain.
-	// first, loadDocumentFromPath will indeed point d.arguments and
+	// loadDocumentFromPath will indeed point d.arguments and
 	// d.streamArguments to valid memory. So we can dereference them without
 	// worry.
-	// And what's also weird is args and streamedArgs are both input for
-	// loadDocument but not loadDocumentFromPath. This makes me think we have
-	// and architectual error.
-	(*(d.args)).staticInputs = request.Input
-	(*(d.args)).streamInputs = request.StreamInput
+	(*(d.args)).allstaticInputs = allstaticInputs
+	(*(d.args)).allstreamInputs = allstreamInputs
 	(*(d.args)).streamInputsUsed = make(map[string]string, len(request.StreamInput))
 
 	return d, nil

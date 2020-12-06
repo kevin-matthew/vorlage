@@ -85,11 +85,10 @@ type ExitInfo struct {
 }
 
 type DefineInfo struct {
-	*RequestInfo
+	RequestInfo  *RequestInfo
 	ProcVarIndex int
 	Input        []string
 	StreamInput  []StreamInput
-	Context      interface{}
 }
 
 // Input will be associtive to InputPrototype
