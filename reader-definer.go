@@ -48,7 +48,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// populated.
 
 		df := DefineInfo{
-			RequestInfo:  &doc.request,
+			RequestInfo:  &doc.compRequest.processorRInfos[pi],
 			ProcVarIndex: procvarIndex,
 			Input:        make([]string, len(vars[procvarIndex].InputProto)),
 			StreamInput:  make([]StreamInput, len(vars[procvarIndex].StreamInputProto)),
@@ -57,7 +57,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// static input
 		for k := range df.Input {
 			name := vars[procvarIndex].InputProto[k].name
-			if v, ok := doc.args.allstaticInputs[name]; ok {
+			if v, ok := doc.compRequest.allInput[name]; ok {
 				df.Input[k] = v
 			} else {
 				// 0 if not given
@@ -69,7 +69,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// stream input
 		for k := range df.StreamInput {
 			name := vars[procvarIndex].StreamInputProto[k].name
-			if v, ok := doc.args.allstreamInputs[name]; ok {
+			if v, ok := doc.compRequest.allStreams[name]; ok {
 
 				// mark it as used
 				// or fail if it already was used.
@@ -81,6 +81,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 				df.StreamInput[procvarIndex] = v
 			} else {
 				// nil if input name not given
+				logger.Debugf("variable %s was not given %s stream input", pos.String(), name)
 				df.StreamInput[procvarIndex] = nil
 			}
 		}
@@ -130,7 +131,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 func (doc *Document) consumeInputStringOk(streamName string, requestor string) error {
 	// so we found the stream this input wants... but was it
 	// used by a previous procvar?
-	if pv, ok := doc.args.streamInputsUsed[streamName]; ok {
+	if pv, ok := (doc.streamInputsUsed[streamName]); ok {
 		// it was. That's an error.
 		oerr := NewError(errDoubleInputStream)
 		oerr.SetSubjectf("\"%s\" requested by %s but was used by %s already", streamName, requestor, pv)
@@ -138,6 +139,6 @@ func (doc *Document) consumeInputStringOk(streamName string, requestor string) e
 	}
 	// it was not. So lets keep track this this streamed input
 	// was just consumed by this procvar.
-	doc.args.streamInputsUsed[streamName] = requestor
+	doc.streamInputsUsed[streamName] = requestor
 	return nil
 }

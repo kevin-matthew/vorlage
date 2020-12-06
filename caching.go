@@ -11,7 +11,7 @@ const MaxVariableLength = 32
 type Cache interface {
 
 	/*
-	 * this is asked every request. If true is returned, a call to AddToCache
+	 * this is asked every compRequest. If true is returned, a call to AddToCache
 	 * will follow. If false is returned, a call to GetFromCache will follow.
 	 * On error, neither is called.
 	 */

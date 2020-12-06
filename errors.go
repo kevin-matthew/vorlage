@@ -76,7 +76,7 @@ const (
 	errNotDefinedInProcessor        = "processor did not define variable"
 	errInputNotProvided             = "an input was requested but not provided"
 	errInputInStreamAndStatic       = "a processor variable is asking for the same input in both static and stream formats"
-	errDoubleInputStream            = "the same streamed input was requested twice in the same request"
+	errDoubleInputStream            = "the same streamed input was requested twice in the same compRequest"
 	errResetVariable                = "failed to reset variable"
 	errAlreadyDefined               = "variable has already been defined"
 	errVariableTooLong              = "variable too long"

@@ -9,9 +9,23 @@ import (
 type Compiler struct {
 
 	// these two arrays are associative
-	processors         []Processor
-	processorInfos     []ProcessorInfo
+	processors     []Processor
+	processorInfos []ProcessorInfo
+
+	// used for thread safety of shutdown.
 	concurrentCompiles int64
+}
+
+type compileRequest struct {
+	compiler       *Compiler
+	filepath       string
+	allInput       map[string]string
+	allStreams     map[string]StreamInput
+	actionsHandler ActionHandler
+	rid            Rid
+
+	// associative array with compiler.processors
+	processorRInfos []RequestInfo
 }
 
 func NewCompiler(proc []Processor) (c Compiler, err error) {
@@ -78,7 +92,7 @@ type CompileStatus struct {
 
 type ActionHandler interface {
 
-	// ActionCritical should tell the requestor that the request cannot complete
+	// ActionCritical should tell the requestor that the compRequest cannot complete
 	// due to a backend error as described by err.
 	ActionCritical(err error)
 
@@ -86,12 +100,12 @@ type ActionHandler interface {
 	// permission to view this file as described in err.
 	ActionAccessFail(err error)
 
-	// ActionSee should tell the requestor to make a new request to this
+	// ActionSee should tell the requestor to make a new compRequest to this
 	// other path.
 	ActionSee(path string)
 
 	// ActionHTTPHeader is relivent only to http server/requestors. If called,
-	// you must add the header to the request before reading from the compiled
+	// you must add the header to the compRequest before reading from the compiled
 	// document. If out of context of HTTP, leave this undefined.
 	ActionHTTPHeader(header string)
 }
@@ -108,11 +122,21 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 	atomic.AddUint64(&nextRid, 1)
 	atomic.AddInt64(&comp.concurrentCompiles, 1)
 	defer atomic.AddInt64(&comp.concurrentCompiles, -1)
-	req := RequestInfo{}
-	req.Filepath = filepath
-	req.rid = Rid(atomic.LoadUint64(&nextRid))
-	req.cookie = new(interface{})
+	compReq := compileRequest{
+		compiler:        comp,
+		filepath:        filepath,
+		allInput:        allInput,
+		allStreams:      allStreams,
+		actionsHandler:  actionsHandler,
+		rid:             Rid(atomic.LoadUint64(&nextRid)),
+		processorRInfos: make([]RequestInfo, len(comp.processors)),
+	}
+
 	for i := range comp.processors {
+		req := RequestInfo{}
+		req.Filepath = filepath
+		req.rid = compReq.rid
+		req.cookie = new(interface{})
 		req.Input = make([]string, len(comp.processorInfos[i].InputProto))
 		req.StreamInput = make([]StreamInput, len(comp.processorInfos[i].StreamInputProto))
 		// assigne the req fields so they match the processor's spec
@@ -134,7 +158,6 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 				req.StreamInput[inpti] = nil
 			}
 		}
-
 		actions := comp.processors[i].OnRequest(req, req.cookie)
 		for a := range actions {
 			switch actions[a].Action {
@@ -155,7 +178,7 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 			case ActionSee:
 				erro := NewError("processor redirect")
 				path := string(actions[a].Data)
-				erro.SetSubjectf("%s redirecting request to %s", comp.processorInfos[i].Name, path)
+				erro.SetSubjectf("%s redirecting compRequest to %s", comp.processorInfos[i].Name, path)
 				actionsHandler.ActionSee(path)
 				return nil, CompileStatus{erro, true}
 			case ActionHTTPHeader:
@@ -163,11 +186,12 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 				actionsHandler.ActionHTTPHeader(header)
 			}
 		}
+		compReq.processorRInfos[i] = req
 	}
-	doc, errd := comp.loadDocument()
+	doc, errd := comp.loadDocument(compReq)
 	if errd != nil {
 		erro := NewError("loading a requested document")
-		erro.SetSubject(req.Filepath)
+		erro.SetSubject(filepath)
 		erro.SetBecause(errd)
 		return docstream, CompileStatus{erro, false}
 	}
@@ -184,7 +208,7 @@ func (comp *Compiler) Shutdown() []error {
 	compiles := atomic.LoadInt64(&comp.concurrentCompiles)
 	if compiles != 0 {
 		erro := NewError("compiles still running")
-		erro.SetSubjectf("%d compile request still processing", compiles)
+		erro.SetSubjectf("%d compile compRequest still processing", compiles)
 		return []error{erro}
 	}
 	var ret []error

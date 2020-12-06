@@ -98,7 +98,7 @@ type Input struct {
 
 // RequestInfo is sent to processors
 type RequestInfo struct {
-	*ProcessorInfo
+	ProcessorInfo *ProcessorInfo
 
 	Filepath string
 

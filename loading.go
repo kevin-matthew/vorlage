@@ -98,23 +98,6 @@ func (m macoPos) ToString() string {
 	return fmt.Sprintf("line %d", m.linenum)
 }
 
-type inputSet struct {
-	// input arguments by the user that will be used for defining processor
-	// variables (see Processor.DefineVariable's parameters).
-	// the maps them selves may be nil.
-	allstaticInputs map[string]string
-	allstreamInputs map[string]StreamInput
-
-	// This map will have the same keys as streamArguments. The purpose of this
-	// map is to keep track of what streamArguments have already been handed out
-	// to processor Variables. In accordance to the manual, if a streamed input
-	// is attempted to be used twice, an error will occour (errDoubleInputStream
-	// will be thrown)
-	// The index is the input Name, the value is which processor variable
-	// had used it, if the value is "" then that means it hasn't been used yet.
-	streamInputsUsed map[string]string
-}
-
 type Document struct {
 	rawFile       *os.File
 	ConvertedFile File
@@ -126,7 +109,14 @@ type Document struct {
 
 	// will point to the root's. will not be nil after the document
 	// is loaded. only used when the document is being read.
-	args *inputSet
+	// This map will have the same keys as streamArguments. The purpose of this
+	// map is to keep track of what streamArguments have already been handed out
+	// to processor Variables. In accordance to the manual, if a streamed input
+	// is attempted to be used twice, an error will occour (errDoubleInputStream
+	// will be thrown)
+	// The index is the input Name, the value is which processor variable
+	// had used it, if the value is "" then that means it hasn't been used yet.
+	streamInputsUsed map[string]string
 
 	root   *Document
 	parent *Document
@@ -167,8 +157,10 @@ type Document struct {
 	//variablePos []variablePos // note: these positions are in the CONVERTED
 	// file
 
-	// request is the original requested passed into loadDocument.
-	request RequestInfo
+	// compRequest is the original requested passed into loadDocument.
+	// you must to make sure to assign compRequest.ProcessorInfo before you use
+	// this in any of the processor interface functions.
+	compRequest compileRequest
 
 	// compiler is the original compiler passed into loadDocument.
 	compiler *Compiler
@@ -184,19 +176,12 @@ type Document struct {
  * be used. If no converters return true, the document is not converted and will
  * be read as normal (via io.OpenFile).
  */
-func (compiler *Compiler) loadDocument(request RequestInfo, allstaticInputs map[string]string, allstreamInputs map[string]StreamInput) (doc Document,
+func (compiler *Compiler) loadDocument(compReq compileRequest) (doc Document,
 	oerr *Error) {
-	d, err := loadDocumentFromPath(request.Filepath, compiler, request, nil, nil)
+	d, err := loadDocumentFromPath(compReq.filepath, compiler, compReq, nil, nil)
 	if err != nil {
 		return d, err
 	}
-
-	// loadDocumentFromPath will indeed point d.arguments and
-	// d.streamArguments to valid memory. So we can dereference them without
-	// worry.
-	(*(d.args)).allstaticInputs = allstaticInputs
-	(*(d.args)).allstreamInputs = allstreamInputs
-	(*(d.args)).streamInputsUsed = make(map[string]string, len(request.StreamInput))
 
 	return d, nil
 }
@@ -210,7 +195,7 @@ func (doc Document) GetFileName() string {
 
 func loadDocumentFromPath(path string,
 	compiler *Compiler,
-	request RequestInfo,
+	request compileRequest,
 	parent *Document,
 	root *Document) (doc Document, oerr *Error) {
 
@@ -223,7 +208,6 @@ func loadDocumentFromPath(path string,
 	doc.root = root
 	doc.path = path
 	doc.convertedFileDoneReading = false
-	doc.request = request
 	doc.compiler = compiler
 	// zero-out the variable detection buffer
 	for i := range doc.VariableDetectionBuffer {
@@ -235,12 +219,14 @@ func loadDocumentFromPath(path string,
 	if doc.root != nil {
 		doc.allDefinitions = doc.root.allDefinitions
 		doc.allIncluded = doc.root.allIncluded
-		doc.args = doc.root.args
+		doc.compRequest = doc.root.compRequest
+		doc.streamInputsUsed = doc.root.streamInputsUsed
 	} else {
 		doc.root = &doc
 		doc.allDefinitions = &[]NormalDefinition{}
 		doc.allIncluded = &[]*Document{}
-		doc.args = new(inputSet)
+		doc.compRequest = request
+		doc.streamInputsUsed = make(map[string]string, len(request.allStreams))
 	}
 
 	sourceerr := doc.ancestorHasPath(path)
@@ -528,7 +514,7 @@ func (doc *Document) include(path string) (incdoc *Document, oerr *Error) {
 
 	adoc, err := loadDocumentFromPath(relPath,
 		doc.compiler,
-		doc.request,
+		doc.compRequest,
 		doc,
 		doc.root)
 
@@ -722,12 +708,13 @@ func (doc *Document) Close() error {
 		_ = d.Close()
 	}
 
-	// does this mark the finish of the request?
+	// does this mark the finish of the compRequest?
 	if doc.root != nil {
-		// we just closed the root document. Which means this request
-		// has been finished.
+		// we just closed the root document. Which means this compRequest
+		// has been finished. So call the onFinish to the processors.
 		for i := range doc.compiler.processors {
-			doc.compiler.processors[i].OnFinish(doc.request, *doc.request.cookie)
+			rinfo := doc.compRequest.processorRInfos[i]
+			doc.compiler.processors[i].OnFinish(rinfo, rinfo.cookie)
 		}
 	}
 	return nil
