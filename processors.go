@@ -82,15 +82,14 @@ type StreamInput interface {
 }
 
 type ExitInfo struct {
-
 }
 
 type DefineInfo struct {
 	*RequestInfo
-	ProcVarIndex  int
-	Input       []string
-	StreamInput []StreamInput
-	Context       interface{}
+	ProcVarIndex int
+	Input        []string
+	StreamInput  []StreamInput
+	Context      interface{}
 }
 
 // Input will be associtive to InputPrototype
@@ -113,6 +112,10 @@ type RequestInfo struct {
 	// Rid will be set by Compiler.Compile (will be globally unique)
 	// treat it as read-only.
 	Rid
+
+	// void pointer of a cookie that the processor can set to anything they
+	// wish.
+	cookie *interface{}
 }
 
 type Processor interface {

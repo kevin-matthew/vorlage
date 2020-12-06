@@ -76,6 +76,10 @@ func (comp *Compiler) Compile(req *RequestInfo) (docstream io.ReadCloser, err er
 	atomic.AddInt64(&comp.concurrentCompiles, 1)
 	defer atomic.AddInt64(&comp.concurrentCompiles, -1)
 	req.Rid = Rid(atomic.LoadUint64(&nextRid))
+	req.cookie = new(interface{})
+	for i := range comp.processors {
+		comp.processors[i].OnRequest(*req, req.cookie)
+	}
 	doc, errd := comp.loadDocument(*req)
 	if errd != nil {
 		erro := NewError("loading a requested document")
