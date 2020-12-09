@@ -12,14 +12,15 @@ import (
 )
 
 const CProcessorsMaxConcurrentStreamInputs = 0x200
+
 var cDescriptors = make([]StreamInput, CProcessorsMaxConcurrentStreamInputs)
 var descriptorsMutex sync.Mutex
 
 func createCDescriptor(input StreamInput) *C.int {
-	for i := 0; i < len(cDescriptors); i++ {cDescriptors[int(*id)]
+	for i := 0; i < len(cDescriptors); i++ {
 		if cDescriptors[i] == nil {
 			newInt := (*C.int)(C.malloc(C.sizeof_int))
-			cDescriptors[i] = input;
+			cDescriptors[i] = input
 			*newInt = C.int(i)
 			return newInt
 		}
@@ -51,8 +52,8 @@ func vorlage_stream_read(streamptr unsafe.Pointer, buf *C.char, size C.size_t) C
 	if stream == nil {
 		return -3
 	}
-	array  := (*[1 << 28]byte)(unsafe.Pointer(buf))[:size:size]
-	n,err  := stream.Read(array)
+	array := (*[1 << 28]byte)(unsafe.Pointer(buf))[:size:size]
+	n, err := stream.Read(array)
 	if err != nil {
 		if err == io.EOF {
 			if n > 0 {
