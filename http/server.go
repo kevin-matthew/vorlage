@@ -37,7 +37,7 @@ func (a actionhandler) ActionSee(path string) {
 }
 
 func (a actionhandler) ActionHTTPHeader(header string) {
-	parts := strings.SplitN(header, ":", 1)
+	parts := strings.SplitN(header, ":", 2)
 	if len(parts) != 2 {
 		println("vorlage-http: invalid header (thus ignoring): " + header)
 		return

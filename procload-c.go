@@ -120,6 +120,7 @@ func freeCInput(input **C.char, inputc C.int) {
 	}
 	inputVArray := (*[1 << 28]*C.char)(unsafe.Pointer(input))[:inputc:inputc]
 	for i := range inputVArray {
+		// todo: this has a double go pointer? what? no it doesnt. go run compailns
 		C.free(unsafe.Pointer(inputVArray[i]))
 	}
 }
@@ -156,6 +157,11 @@ func (c *cProc) OnRequest(info RequestInfo, context *interface{}) []Action {
 	ret := make([]Action, len(cactionsslice))
 	for i := range cactionsslice {
 		ret[i].Action = int(cactionsslice[i].action)
+		//println(cactionsslice[i].datac)
+
+		// todo: one time I had an lenght out of range on this call... i thought
+		//       it was because datac was left undeclared but that wans't the
+		//       case... never found origin of bug.
 		ret[i].Data = C.GoBytes(cactionsslice[i].data, cactionsslice[i].datac)
 	}
 	*context = requestContext{reqinfo, ccontext}

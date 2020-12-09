@@ -49,7 +49,7 @@ typedef struct {
 const vorlage_proc_actions  vorlage_proc_onrequest(const vorlage_proc_requestinfo rinfo, void **context)
 {
     const char *logme=rinfo.inputv[0];
-	fprintf(stderr, "hi I'm being logged from file request %s: %s\n", rinfo.filepath, logme);
+	//fprintf(stderr, "hi I'm being logged from file request %s: %s\n", rinfo.filepath, logme);
 
 	void *stream = rinfo.streaminputv[0];
 	int n;
@@ -68,7 +68,7 @@ const vorlage_proc_actions  vorlage_proc_onrequest(const vorlage_proc_requestinf
 	memset(reqcontx, 0, sizeof(request_context));
 	int datac = sprintf(reqcontx->sizebuffer, "X-Stream-Input-Was-Size: %ld", totalsize);
 	*context = reqcontx;
-	
+	//fprintf(stderr, "%s [%d]\n", reqcontx->sizebuffer, datac);
 	
 	vorlage_proc_actions v = {
 		.actionc = 1,
@@ -132,7 +132,7 @@ void  *vorlage_proc_define(const vorlage_proc_defineinfo  dinfo, void *context){
 void vorlage_proc_onfinish (const vorlage_proc_requestinfo rinfo, void  *context) {
 	request_context *ctx = (request_context *)(context);
 	free(ctx);
-	fprintf(stderr, "vorlage_proc_onfinish called\n");	
+	//fprintf(stderr, "vorlage_proc_onfinish called\n");
 };
 
 
