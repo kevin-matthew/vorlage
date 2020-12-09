@@ -714,7 +714,7 @@ func (doc *Document) Close() error {
 		// has been finished. So call the onFinish to the processors.
 		for i := range doc.compiler.processors {
 			rinfo := doc.compRequest.processorRInfos[i]
-			doc.compiler.processors[i].OnFinish(rinfo, rinfo.cookie)
+			doc.compiler.processors[i].OnFinish(rinfo, *rinfo.cookie)
 		}
 	}
 	return nil

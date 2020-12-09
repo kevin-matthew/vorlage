@@ -16,7 +16,7 @@ var cDescriptors = make([]StreamInput, CProcessorsMaxConcurrentStreamInputs)
 var descriptorsMutex sync.Mutex
 
 func createCDescriptor(input StreamInput) *C.int {
-	for i := 0; i < len(cDescriptors); i++ {
+	for i := 0; i < len(cDescriptors); i++ {cDescriptors[int(*id)]
 		if cDescriptors[i] == nil {
 			newInt := (*C.int)(C.malloc(C.sizeof_int))
 			cDescriptors[i] = input;
@@ -33,6 +33,9 @@ func getCDescriptor(id *C.int) StreamInput {
 }
 
 func deleteCDescriptor(id *C.int) {
+	if cDescriptors[int(*id)] == nil {
+		return
+	}
 	err := cDescriptors[int(*id)].Close()
 	if err != nil {
 		logger.Errorf("vorlage failed to close streamed input: %s", err.Error())
@@ -45,6 +48,9 @@ func deleteCDescriptor(id *C.int) {
 func vorlage_stream_read(streamptr unsafe.Pointer, buf *C.char, size C.size_t) C.int {
 	descriptorId := (*C.int)(streamptr)
 	stream := getCDescriptor(descriptorId)
+	if stream == nil {
+		return -3
+	}
 	array  := (*[1 << 28]byte)(unsafe.Pointer(buf))[:size:size]
 	n,err  := stream.Read(array)
 	if err != nil {

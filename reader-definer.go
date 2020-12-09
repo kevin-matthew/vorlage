@@ -89,7 +89,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// lets recap, it's a processor variable. We found the processor.
 		// we found the variable. we found all of it's inputs.
 		// lets define it.
-		foundDef = doc.compiler.processors[pi].DefineVariable(df, vars[procvarIndex])
+		foundDef = doc.compiler.processors[pi].DefineVariable(df, *df.RequestInfo.cookie)
 	} else {
 		// its a normal variable. Easy.
 		// look through all the doucment's normal definitions.

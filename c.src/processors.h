@@ -82,6 +82,7 @@ typedef struct {
 } vorlage_proc_info;
 
 // returns -2 on EOF.
+// returns -3 on when the stream was not provided by the user.
 int vorlage_stream_read (void *streamptr, char *buf, int size);
 //int    vorlage_stream_seek (void *streamptr, off_t offset, int whence);
 //int    vorlage_stream_close(void *streamptr);
