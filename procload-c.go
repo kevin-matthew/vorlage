@@ -154,16 +154,13 @@ func (c *cProc) OnRequest(info RequestInfo, context *interface{}) []Action {
 	f := C.onrequestwrap(c.vorlageOnRequest)
 	cactions := C.execonrequest(f, *reqinfo, &ccontext)
 	cactionsslice := (*[1 << 28]C.vorlage_proc_action)(unsafe.Pointer(cactions.actionv))[:cactions.actionc:cactions.actionc]
+
 	ret := make([]Action, len(cactionsslice))
 	for i := range cactionsslice {
 		ret[i].Action = int(cactionsslice[i].action)
-		//println(cactionsslice[i].datac)
-
-		// todo: one time I had an lenght out of range on this call... i thought
-		//       it was because datac was left undeclared but that wans't the
-		//       case... never found origin of bug.
 		ret[i].Data = C.GoBytes(cactionsslice[i].data, cactionsslice[i].datac)
 	}
+
 	*context = requestContext{reqinfo, ccontext}
 	return ret
 }
@@ -427,7 +424,6 @@ func (c *cProc) getSymbolPointer(symbol string) (unsafe.Pointer, error) {
 }
 
 func (c *cProc) Shutdown() error {
-
 	f := C.vorlage_proc_shutdown_wrap(c.vorlageShutdown)
 	ret := int(C.vorlage_proc_shutdown_exec(f))
 	if ret != 0 {

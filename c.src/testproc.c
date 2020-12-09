@@ -12,14 +12,14 @@ const vorlage_proc_info vorlage_proc_startup() {
 
 	vorlage_proc_info v = {0};
 	v.description="this is a test. don't use it";
-	v.inputprotoc=1;
+	v.inputprotoc=0;
 	v.inputprotov = (const vorlage_proc_inputproto []){
 			{
 				.name="logme",
 				.description="logs it",
 			},
 	};
-	v.streaminputprotoc = 1;
+	v.streaminputprotoc = 0;
 	v.streaminputprotov = (const vorlage_proc_inputproto []){
 		{
 			.name="logmestream",
@@ -44,11 +44,12 @@ const vorlage_proc_info vorlage_proc_startup() {
 
 typedef struct {
 	char sizebuffer[30];
+	vorlage_proc_action actionv[1];
 } request_context;
 
 const vorlage_proc_actions  vorlage_proc_onrequest(const vorlage_proc_requestinfo rinfo, void **context)
 {
-    const char *logme=rinfo.inputv[0];
+    /*const char *logme=rinfo.inputv[0];
 	//fprintf(stderr, "hi I'm being logged from file request %s: %s\n", rinfo.filepath, logme);
 
 	void *stream = rinfo.streaminputv[0];
@@ -63,23 +64,23 @@ const vorlage_proc_actions  vorlage_proc_onrequest(const vorlage_proc_requestinf
 			totalsize ++;
 		}
 	}while(n > 0);
-	
+	*/
 	request_context *reqcontx = malloc(sizeof(request_context));
 	memset(reqcontx, 0, sizeof(request_context));
-	int datac = sprintf(reqcontx->sizebuffer, "X-Stream-Input-Was-Size: %ld", totalsize);
+	//int datac = sprintf(reqcontx->sizebuffer, "X-Stream-Input-Was-Size: %ld", totalsize);
+	int datac = sprintf(reqcontx->sizebuffer, "X-Stream-Input-Was-Size: %d", 69);
+	reqcontx->actionv[0] = (vorlage_proc_action){
+				.action = VORLAGE_PROC_ACTION_HTTPHEADER,
+				.data   = (void *)(reqcontx->sizebuffer),
+				.datac  = datac,
+			};
+
 	*context = reqcontx;
 	//fprintf(stderr, "%s [%d]\n", reqcontx->sizebuffer, datac);
 	
 	vorlage_proc_actions v = {
 		.actionc = 1,
-		.actionv = (const vorlage_proc_action [])
-		{
-			{
-				.action = VORLAGE_PROC_ACTION_HTTPHEADER,
-				.data   = (void *)(reqcontx->sizebuffer),
-				.datac  = datac,
-			},
-		},
+		.actionv = reqcontx->actionv,
 	};
 	return v;
 };
