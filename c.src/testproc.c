@@ -8,26 +8,24 @@ int test(const char *d) {
 	return 9;
 }
 
-const vorlage_proc_info vorlage_proc_startup() {
-
-	vorlage_proc_info v = {0};
-	v.description="this is a test. don't use it";
-	v.inputprotoc=0;
-	v.inputprotov = (const vorlage_proc_inputproto []){
+const vorlage_proc_info procinfo = {
+.description="this is a test. don't use it",
+.inputprotoc=1,
+.inputprotov = (const vorlage_proc_inputproto []){
 			{
 				.name="logme",
 				.description="logs it",
 			},
-	};
-	v.streaminputprotoc = 0;
-	v.streaminputprotov = (const vorlage_proc_inputproto []){
+	},
+.streaminputprotoc = 1,
+.streaminputprotov = (const vorlage_proc_inputproto []){
 		{
 			.name="logmestream",
 			.description="outputs the stream in log format",
-		}
-	};
-	v.variablesc = 1;
-	v.variablesv = (const vorlage_proc_variable []){
+		},
+	},
+.variablesc = 1,
+.variablesv = (const vorlage_proc_variable []){
 			{
 				.name="echo",
 				.description="echos the message",
@@ -37,9 +35,12 @@ const vorlage_proc_info vorlage_proc_startup() {
 						.name="echotext",
 						.description="the text to which to echo",
 					}},
-			},	
-	};
-	return v;
+			},
+	},
+};
+
+const vorlage_proc_info vorlage_proc_startup() {
+	return procinfo;
 }
 
 typedef struct {
@@ -49,8 +50,8 @@ typedef struct {
 
 const vorlage_proc_actions  vorlage_proc_onrequest(const vorlage_proc_requestinfo rinfo, void **context)
 {
-    /*const char *logme=rinfo.inputv[0];
-	//fprintf(stderr, "hi I'm being logged from file request %s: %s\n", rinfo.filepath, logme);
+    const char *logme=rinfo.inputv[0];
+	fprintf(stderr, "hi I'm being logged from file request %s: %s\n", rinfo.filepath, logme);
 
 	void *stream = rinfo.streaminputv[0];
 	int n;
@@ -60,11 +61,10 @@ const vorlage_proc_actions  vorlage_proc_onrequest(const vorlage_proc_requestinf
 	do {
 		n = vorlage_stream_read(stream, buf, bufsize);
 		for(int j = 0; j < n; j++) {
-			//fputc(buf[j], stderr);
 			totalsize ++;
 		}
 	}while(n > 0);
-	*/
+
 	request_context *reqcontx = malloc(sizeof(request_context));
 	memset(reqcontx, 0, sizeof(request_context));
 	//int datac = sprintf(reqcontx->sizebuffer, "X-Stream-Input-Was-Size: %ld", totalsize);
@@ -121,6 +121,7 @@ void  *vorlage_proc_define(const vorlage_proc_defineinfo  dinfo, void *context){
 
 	// dealloc'd in cust_close (called in voralge)
 	char *newstr = malloc(strlen(whattoecho) + strlen(prefix) + 1);
+
 	strcat(newstr, prefix);
 	strcat(&(newstr[strlen(whattoecho)]), whattoecho);
 	customstream *c = malloc(sizeof(customstream));
