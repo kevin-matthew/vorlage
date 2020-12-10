@@ -48,6 +48,9 @@ import (
 // return f(definer);
 // }
 //
+// char **mallocPointerArray(int len) {
+// return (char **)(malloc(sizeof(char *) * len));
+// }
 import "C"
 import (
 	"io"
@@ -77,43 +80,61 @@ type cProc struct {
 }
 
 func requestInfoToCRinfo(info RequestInfo, procinfo C.vorlage_proc_info) *C.vorlage_proc_requestinfo {
+
+	// make a reqinfo struct in c memeory
 	var reqinfo = (*C.vorlage_proc_requestinfo)(C.malloc(C.sizeof_vorlage_proc_requestinfo))
+	// passin the procinfo that C had returned previously
 	reqinfo.procinfo = procinfo
+	// copy in file path
 	reqinfo.filepath = C.CString(info.Filepath)
+	// copy in rid
 	reqinfo.rid = C.rid(info.rid)
-	inputv := inputToCInput(info.Input)
-	streaminputv := streaminputToCInput(info.StreamInput)
-	reqinfo.inputv = inputv
-	reqinfo.streaminputv = streaminputv
+
+	// now put the input information into the request.
+	reqinfo.inputv = inputToCInput(info.Input)
+	reqinfo.streaminputv = streaminputToCInput(info.StreamInput)
+
+	// done
 	return reqinfo
 }
 
 func streaminputToCInput(streams []StreamInput) *unsafe.Pointer {
-	// stream
-	inputStreamArray := make([]unsafe.Pointer, len(streams))
-	for i := range inputStreamArray {
-		inputStreamArray[i] = unsafe.Pointer(createCDescriptor(streams[i]))
+	if len(streams) == 0 {
+		return nil
 	}
-	var streaminputv *unsafe.Pointer
-	if len(streams) > 0 {
-		streaminputv = &(inputStreamArray[0])
+	var p *int
+	streamVArrayPtr := (*unsafe.Pointer)(C.malloc(C.ulong(unsafe.Sizeof(p)) * C.ulong(len(streams))))
+	streamVArray := (*[1 << 28]unsafe.Pointer)(unsafe.Pointer(streamVArrayPtr))[:len(streams):len(streams)]
+	for i := range streamVArray {
+		streamVArray[i] = unsafe.Pointer(createCDescriptor(streams[i]))
 	}
-	return streaminputv
+	return streamVArrayPtr
+}
+func freeCStreamInput(streaminputs *unsafe.Pointer, c C.int) {
+	if int(c) == 0 {
+		return
+	}
+	inputVArray := (*[1 << 28]unsafe.Pointer)(unsafe.Pointer(streaminputs))[:c:c]
+	for i := range inputVArray {
+		deleteCDescriptor((*C.int)(inputVArray[i]))
+	}
+	C.free(unsafe.Pointer(streaminputs))
 }
 
 func inputToCInput(input []string) **C.char {
+	if len(input) == 0 {
+		return nil
+	}
 	// normal (must be freed)
-	inputVArray := make([]*C.char, len(input))
+	var p *byte
+	inputVArrayPtr := (**C.char)(C.malloc(C.ulong(unsafe.Sizeof(p)) * C.ulong(len(input))))
+	inputVArray := (*[1 << 28]*C.char)(unsafe.Pointer(inputVArrayPtr))[:len(input):len(input)]
 	for i := range inputVArray {
 		inputVArray[i] = C.CString(input[i])
 	}
-	var inputv **C.char
-	if len(input) > 0 {
-		inputv = &(inputVArray[0])
-	}
-	return inputv
-}
 
+	return inputVArrayPtr
+}
 func freeCInput(input **C.char, inputc C.int) {
 	if int(inputc) == 0 {
 		return
@@ -122,15 +143,7 @@ func freeCInput(input **C.char, inputc C.int) {
 	for i := range inputVArray {
 		C.free(unsafe.Pointer(inputVArray[i]))
 	}
-}
-func freeCStreamInput(streaminputs *unsafe.Pointer, c C.int) {
-	if int(c) == 0 {
-		return
-	}
-	inputVArray := (*[1 << 28]*C.int)(unsafe.Pointer(streaminputs))[:c:c]
-	for i := range inputVArray {
-		deleteCDescriptor(inputVArray[i])
-	}
+	C.free(unsafe.Pointer(input))
 }
 
 func freeCRinfo(info *C.vorlage_proc_requestinfo) {

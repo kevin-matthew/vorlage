@@ -8,40 +8,55 @@ int test(const char *d) {
 	return 9;
 }
 
-const vorlage_proc_info procinfo = {
-.description="this is a test. don't use it",
-.inputprotoc=1,
-.inputprotov = (const vorlage_proc_inputproto []){
+static const vorlage_proc_inputproto inputprotov[] = {
 			{
 				.name="logme",
 				.description="logs it",
 			},
-	},
-.streaminputprotoc = 1,
-.streaminputprotov = (const vorlage_proc_inputproto []){
+};
+
+static const vorlage_proc_inputproto streaminputprotov[] = {
 		{
 			.name="logmestream",
 			.description="outputs the stream in log format",
 		},
-	},
-.variablesc = 1,
-.variablesv = (const vorlage_proc_variable []){
-			{
-				.name="echo",
-				.description="echos the message",
-				.inputprotoc = 1,
-				.inputprotov = (const vorlage_proc_inputproto []){
+};
+
+
+static const vorlage_proc_inputproto procvarinput[] = {
 					{
 						.name="echotext",
 						.description="the text to which to echo",
-					}},
-			},
-	},
+					}
+};
+
+static const vorlage_proc_variable procvars[] = {
+{
+				.name="echo",
+				.description="echos the message",
+				.inputprotoc = 1,
+				.inputprotov = procvarinput,
+				}
+};
+
+const vorlage_proc_info procinfo = {
+.description="this is a test. don't use it",
+.inputprotoc=1,
+.inputprotov = inputprotov,
+.streaminputprotoc = 1,
+.streaminputprotov = streaminputprotov,
+.variablesc = 1,
+.variablesv = procvars,
 };
 
 const vorlage_proc_info vorlage_proc_startup() {
 	return procinfo;
 }
+
+int vorlage_proc_shutdown() {
+	fprintf(stderr, "vorlage_proc_shutdown called\n");
+	return 0;
+};
 
 typedef struct {
 	char sizebuffer[30];
@@ -50,8 +65,10 @@ typedef struct {
 
 const vorlage_proc_actions  vorlage_proc_onrequest(const vorlage_proc_requestinfo rinfo, void **context)
 {
-    const char *logme=rinfo.inputv[0];
-	fprintf(stderr, "hi I'm being logged from file request %s: %s\n", rinfo.filepath, logme);
+const char *logme=rinfo.inputv[0];
+fprintf(stdout, "hi I'm being logged from file request %s: %s\n", rinfo.filepath, logme);
+
+//test stream
 
 	void *stream = rinfo.streaminputv[0];
 	int n;
@@ -67,8 +84,8 @@ const vorlage_proc_actions  vorlage_proc_onrequest(const vorlage_proc_requestinf
 
 	request_context *reqcontx = malloc(sizeof(request_context));
 	memset(reqcontx, 0, sizeof(request_context));
-	//int datac = sprintf(reqcontx->sizebuffer, "X-Stream-Input-Was-Size: %ld", totalsize);
-	int datac = sprintf(reqcontx->sizebuffer, "X-Stream-Input-Was-Size: %d", 69);
+	int datac = sprintf(reqcontx->sizebuffer, "X-Stream-Input-Was-Size: %ld", totalsize);
+	//int datac = sprintf(reqcontx->sizebuffer, "X-Stream-Input-Was-Size: %d", 69);
 	reqcontx->actionv[0] = (vorlage_proc_action){
 				.action = VORLAGE_PROC_ACTION_HTTPHEADER,
 				.data   = (void *)(reqcontx->sizebuffer),
@@ -123,7 +140,7 @@ void  *vorlage_proc_define(const vorlage_proc_defineinfo  dinfo, void *context){
 	char *newstr = malloc(strlen(whattoecho) + strlen(prefix) + 1);
 
 	strcat(newstr, prefix);
-	strcat(&(newstr[strlen(whattoecho)]), whattoecho);
+	strcat(&(newstr[strlen(prefix)]), whattoecho);
 	customstream *c = malloc(sizeof(customstream));
 	c->buffer = newstr;
 	c->pos    = 0;
@@ -135,12 +152,5 @@ void vorlage_proc_onfinish (const vorlage_proc_requestinfo rinfo, void  *context
 	request_context *ctx = (request_context *)(context);
 	free(ctx);
 	//fprintf(stderr, "vorlage_proc_onfinish called\n");
-};
-
-
-int vorlage_proc_shutdown()
-{
-	fprintf(stderr, "vorlage_proc_shutdown called\n");
-	return 0;
 };
 
