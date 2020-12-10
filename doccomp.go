@@ -1,6 +1,7 @@
 package vorlage
 
 import (
+	"fmt"
 	"io"
 	"sync/atomic"
 )
@@ -26,6 +27,54 @@ type compileRequest struct {
 
 	// associative array with compiler.processors
 	processorRInfos []RequestInfo
+}
+
+func (c compileRequest) String() string {
+	var ret string
+	var args []interface{}
+	//rid
+	ret += "request #%d:\n"
+	args = append(args, c.rid)
+
+	//path
+	ret += "\t%-28s: %s\n"
+	args = append(args, "filepath")
+	args = append(args, c.filepath)
+
+	if len(c.compiler.processorInfos) == 0 {
+		ret += "\tno processors loaded\n"
+	}
+	for _, v := range c.compiler.processorInfos {
+		ret += "\t%-28s: %s\n"
+		args = append(args, fmt.Sprintf("processor[%s]", v.Name))
+		args = append(args, v.Description)
+	}
+
+	// input
+	if len(c.allInput) == 0 {
+		ret += "\tno input provided\n"
+	}
+	for k, v := range c.allInput {
+		ret += "\t%-28s: %s\n"
+		args = append(args, fmt.Sprintf("input[%s]", k))
+		args = append(args, v)
+	}
+
+	// stream input
+	if len(c.allStreams) == 0 {
+		ret += "\tno streams provided\n"
+	}
+	for k := range c.allStreams {
+		ret += "\t%-28s: (stream)\n"
+		args = append(args, fmt.Sprintf("streamed input[%s]", k))
+	}
+	str := fmt.Sprintf(ret, args...)
+	// remove ending newline
+	if str[len(str)-1] == '\n' {
+		str = str[0 : len(str)-1]
+	}
+
+	return str
 }
 
 func NewCompiler(proc []Processor) (c Compiler, err error) {
@@ -135,6 +184,7 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 		rid:             Rid(atomic.LoadUint64(&nextRid)),
 		processorRInfos: make([]RequestInfo, len(comp.processors)),
 	}
+	logger.Infof("new request generaged: %s", compReq.String())
 
 	for i := range comp.processors {
 		req := RequestInfo{}
