@@ -46,7 +46,7 @@ func (c compileRequest) String() string {
 	}
 	for _, v := range c.compiler.processorInfos {
 		ret += "\t%-28s: %s\n"
-		args = append(args, fmt.Sprintf("processor[%s]", v.Name))
+		args = append(args, fmt.Sprintf("processor[%s]", v.name))
 		args = append(args, v.Description)
 	}
 
@@ -89,7 +89,7 @@ func NewCompiler(proc []Processor) (c Compiler, err error) {
 			return c, err
 		}
 		logger.Infof("new compiler: loaded processor %s - %s",
-			c.processorInfos[i].Name,
+			c.processorInfos[i].name,
 			c.processorInfos[i].Description)
 	}
 
@@ -99,9 +99,9 @@ func NewCompiler(proc []Processor) (c Compiler, err error) {
 func (info *ProcessorInfo) Validate() error {
 
 	// name
-	if !validProcessorName.MatchString(info.Name) {
+	if !validProcessorName.MatchString(info.name) {
 		cerr := NewError(errProcessorName)
-		cerr.SetSubject(info.Name)
+		cerr.SetSubject(info.name)
 		return cerr
 	}
 
@@ -200,7 +200,7 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 			if str, ok := allInput[inpt.name]; ok {
 				req.Input[inpti] = str
 			} else {
-				logger.Debugf("processor %s was given an empty %s", comp.processorInfos[i].Name, inpt.name)
+				logger.Debugf("processor %s was given an empty %s", comp.processorInfos[i].name, inpt.name)
 				req.Input[inpti] = ""
 			}
 		}
@@ -208,7 +208,7 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 			if stream, ok := allStreams[inpt.name]; ok {
 				req.StreamInput[inpti] = stream
 			} else {
-				logger.Debugf("processor %s was given an empty stream %s", comp.processorInfos[i].Name, inpt.name)
+				logger.Debugf("processor %s was given an empty stream %s", comp.processorInfos[i].name, inpt.name)
 				req.StreamInput[inpti] = nil
 			}
 		}
@@ -219,20 +219,20 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 				erro := NewError("processor had critical error")
 				errz := NewError(string(actions[a].Data))
 				erro.SetBecause(errz)
-				erro.SetSubjectf("%s", comp.processorInfos[i].Name)
+				erro.SetSubjectf("%s", comp.processorInfos[i].name)
 				actionsHandler.ActionCritical(errz)
 				return nil, CompileStatus{erro, true}
 			case ActionAccessFail:
 				erro := NewError("processor denied access")
 				errz := NewError(string(actions[a].Data))
 				erro.SetBecause(errz)
-				erro.SetSubjectf("%s", comp.processorInfos[i].Name)
+				erro.SetSubjectf("%s", comp.processorInfos[i].name)
 				actionsHandler.ActionAccessFail(errz)
 				return nil, CompileStatus{erro, true}
 			case ActionSee:
 				erro := NewError("processor redirect")
 				path := string(actions[a].Data)
-				erro.SetSubjectf("%s redirecting compRequest to %s", comp.processorInfos[i].Name, path)
+				erro.SetSubjectf("%s redirecting compRequest to %s", comp.processorInfos[i].name, path)
 				actionsHandler.ActionSee(path)
 				return nil, CompileStatus{erro, true}
 			case ActionHTTPHeader:

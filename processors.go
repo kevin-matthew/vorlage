@@ -1,3 +1,7 @@
+/*
+ * Note: for documentation on these structs, please see c.src/processors.h
+ */
+
 package vorlage
 
 import (
@@ -22,18 +26,8 @@ type Definition interface {
 
 	// must return EOF when complete (no more bytes left to read)
 	Read(p []byte) (int, error)
-
-	//
 	Close() error
-
-	// needed for content-length to be sent.
-	// if nil is returned, doccomp will not calculate nor send content-length.
-	// however this is not prefered and should be only used for applications
-	// that truelly cannot know what their content length will be.
-	//Length() *uint64
 }
-
-// simply a list of variables
 type InputPrototype struct {
 	name        string
 	description string
@@ -41,7 +35,7 @@ type InputPrototype struct {
 type ProcessorInfo struct {
 	// todo: I should probably make this private so I can make sure it loads in
 	// via the filename.
-	Name string
+	name string
 
 	Description string
 
@@ -102,33 +96,25 @@ type RequestInfo struct {
 
 	Filepath string
 
-	// muse be same lengths as ProcessorInfo.InputProto and
-	// ProcessorInfo.StreamInputProto otherwise everything goes to shit.
-	Input []string
-	// list of file descriptors
+	Input       []string
 	StreamInput []StreamInput
 
 	// Rid will be set by Compiler.Compile (will be globally unique)
 	// treat it as read-only.
 	rid Rid
 
-	// void pointer of a cookie that the processor can set to anything they
-	// wish.
 	cookie *interface{}
 }
 
+// See doc > Loading Process
 type Processor interface {
-	// called when loaded into the impl
 	Startup() ProcessorInfo
-
 	OnRequest(RequestInfo, *interface{}) []Action
 
 	// Called multiple times (after PreProcess and before PostProcess).
 	// rid will be the same used in preprocess and post process.
 	// variable pointer will be equal to what was provided from Info().Variables.
 	DefineVariable(DefineInfo, interface{}) Definition
-
 	OnFinish(RequestInfo, interface{})
-
 	Shutdown() error
 }

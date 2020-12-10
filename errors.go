@@ -84,6 +84,6 @@ const (
 	errVariableMissingPrefix        = "'$(' not detected"
 	errBufferTooShort               = "the buffer is too short"
 	errVariableDraw                 = "cannot draw variable"
-	errVariableName                 = "variable has an invalid Name"
+	errVariableName                 = "variable has an invalid name"
 	errBadReservedInput             = "reserved input not formatted correctly"
 )

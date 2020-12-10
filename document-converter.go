@@ -88,7 +88,7 @@ type DocumentConverter interface {
 var _ File = &nonConvertedFile{}
 
 func (doc *Document) getConverted(sourceFile File) (converedFile File, err *Error) {
-	// todo: switch on the source file Name to find a good converted (haml->html)
+	// todo: switch on the source file name to find a good converted (haml->html)
 	file := nonConvertedFile{
 		sourceFile:         sourceFile,
 		sourceDocument:     doc,

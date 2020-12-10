@@ -14,7 +14,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// lets find the right processor...
 		var pi int
 		for pi = range doc.compiler.processorInfos {
-			if doc.compiler.processorInfos[pi].Name == pos.processorName {
+			if doc.compiler.processorInfos[pi].name == pos.processorName {
 				break
 			}
 		}

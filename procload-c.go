@@ -255,7 +255,7 @@ func (c *cProc) Startup() ProcessorInfo {
 	c.volageProcInfo = d
 	p := ProcessorInfo{}
 	// description
-	p.Name = c.procname
+	p.name = c.procname
 	p.Description = C.GoString(d.description)
 
 	// input proto

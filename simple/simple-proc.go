@@ -19,7 +19,7 @@ type lowVolumeProcessor struct {
 func (l *lowVolumeProcessor) Info() vorlage.ProcessorInfo {
 	l.GetVariables()
 	return vorlage.ProcessorInfo{
-		Name:        l.Name,
+		name:        l.Name,
 		Description: l.Description,
 		Variables:   l.variables,
 	}
