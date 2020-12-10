@@ -15,21 +15,25 @@ const CProcessorsMaxConcurrentStreamInputs = 0x20000
 
 var cDescriptors = make([]StreamInput, CProcessorsMaxConcurrentStreamInputs)
 var descriptorsMutex sync.Mutex
+
 type nilStream int
 
 type nilError int
+
 func (ne nilError) Error() string {
 	return ""
 }
+
 var nilerror = nilError(0)
+
 func (n2 nilStream) Read(p []byte) (n int, err error) {
-	return 0,nilerror
+	return 0, nilerror
 }
 func (n2 nilStream) Close() error {
 	return nil
 }
-var nilstream = nilStream(0)
 
+var nilstream = nilStream(0)
 
 func createCDescriptor(input StreamInput) *C.int {
 	descriptorsMutex.Lock()
@@ -67,7 +71,7 @@ func deleteCDescriptor(id *C.int) {
 		logger.Errorf("vorlage failed to close streamed input: %s", err.Error())
 	}
 	cDescriptors[int(*id)] = nil
-	fmt.Printf("closing %d\n", *id)
+	//fmt.Printf("closing %d\n", *id)
 	C.free(unsafe.Pointer(id))
 }
 
