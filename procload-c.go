@@ -120,7 +120,6 @@ func freeCInput(input **C.char, inputc C.int) {
 	}
 	inputVArray := (*[1 << 28]*C.char)(unsafe.Pointer(input))[:inputc:inputc]
 	for i := range inputVArray {
-		// todo: this has a double go pointer? what? no it doesnt. go run compailns
 		C.free(unsafe.Pointer(inputVArray[i]))
 	}
 }
