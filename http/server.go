@@ -51,44 +51,23 @@ func auth() {
 
 func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
+	defer func() {
+		if r := recover(); r != nil {
+			httplogContext.Critf("%s", r)
+		}
+	}()
+
 	// transversal attacks
 	if BlockTransversalAttack {
 		if isUpwardTransversal(request.URL.Path) {
+			httplogContext.Warnf("%s - is upward transversal", request.URL.Path)
 			writer.WriteHeader(http.StatusBadRequest)
 			return
 		}
 	}
 
-	// run auth
-	/*if len(AuthPrefixes) != 0 {
-		if ValidAuth == nil {
-			writer.WriteHeader(http.StatusForbidden)
-			return
-		}
-		var i = 0
-		for i = 0; i < len(AuthPrefixes); i++ {
-			var realm = AuthPrefixes[i]
-			if realm == "" {
-				realm = "/"
-			}
-			if !strings.HasPrefix(request.URL.Path, realm) {
-				continue
-			}
-			user, pass, ok := request.BasicAuth()
-			if !ok {
-				writer.Header().Add("WWW-Authenticate",
-					"Basic realm=\""+realm+"\"")
-				writer.WriteHeader(http.StatusUnauthorized)
-				return
-			}
+	httplogContext.Debugf("%s -> %s %s", request.RemoteAddr, request.Method, request.RequestURI)
 
-			if !ValidAuth(realm, user, pass) {
-				writer.WriteHeader(http.StatusForbidden)
-				return
-			}
-			break
-		}
-	}*/
 
 	var fileToUse = h.docroot + request.URL.Path
 
@@ -97,16 +76,16 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			writer.WriteHeader(http.StatusNotFound)
-			println("could not find " + fileToUse)
+			httplogContext.Warnf("%s - file does not exist", fileToUse)
 			return
 		}
 		if os.IsPermission(err) {
 			writer.WriteHeader(http.StatusForbidden)
-			println("failed to access file " + fileToUse + ": " + err.Error())
+			httplogContext.Warnf("%s - vorlage failed to read due to having bad permissions: %s", fileToUse, err)
 			return
 		}
 		writer.WriteHeader(http.StatusBadRequest)
-		h.writeError(err)
+		httplogContext.Warnf("%s - %s", fileToUse, err)
 		return
 	}
 
@@ -115,6 +94,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		// if they had requested a directory but had not included a trailing '/'
 		// then that's not supported as it breaks relative paths for imports.
 		if request.URL.Path[len(request.URL.Path)-1] != '/' {
+			httplogContext.Debugf("%s is a directory, redirecting to %s", request.URL.Path, request.URL.Path + "/")
 			http.Redirect(writer, request, request.URL.Path+"/", http.StatusFound)
 			return
 		}
@@ -129,16 +109,18 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 			stat, err = os.Stat(fileToUse)
 			if err != nil {
 				if os.IsNotExist(err) {
+					httplogContext.Debugf("directory %s cannot use index %s: %s", request.URL.Path, TryFiles[i], err)
 					// that tryfile doesn't exist, go to the next one.
 					continue
 				}
 				// all other errors should be treated as normal.
 				if os.IsPermission(err) {
 					writer.WriteHeader(http.StatusForbidden)
+					httplogContext.Warnf("%s - vorlage failed to read due to having bad permissions: %s", fileToUse, err)
 					return
 				}
 				writer.WriteHeader(http.StatusBadRequest)
-				h.writeError(err)
+				httplogContext.Warnf("%s - %s", fileToUse, err)
 				return
 			}
 			// at this point we've found the tryfile to use for this directory
@@ -148,8 +130,10 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 			// if i==len(TryFiles) that means we never found a tryfile.
 			// so lets 404 em.
 			writer.WriteHeader(http.StatusNotFound)
+			httplogContext.Warnf("%s - file does not exist", fileToUse)
 			return
 		}
+		httplogContext.Debugf("directory %s can use %s as the index", request.URL.Path, TryFiles[i])
 	}
 
 	var stream io.ReadCloser
@@ -170,20 +154,18 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		}
 	}
 	if ei == len(FileExt) {
+		httplogContext.Debugf("vorlage will not be compiling %s because its not of one of the following extensions: %v", fileToUse, FileExt)
 		// we don't want to process this file... doesn't have an acceptable
 		// extension
 		stream, err = os.Open(fileToUse)
 		if err != nil {
-			if os.IsNotExist(err) {
-				writer.WriteHeader(http.StatusNotFound)
-				return
-			}
 			if os.IsPermission(err) {
-				writer.WriteHeader(http.StatusForbidden)
+				writer.WriteHeader(http.StatusInternalServerError)
+				httplogContext.Errorf("%s - vorlage failed to open due to bad permissions", fileToUse, err)
 				return
 			}
-			writer.WriteHeader(http.StatusBadRequest)
-			h.writeError(err)
+			writer.WriteHeader(http.StatusInternalServerError)
+			httplogContext.Errorf("%s - vorlage failed to open: %s", fileToUse, err)
 			return
 		}
 		goto writeStream
@@ -192,8 +174,8 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	// parse the form and multipart form
 	if err := request.ParseMultipartForm(MultipartMaxMemory); err != nil {
 		if err != http.ErrNotMultipart {
+			httplogContext.Warnf("failed to load multipart: %s", err)
 			writer.WriteHeader(http.StatusBadRequest)
-			_, _ = writer.Write([]byte(err.Error()))
 			return
 		}
 	}
@@ -202,13 +184,14 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	inputs = make(map[string]string)
 	for k, s := range request.Form {
 		if len(s) > 1 {
+			httplogContext.Warnf("%s contains multiple values (%v)", k, s)
 			writer.WriteHeader(http.StatusBadRequest)
-			_, _ = writer.Write([]byte("'" + k + "' contained multiple values"))
 			return
 		}
 		if len(s) == 1 {
 			inputs[k] = s[0]
 		} else {
+			httplogContext.Debugf("the input %s didn't contain a value (will default to \"\")", k)
 			inputs[k] = ""
 		}
 	}
@@ -218,19 +201,18 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		streaminputs = make(map[string]doccomp.StreamInput)
 		for k, s := range request.MultipartForm.File {
 			if len(s) != 1 {
+				httplogContext.Warnf("%s contains multiple streams or is empty", k)
 				writer.WriteHeader(http.StatusBadRequest)
-				_, _ = writer.Write([]byte("'" + k + "' contained multiple values or was empty"))
 				return
 			}
 
 			file, err := request.MultipartForm.File[k][0].Open()
 			if err != nil {
+				httplogContext.Errorf("failed to open stream from %s: %s", k, err)
 				writer.WriteHeader(http.StatusInternalServerError)
-				_, _ = writer.Write([]byte("failed to open file '" + k + "'"))
-				h.writeError(err)
 				return
 			}
-			defer file.Close()
+			defer func(){_ = file.Close()}()
 			streaminputs[k] = file
 		}
 	}
@@ -251,9 +233,10 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		} else {
 			_, _ = writer.Write([]byte("server failed to load document"))
 		}
-		h.writeError(err)
+		httplogContext.Errorf("vorlage failed to compile %s: %s", fileToUse, err)
 		return
 	}
+	httplogContext.Errorf("vorlage will output %s", fileToUse, err)
 
 	// now that we have the Rid, add everything in the RequestInfo pool.
 	// be sure to de allocate when we're done writting to stream.
@@ -266,8 +249,10 @@ writeStream:
 	extI := strings.LastIndex(fileToUse, ".")
 	if extI != -1 {
 		mimeT := mime.TypeByExtension(fileToUse[extI:])
+		httplogContext.Debugf("determined %s is of %s mimetype", fileToUse, mimeT)
 		writer.Header().Add("Content-Type", mimeT)
 	} else {
+		httplogContext.Debugf("determined %s is not a mimetype, assuming octet-stream", fileToUse)
 		writer.Header().Add("Content-Type", "application/octet-stream")
 	}
 	buff := make([]byte, ProcessingBufferSize)
@@ -276,29 +261,9 @@ writeStream:
 	if err != nil {
 		// cannot write headers here becauase we already wrote the
 		// headers earlier.
-		h.writeError(err)
+		httplogContext.Errorf("failed to output %s: %s", fileToUse, err)
 		return
 	}
-	// at this point we've successfully found, processed, and served the file.
-}
-
-// thread safe
-func addToConnectionPool(rid doccomp.Rid, writer http.ResponseWriter, r *http.Request, docstream io.ReadCloser) {
-	connectionMu.Lock()
-	currentConnectionPool[rid] = Request{writer, r, docstream}
-	connectionMu.Unlock()
-}
-
-// thread safe
-func removeFromConnectionPool(rid doccomp.Rid) {
-	connectionMu.Lock()
-	delete(currentConnectionPool, rid)
-	connectionMu.Unlock()
-
-}
-
-func (h handler) writeError(err error) {
-	println("vorlag-http error: " + err.Error())
 }
 
 /*
@@ -356,7 +321,6 @@ func Serve(l net.Listener, procs []doccomp.Processor, useFcgi bool, documentRoot
 		return err
 	}
 
-	currentConnectionPool = make(map[doccomp.Rid]Request)
 	h := handler{
 		docroot:  documentRoot,
 		compiler: c,
