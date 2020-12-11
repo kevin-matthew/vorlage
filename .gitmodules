@@ -1,0 +1,3 @@
+[submodule "lmgo"]
+	path = lmgo
+	url = /home/ellem-nfs/products/d-lmgo/lmgo.git/
