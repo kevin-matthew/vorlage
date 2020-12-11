@@ -3,41 +3,12 @@ package main
 import (
 	vorlage ".."
 	"../lmgo/conf"
-	"../lmgo/log"
 	"fmt"
 	"net"
 	"os"
 )
 
-type logcontext struct {
-	context string
-	c *logChannels
-}
 
-type logChannels struct {
-	Debug string
-	debug *os.File
-	Verbose string
-	verbose *os.File
-	Warnings string
-	warnings *os.File
-	Errors string
-	errors *os.File
-	Failures string
-	failures *os.File
-}
-
-func (l *logChannels) LoadChannels() error {
-	return nil
-}
-
-var logs = logChannels{
-	Debug: "",
-	Verbose: "/dev/stdout",
-	Warnings: "/dev/stdout",
-	Errors: "/dev/stderr",
-	Failures: "/dev/stderr",
-}
 
 var DocumentRoot string = "."
 var BindAddress string  = "localhost:80"
@@ -102,41 +73,10 @@ var config = []conf.ConfigBinding{
 	},
 }
 
-func (l logcontext) Emergf(format string, args ...interface{}) {
-	panic("implement me")
-}
 
-func (l logcontext) Critf(format string, args ...interface{}) {
-	panic("implement me")
-}
-
-func (l logcontext) Alertf(format string, args ...interface{}) {
-	panic("implement me")
-}
-
-func (l logcontext) Warnf(format string, args ...interface{}) {
-	panic("implement me")
-}
-
-func (l logcontext) Noticef(format string, args ...interface{}) {
-	panic("implement me")
-}
-
-func (l logcontext) Errorf(format string, args ...interface{}) {
-	log.ErrorF(format, args...)
-}
-
-func (l logcontext) Infof(format string, args ...interface{}) {
-	log.InfoF(format, args...)
-}
-
-func (l logcontext) Debugf(format string, args ...interface{}) {
-	log.DebugF(format, args...)
-}
 var mainlogContext logcontext
 var httplogContext logcontext
 func main() {
-
 	// configure
 	if err := conf.BindAll(config); err != nil {
 		_,_ = fmt.Fprintf(os.Stderr, "failed to start configuring: " + err.Error())
@@ -186,7 +126,7 @@ func main() {
 		os.Exit(1)
 	}
 	mainlogContext = logcontext{
-		context: "",
+		context: "main",
 		c:       &logs,
 	}
 	httplogContext = logcontext{
@@ -222,7 +162,7 @@ func main() {
 	}
 
 	// start the server
-	mainlogContext.Infof("starting server for %s...", DocumentRoot)
+	mainlogContext.Infof("starting server for document root \"%s\"...", DocumentRoot)
 	err = Serve(l, procs, UseFcgi, DocumentRoot)
 	if err != nil {
 		mainlogContext.Infof( "http server exited with error: %s", err.Error())
