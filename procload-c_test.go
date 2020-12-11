@@ -53,7 +53,6 @@ func TestLoadc(t *testing.T) {
 		StreamInput: []StreamInput{
 			&ezstream{0, "pussy ass bitch"},
 		},
-		Rid:         0,
 	}
 
 	var context interface{}

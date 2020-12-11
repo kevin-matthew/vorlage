@@ -56,7 +56,7 @@ import (
 	"io"
 	"strconv"
 )
-import "../lmgo/errors"
+import "./lmgo/errors"
 
 type cProc struct {
 	libname  string
@@ -328,6 +328,7 @@ func LoadCProcessors() ([]Processor, error) {
 		}
 		proc.procname = libnames[1]
 		procs = append(procs, proc)
+		logger.Debugf("loaded processor %s from %s", proc.procname, f.Name())
 	}
 	return procs, nil
 }
