@@ -446,7 +446,7 @@ func (doc *Document) detectMacrosPositions() (oerr *Error) {
 			return nil
 		}
 
-		logger.Infof("detected macro '%s' in %s", pos.args[0], doc.path)
+		logger.Debugf("detected macro '%s' in %s", pos.args[0], doc.path)
 		doc.macros = append(doc.macros, pos)
 
 		at += int64(pos.length)

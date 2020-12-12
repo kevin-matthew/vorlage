@@ -109,11 +109,11 @@ func (p ProcessorInfo) String() string {
 		//if len(p.InputProto) == 0 {
 		//	ret += "\tno input needed on request\n"
 		//}
-		printFormatInputProto(p.InputProto, "\t" + varprefix, "input", &ret, &args)
+		printFormatInputProto(v.InputProto, "\t" + varprefix, "input", &ret, &args)
 		//if len(p.StreamInputProto) == 0 {
 		//	ret += "\tno streams needed on request\n"
 		//}
-		printFormatInputProto(p.StreamInputProto, "\t" + varprefix, "stream", &ret, &args)
+		printFormatInputProto(v.StreamInputProto, "\t" + varprefix, "stream", &ret, &args)
 	}
 
 	str := fmt.Sprintf(ret,args...)

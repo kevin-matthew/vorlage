@@ -3,6 +3,38 @@
 #append footer.html
 
 <main>
-	<h1>asdf</h1>
-	<p>$(test.echo)</p>
+	<article>
+		<h1>Welcome to Vorlage.</h1>
+		<p>The Vorlage team at Ellem really apprecieate your adoption
+			of the Vorlage Webengine. We strive to make the Vorlage
+			the best webengine out there, but we cannot do it without
+			you!</p>
+		<p>Please note that the nature of Vorlage is not very friendly
+		to those newer to software development, this is only because
+		Vorlage is in the earlier stages of development and some
+		things still need to be figured out until we start writting
+		fancy manuals and help guides outside the specification.</p>
+	</article>
+	<article>
+		<h1>Testing Form</h1>
+		<p>When first set up, Vorlage comes with a testproc, a
+		processor that is met for testing things. Below is a form you
+			can submit to see the behaviour of testproc.</p>
+		<form method="POST" enctype="multipart/form-data">
+			<p>
+				<label>logme (upon submission, look at the logs)</label>
+				<input type="text" name="logme">
+			</p>
+			<p>
+				<label>logmestream (upon submission, look at the response headers and you'll see that testproc set an error)</label>
+				<input type="file" name="logmestream">
+			</p>
+			<p>
+				<label>echotext</label>
+				<input type="text" name="echotext">
+			</p>
+			<p><input type="submit"></p>
+			<p>Output of test.echo: <pre>$(test.echo)</pre></p>
+		</form>
+	</article>
 </main>
