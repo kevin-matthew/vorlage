@@ -11,7 +11,7 @@ import (
 
 type Rid uint64
 
-var validProcessorName = regexp.MustCompile(`^[a-z0-9]+$`)
+var validProcessorName = regexp.MustCompile(`^[a-z0-9_\-]+$`)
 
 /*
  * This is a definition, they can be made either by using '#define' in a file or

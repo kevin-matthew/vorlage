@@ -77,6 +77,66 @@ func (c compileRequest) String() string {
 	return str
 }
 
+func (p ProcessorInfo) String() string {
+	ret := ""
+	var args []interface{}
+	//name
+	ret += "\t%-28s: %s\n"
+	args = append(args, "name")
+	args = append(args, p.name)
+
+	//description
+	ret += "\t%-28s: %s\n"
+	args = append(args, "description")
+	args = append(args, p.Description)
+
+	//inputs
+	//if len(p.InputProto) == 0 {
+	//	ret += "\tno input needed on request\n"
+	//}
+	printFormatInputProto(p.InputProto, "\t", "inputs", &ret, &args)
+	//if len(p.StreamInputProto) == 0 {
+	//	ret += "\tno streams needed on request\n"
+	//}
+	printFormatInputProto(p.StreamInputProto, "\t", "streams", &ret, &args)
+
+	for _,v := range p.Variables {
+		ret += "\t%-28s: %s\n"
+		varprefix := fmt.Sprintf("variable[%s]", v.Name)
+		args = append(args, varprefix)
+		args = append(args, v.Description)
+			//inputs
+		//if len(p.InputProto) == 0 {
+		//	ret += "\tno input needed on request\n"
+		//}
+		printFormatInputProto(p.InputProto, "\t" + varprefix, "input", &ret, &args)
+		//if len(p.StreamInputProto) == 0 {
+		//	ret += "\tno streams needed on request\n"
+		//}
+		printFormatInputProto(p.StreamInputProto, "\t" + varprefix, "stream", &ret, &args)
+	}
+
+	str := fmt.Sprintf(ret,args...)
+		// remove ending newline
+	if str[len(str)-1] == '\n' {
+		str = str[0 : len(str)-1]
+	}
+	return str
+}
+
+func printFormatInputProto(p []InputPrototype, prefix string, ty string, ret *string, args *[]interface{}) {
+	if len(p) == 0 {
+		*ret += prefix + "no " + ty + " requested\n"
+		return
+	}
+	for _,s := range p {
+		*ret += "%s%-28s: %s\n"
+		*args = append(*args, prefix)
+		*args = append(*args, fmt.Sprintf("%s[%s]",ty, s.name))
+		*args = append(*args, s.description)
+	}
+}
+
 func NewCompiler(proc []Processor) (c Compiler, err error) {
 	c.processors = proc
 
@@ -88,9 +148,8 @@ func NewCompiler(proc []Processor) (c Compiler, err error) {
 		if err != nil {
 			return c, err
 		}
-		logger.Infof("new compiler: loaded processor %s - %s",
-			c.processorInfos[i].name,
-			c.processorInfos[i].Description)
+		logger.Infof("loaded processor %s", c.processorInfos[i].name)
+		logger.Debugf("%s information:\n%s", c.processorInfos[i].name, c.processorInfos[i])
 	}
 
 	return c, nil
@@ -184,7 +243,7 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 		rid:             Rid(atomic.LoadUint64(&nextRid)),
 		processorRInfos: make([]RequestInfo, len(comp.processors)),
 	}
-	logger.Infof("new request generaged: %s", compReq.String())
+	logger.Debugf("new request generated: %s", compReq)
 
 	for i := range comp.processors {
 		req := RequestInfo{}

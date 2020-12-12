@@ -236,7 +236,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		httplogContext.Errorf("vorlage failed to compile %s: %s", fileToUse, err)
 		return
 	}
-	httplogContext.Errorf("vorlage will output %s", fileToUse, err)
+	httplogContext.Debugf("vorlage will output %s", fileToUse)
 
 	// now that we have the Rid, add everything in the RequestInfo pool.
 	// be sure to de allocate when we're done writting to stream.
@@ -261,7 +261,7 @@ writeStream:
 	if err != nil {
 		// cannot write headers here becauase we already wrote the
 		// headers earlier.
-		httplogContext.Errorf("failed to output %s: %s", fileToUse, err)
+		httplogContext.Errorf("failed to fully output %s: %s", fileToUse, err)
 		return
 	}
 }

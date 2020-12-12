@@ -117,10 +117,40 @@ func (l logcontext) Debugf(format string, args ...interface{}) {
 	logToFile(l.c.debug, "debug", 0, l.context, format, args...)
 }
 
+const (
+	red    = "\033[1;31m"
+	yellow = "\033[1;33m"
+	white  = "\033[1;37m"
+	cyan   = "\033[1;36m"
+	reset  = "\033[0m"
+)
+
 func logToFile(file *os.File, channel string, printstack int, context string, format string, args ...interface{}) {
 	if file == nil{
 		return
 	}
+
+	// make errors red just cause
+	if file == logs.failures {
+		channel = red + channel + reset
+	}
+
+	// make errors red just cause
+	if file == logs.errors {
+		channel = yellow + channel + reset
+	}
+
+	// make errors red just cause
+	if file == logs.debug {
+		channel = cyan + channel + reset
+	}
+
+	// make errors red just cause
+	if file == logs.verbose {
+		channel = white + channel + reset
+	}
+
+
 	message := fmt.Sprintf(format, args...)
 	message = strings.ReplaceAll(message, "\n", "\n["+context + " " + channel+" (cont.)]")
 	_,_ = fmt.Fprintf(os.Stdout, "[%s %s %s] %s\n", context, channel, time.Now().Format("2006-01-02T15:04:05"), message)
