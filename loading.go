@@ -709,7 +709,7 @@ func (doc *Document) Close() error {
 	}
 
 	// does this mark the finish of the compRequest?
-	if doc.root != nil {
+	if doc.root == nil {
 		// we just closed the root document. Which means this compRequest
 		// has been finished. So call the onFinish to the processors.
 		for i := range doc.compiler.processors {
