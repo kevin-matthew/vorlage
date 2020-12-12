@@ -23,6 +23,7 @@ type logChannels struct {
 	errors *os.File
 	Failures string
 	failures *os.File
+	Timestamps bool
 }
 
 func (l *logChannels) LoadChannels() (err error) {
@@ -83,6 +84,7 @@ var logs = logChannels{
 	Warnings: "/dev/stdout",
 	Errors: "/dev/stderr",
 	Failures: "/dev/stderr",
+	Timestamps: false,
 }
 
 func (l logcontext) Emergf(format string, args ...interface{}) {
@@ -115,6 +117,7 @@ func (l logcontext) Infof(format string, args ...interface{}) {
 
 func (l logcontext) Debugf(format string, args ...interface{}) {
 	logToFile(l.c.debug, "debug", 0, l.context, format, args...)
+
 }
 
 const (
@@ -123,6 +126,7 @@ const (
 	white  = "\033[1;37m"
 	cyan   = "\033[1;36m"
 	reset  = "\033[0m"
+	orange = "\033[1;38;5;208m"
 )
 
 func logToFile(file *os.File, channel string, printstack int, context string, format string, args ...interface{}) {
@@ -136,8 +140,12 @@ func logToFile(file *os.File, channel string, printstack int, context string, fo
 	}
 
 	// make errors red just cause
-	if file == logs.errors {
+	if file == logs.warnings {
 		channel = yellow + channel + reset
+	}
+
+	if file == logs.errors {
+		channel = orange + channel + reset
 	}
 
 	// make errors red just cause
@@ -153,5 +161,9 @@ func logToFile(file *os.File, channel string, printstack int, context string, fo
 
 	message := fmt.Sprintf(format, args...)
 	message = strings.ReplaceAll(message, "\n", "\n["+context + " " + channel+" (cont.)]")
-	_,_ = fmt.Fprintf(os.Stdout, "[%s %s %s] %s\n", context, channel, time.Now().Format("2006-01-02T15:04:05"), message)
+	if logs.Timestamps {
+		_, _ = fmt.Fprintf(os.Stdout, "[%s %s %s] %s\n", context, channel, time.Now().Format("2006-01-02T15:04:05"), message)
+	} else {
+		_, _ = fmt.Fprintf(os.Stdout, "[%s %s] %s\n", context, channel, message)
+	}
 }

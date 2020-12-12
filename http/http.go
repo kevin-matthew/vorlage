@@ -71,6 +71,11 @@ var config = []conf.ConfigBinding{
 		Description: "If set, will output failures to the selected file. A failure constitutes any unintended behaviour that wasn't caused by the user input. A failure can also be referred to as a bug.",
 		VarAddress: &logs.Failures,
 	},
+	{
+		Name: "log-timestamps",
+		Description: "If true, log files will be given timestamps on each entry. Useless when debugging, really useful when going live.",
+		VarAddress: &logs.Timestamps,
+	},
 }
 
 
