@@ -1,11 +1,12 @@
-#+TITLE: The Document Compiler Manual
+#+TITLE: The Vorlage Manual
 #+AUTHOR: Kevin Marschke <kmarshcke@ellem.ai>
+#+latex_header: \hypersetup{colorlinks=true}
 Copyright \copy 2020 Ellem, Inc., all rights reserved.
 * Introduction
-This is a reference manual for the Document Compiler. For more
+This is a reference manual for the Vorlage. For more
 information and other documents, see [[https://ellem.ai/d-document-compiler][ellem.ai/d-document-compiler]].
 
-Document compiler puts together text documnets by looking for specific
+vorlage puts together text documents by looking for specific
 macros within the text documents themselves (such as .html, .txt, .js,
 ect). Once compiled, the completed document is cached and can be
 served over a variety of channels (http, fcgi, cli, ect).
@@ -49,7 +50,7 @@ And finally, *index.html*
 <p>My IP is $(myproc.MyIP)!</p>
 #+END_SRC
 
-Executing ~doccomp index.html~ will output the following:
+Vorlage will output the following:
 #+NAME: output-example
 #+BEGIN_SRC html
 <html>
@@ -61,7 +62,7 @@ Executing ~doccomp index.html~ will output the following:
 </html>
 #+END_SRC
 ** Purpose
-Here it is. Ellem has been working with HTTP/HTML for litterally
+Here it is. Ellem has been working with HTTP/HTML for literally
 decades and we have never loved doing it until now. 
 
 We've seen everything; php, node, react, webassembly, apache, nginx,
@@ -73,8 +74,8 @@ solutions to support it? The problem is simple:
 *HTTP sucks.*
 
 The entire planet has adopted a standard that was never in a million
-years supposed to be as widley used as it is now. HTML was made in a
-weekend by 1 man who had no advanced knowlege in computer
+years supposed to be as widely used as it is now. HTML was made in a
+weekend by 1 man who had no advanced knowledge in computer
 engineering. HTTP was made by a small team trying to solve a problem
 they had between a team of 50 people. Javascript was made in 2 weeks
 and is named after another language to trick people in to using
@@ -85,51 +86,51 @@ the solar system.
 Ellem plans to mend the damage caused by the Internet's choice of
 protocol with Vorlage. People using Vorlage will be forced to do
 everything very deliberately and explicitly, all while being forced to
-provide comprehendsive documentation to every step.
+provide comprehensive documentation to every step.
 
 *No more chaos. Vorlage demands order.*
 
 * Components
-There's four distinct components to the Document Compiler:
-*[[Documents]]*, *[[Input]]*, *[[Variables]]*, *[[Macros]]*, and
-*[[Processors]]*. Documents are simply files such as text files, HTML
+There's four distinct components to the Vorlage:
+*[[Documents][Documents]]*, *[[Input][Input]]*, *[[Variables][Variables]]*, *[[Macros][Macros]]*, and
+*[[Processors][Processors]]*. Documents are simply files such as text files, HTML
 files, ect. Input is what the user has given in regards to the
 generation of the document. Variables are symbols found in the
 document that will be replaced with arbitrary text when the document
 is compiled.  Macros are used to append and prepend documents, as well
 as define variables. Finally, Processors are used to integrate complex
-formation of what is known as [[Processed]] variables.
+formation of what is known as [[Processed][Processed]] variables.
 
 Note that additional, more technical components such as caching, how
 Documents are requested, and how documents are served will not be
 covered in this manual. This manual is strictly for those wanting to
-use the Document Compiler, not develop for it.
+use the Vorlage, not develop for it.
 
 ** Loading Process
  1. *Startup Phase*: Vorlage loads all processors and loads all
     supporting libraries. After this phase, Vorlage is ready to
-    concurently handle multiple requests indefintely.
+    concurrently handle multiple requests indefinitely.
  2. *Requesting Phase*: A file path is requested by the user through
-    Document Compiler. This requested path is known as the "root
+    Vorlage. This requested path is known as the "root
     document". The user will also specify input at this point. Once
     the Request has been fully loaded, it then enters the Loading
     Phase.
- 3. *Loading Phase*: Document Compiler loads the root
+ 3. *Loading Phase*: Vorlage loads the root
     document and does the following actions known as "docload":
-    1. Vorlage then evaluates [[Macros]] found in the document in order of
+    1. Vorlage then evaluates [[Macros][Macros]] found in the document in order of
        appearance.
     2. Vorlage attempts to open documents specified in the [[#append]] and
        [[#prepend]] macros that were evaluated in 1. These documents are
        known as "child documents"
-    3. Each child document is then sent through docload (this inturn
+    3. Each child document is then sent through docload (this in-turn
        making docload a recursive process).
     Once docload is complete, the root document and child documents
     are sent to their converters in order to go from their [[Source
-    Format]] to their [[Target Format]]. At this point we're ready to move
+    Format]] to their [[Target Format][Target Format]]. At this point we're ready to move
     to the Output Phase. Note that the Loading Phase can be skipped
-    and/or shortend with the use of chaching.
+    and/or shorten with the use of chaching.
  4. *Output Phase*: With the processors ready, request information
-    parsed, docuemnt and child documents loaded into their Target
+    parsed, document and child documents loaded into their Target
     Format, and all [[#define]] macros evaluated, the Output Phase can
     begin. A document in the Output Phase can be streamed to the user
     who had requested the document in the first place. This is the end
@@ -144,32 +145,32 @@ single accented code point is distinct from the same character
 constructed from combining an accent and a letter; those are treated
 as two code points.
 
-All documents are considered to have *[[Source Formats]]* as well their
-desired *[[Target Formats]]*. These source formats and target formats will
-change from version to version. In regards to Document Compiler
+All documents are considered to have *[[Source Formats][Source Formats]]* as well their
+desired *[[Target Formats][Target Formats]]*. These source formats and target formats will
+change from version to version. In regards to Vorlage
 v1.0.0, the supported formats are listed below as well as their file
 extension (which will become important later).
 
 A single Document can prepend and appened an unlimited number of other
-Documents with the use of [[Macros]]. A Document can also define variables
+Documents with the use of [[Macros][Macros]]. A Document can also define variables
 (using [[#define]]) to be used within that document, or, by documents that
 include it or included by it.
-** Source Fomrats
+** Source Formats
  - [[https://html.spec.whatwg.org/multipage/][html]] (.html)
 ** Target Formats
  - [[https://html.spec.whatwg.org/multipage/][html]] (.html)
 * Macros
-Macros are actions to perform during the compolation of a
-Document. The presense of Macros are completely removed from the
+Macros are actions to perform during the compilation of a
+Document. The presence of Macros are completely removed from the
 Document(s) after they are compiled. The identity of a Macro must
 follow this syntax:
 
  1. Must be either at the very start of the Document or be directly
     after by another Macro,
  2. must start with =#= called a *Macro Prefix*,
- 3. followed by a UTF-8 alpha string called the *Maco Name*
+ 3. followed by a UTF-8 alpha string called the *Marco Name*
  4. followed by arbitrary text called *Arguments*... of which each one
-    is preceeded by a space (char code =0x20=) and optionally wrapped
+    is proceeded by a space (char code =0x20=) and optionally wrapped
     in double quotation marks (char code =0x22=), and;
  5. will be ended with 1 newline (char code =0x10=).
 
@@ -180,7 +181,7 @@ Available Macros:
  - [[#prepend]]
 
 ** #define
-This macro defines a [[Normal]] Variable. It has 2 arguments, the first
+This macro defines a [[Normal][Normal]] Variable. It has 2 arguments, the first
 argument being the Normal Variable and the second being what it will
 be defined as. Note that the first argument must be the entirety of
 the Normal Variable and not just the Variable Name, this means the
@@ -201,7 +202,7 @@ Append includes a Document (the includee) that, when compiled, be
 outputted /after/ the includer. The includee's Macros will
 be processed the instant the #append is evaluated.
 
-Note: [[Circular Dependancy]] is detected, the Document will not
+Note: [[Circular Dependency][Circular Dependency]] is detected, the Document will not
 compile and an error outputted.
 
 ** #prepend
@@ -209,14 +210,14 @@ Append includes a Document (the includee) that, when compiled, be
 outputted /before/ the includer. The includee's Macros will
 be processed the instant the #prepend is evaluated.
 
-Note that if a [[Circular Dependancy]] is detected, the Document will not
+Note that if a [[Circular Dependency][Circular Dependency]] is detected, the Document will not
 compile and an error outputted.
 * Variables
 Inside of a Document, there exists Variables. During the Output Phase,
 these variables are replaced with arbitrary text (or binary) regarded
-as the variable's *Definition*. Variables come in 2 flavors: *[[Normal]]*
-and *[[Processed]]*, the only difference is how these their Definitions
-are written (one uses [[#define]], the other uses [[Processors]], more on this
+as the variable's *Definition*. Variables come in 2 flavors: *[[Normal][Normal]]*
+and *[[Processed][Processed]]*, the only difference is how these their Definitions
+are written (one uses [[#define]], the other uses [[Processors][Processors]], more on this
 later).
 
 At the core of everything, a Variable is identified by a unique string
@@ -224,15 +225,15 @@ of text. This string of text must follow a particular syntax to be
 valid. The syntax is as follows:
 
  1. A variable must begin with =$(= called a *Variable Prefix*,
- 2. followed by UTF-8 alphanumaric string /unless/ it is a Processed
+ 2. followed by UTF-8 alphanumeric string /unless/ it is a Processed
     Variable to which a dot (=.=) is also present somewhere in the
     middle. This is called the *Variable Name*, and;
  3. finally end with =)= called a *Variable Suffix*
 
-Note: the Document Compiler will first attempt to locate Variable
-Prefixes and Suffix pairs, only after that it will then determain the
+Note: the Vorlage will first attempt to locate Variable
+Prefixes and Suffix pairs, only after that it will then determine the
 validity of the variable name. If you've used an undefined and/or
-misformatted Variable Name, then an Document Compiler will fail to
+misformatted Variable Name, then an Vorlage will fail to
 compile the Document and return an error.
 
 Note: no Variable can exceed 32 characters (=MaxVariableLength=). Not
@@ -251,23 +252,23 @@ Normal Variable can be used in any document, parent or child, as
 not to the root Document.
 
 ** Processed
-Processed Variables are tangitably different from Normal variables
-because their Variable Name has a dot (=.=) seperating the
-later-discussed *[[Processor Name]]* and the name fimiluar with the
+Processed Variables are tangibly different from Normal variables
+because their Variable Name has a dot (=.=) separating the
+later-discussed *[[Processor Name][Processor Name]]* and the name familiar with the
 Processor called the *Processor-Variable Name*.
 
 Example: =$(myproc.BlobPosts)= is a Processed variable,
 =myproc.BlogPosts= is the Variable Name, =myproc= is the Processor
 Name, and =BlobPosts= is the Processor-Variable Name.
 
-Any given Processed Variable may require *[[Input]]* of which is loaded in
+Any given Processed Variable may require *[[Input][Input]]* of which is loaded in
 during the Request Phase. Thus, Processor Variables are a lot like
 function call.
 
 Once a Processed Variable has been fully loaded, meaning that the
-poccessor was fully loaded, the variable was found, and the inputs are
+processor was fully loaded, the variable was found, and the inputs are
 a match, the processor will then be responsible for defining it. Note
-that any errors that occour during definition will be logged and will
+that any errors that occur during definition will be logged and will
 not stop the overall Request. Thus, Processed Variables have no
 ability to hinder the Output Phase.
 
@@ -280,7 +281,7 @@ Vorlage with a list of it's Processed Variables (herein "procinfo").
 Each Processed Variable in procinfo will specify it's *Input*. Each
 item in the input is known as a *Input Argument*. Each Input Argument
 will have a name and description. Each Processed Variable must specify
-a comprehendsive list of Input Arguments. When the Processed Variable
+a comprehensive list of Input Arguments. When the Processed Variable
 is defined during the Output Phase, Vorlage will only be provided the
 Input Arguments it had listed in the procinfo. 
 
@@ -288,24 +289,24 @@ Example: If =$(mytranslator.german)= is detected inside the document,
 the processor =mytranslator= will be loaded and that processor will
 then demand that the =german= variable be supplied an Input with the
 variable name of =english=. As you can see, =$(mytranslator.german)=
-translates english to german. For a more applied exmaple, if we were
+translates English to German. For a more applied example, if we were
 in the context of HTTP/HTML, the request
 =www.mywebsite.com/germantranslator.proc.html?english=Hello= will
 cause all instances of =$(mytanslator.german)= in
 =germantranslator.proc.html= to be compiled to "Guten Tag".
 
-#+BEGIN_COMMENT  I don't want to specify static/streamed in here. leave it impl-sepcficic
+#+BEGIN_COMMENT  I don't want to specify static/streamed in here. leave it impl-specific
 
 The values (ie. =hello=) are ignored by Vorlage and are simply passed
 along to the processor. However; Values comes in two forms: *[[Static Argument values][Static]]*
-[[Stream Argument values][]] and *[[Streamed Values]]*. The list of Input
+[[Stream Argument values][]] and *[[Streamed Values][Streamed Values]]*. The list of Input
 Names for a given Processor Variable must be mutually exclusive
 between Static and Streamed.
 
 ** Static Argument values
 Static Values are simple, and should be used more or less 95% of the
-time with Document Compiler. Static Values are given to the Processor
-in entirety. The transloator above is an example of static values.
+time with Vorlage. Static Values are given to the Processor
+in entirety. The translator above is an example of static values.
 
 So you're probably wondering, "static values seems like everything
 I'll ever need... what is this other type of value?", Let's move on.
@@ -319,11 +320,11 @@ An example of when you should use Inputs with Streamed Value is file
 uploads. For instance if you try to upload a 6GiB file and supply
 it too the processor via a Static Value that would mean you'd need to
 store the entire file in 6GiB of memory. Using a Streamed Value means
-document compiler doesn't need to read the entire file.
+vorlage doesn't need to read the entire file.
 
 There's a drawback with Streamed Values, and that's its inability to
 be supplied more than once. Inputs using Streamed Values can only be
-used once per Compiliation.
+used once per Compilation.
 
 For instance, if =$(myconverter.ToPNG)= requires a =imageFile= Input
 to be streamed, it will output the PNG conversion. But,
@@ -333,7 +334,7 @@ streamed. Thus an error will occour if you try to include both
 because one will read the stream to its end and the other will be
 given nothing but an empty stream.
 
-Note that it is still possible to make that practicle example work,
+Note that it is still possible to make that practical example work,
 but you'd have to add a better degree of backend engineering, such as
 to replace the use of 2 Streamed Values with 1 Streamed Values and 2
 other Processed Variables that will read from a file saved by Streamed
@@ -348,7 +349,7 @@ also request that the processor itself be given Input known as
 given their respective Processor Input in the same form as if it was
 being given to a Processor Variable.
 
-This give the processors an opertunity to react to the request itself,
+This give the processors an opportunity to react to the request itself,
 at this time the processor may demand that the overall request be
 terminated or perform other actions that is proper to the protocol
 that Vorlage is using. For example, a processor may want to set
@@ -360,126 +361,45 @@ outputting of the page.
 Processors provide you with the ability to perform arbitrary code
 execution during points in the Request Phase and the Output
 Phase. Under normal (non-erroneous) operation, a given Processor has
-only one duty and that is to define [[Processed][variables that will be dependant
+only one duty and that is to define [[Processed][variables that will be dependent
 on that given processor]]. Thus that when the Document is compiled,
-Processors can dynamiaclly populate these Processed Variables acrossed
+Processors can dynamically populate these Processed Variables across
 page request.
 
-Concluseivly, Processors allow a Vorlage to interact with an
+Conclusively, Processors allow a Vorlage to interact with an
 unlimited amount of applications such as databases, authentication,
 logging, auditing, searching, ect.
 
-To create a Processor, you must first compile a *[[Processor File]]* and
-then have it in the relvant *[[Library Path]]* so that Vorlage can load it
+To create a Processor, you must first compile a *[[Processor File][Processor File]]* and
+then have it in the relevant Library Path so that Vorlage can load it
 during the Startup Phase. Once that is done, the Processor can then
 define Processor-Variable Names in which will be defined by that
-Processor onces the Variables are requested.
+Processor once the Variables are requested.
 
-Note, Processors are technical in nature. An increase depenedency on
+Note, Processors are technical in nature. An increase dependency on
 them will lead to difficult-to-edit documents that defeats entire
 purpose of Vorlage. 
 
 ** Processor File
 A processor file contains native code that contains the proper
-exports. Support for types of processor files will varity as Vorlage
-gains maturaty. As of now, the following supported file types (and
+exports. Support for types of processor files will variety as Vorlage
+gains maturity. As of now, the following supported file types (and
 formats) are supported:
 
  - ELF 64-bit LSB shared object (see [[http://tldp.org/HOWTO/Program-Library-HOWTO/shared-libraries.html][here]]) (=libmyproc.so=)
- - current ar archive with ELF 64-bit LSB relocatable objects
-   (=myproc.a=)
 
-*Building a processor*
-In this example, we'll be building a processor that was written in
-=main.c=:
-
-=<doccomp/doccom.h>=
-#+BEGIN_SRC c
-#include "sys/types.h"
-
-typedef struct {
-// TODO
-} dc_proc_info_t;
-
-typedef struct {
-// TODO
-} dc_proc_definer_t;
-
-typedef u_int64_t dc_rid;
-#+END_SRC
-
-=<doccomp/processor.h>=
-#+BEGIN_SRC
-#include "doccomp.h"
-
-// do not touch.
-int dcp_version = 1;
-
-// if you're making a processor, you must define these:
-dc_proc_info_t dcp_info;
-dc_proc_definer_t dcp_define(dc_rid);
-#+END_SRC
-
-Now you can choose to write your processor using only
-=<doccomp/processor.h>= making it universal, but you have the opition
-to make a *domainTODO:FINDBUZZWORD-specific* processor. To which you
-can include /one/ of the following header files and use their
-repsective functions during each call. Each request's rid (=dc_rid=)
-will be used with these implements to gather further
-domainTODO-specific information and functionaility. If you include
-these headers, you must link against the subsequent library as well.
-
-| domainTODO:BUZZWORD | header             | library              | description                |
-|---------------------+--------------------+----------------------+----------------------------|
-| =http=              | =<doccomp/http.h>= | =doccomp/libhttp.so= | enabled for http           |
-| =cli=               | =<doccomp/cli.h>=  | =doccomp/libcli.so=  | enabled for cli/bash       |
-| =pdf=               | =<doccomp/pdf.h>=  | =doccomp/libpdf.so=  | enabled for pdf generation |
-
-*** TODO is there really no way for them to include more than one? should that be a good idea?
-It would make sense because =http= processors should always output
-html. Don't want it trying to output pdf binary.
-
-I mean if you don't include any of them, your processor can still be
-linked by all implmenets. It encourages people not to get too needy
-
-
-
-todo: remove all the other stuff in this section that does not reflect
-of my desicion in the above C code... I make that my finaly descision.
-
-*all compiler implements must have*
-
-All implements (ie doccomp/http, doccomp/pdf, doccomp/cli) must have:
-#+BEGIN_SRC c
-
-#+END_SRC
-
-
-and to build it we need to link the proper libraries, in this example,
-we need to use the doccomp http library. Note that sense this
-processor links against doccomp-http, it cannot run without it. Thus
-this processor would not work in the command line.
-
-#+BEGIN_SRC bash
-~$ gcc -c -Wall -Werror -fpic myproc.c
-~$ gcc -shared -o libmyproc.so myproc.o -ldoccomp -ldoccomp-http
-~$ cp libmyproc.so /usr/local/doccomp-processors/
-#+END_SRC
 ** Processor Name
-A Processor Name is valid if and only if that name is alphanumaric
-lowercase. The Processor Name should be a short word simular to a
+A Processor Name is valid if and only if that name is alphanumeric
+lowercase. The Processor Name should be a short word similar to a
 package name. For example, =abc=, =123=, =abc123= are all valid
-Processor Names and =AbC=, =?dD=, =f f= are not. The Processor Name
-will be retireved by Document Compiler when scanning through the
-Processor [[Storage]].
-
+Processor Names and =AbC=, =?dD=, =f f= are not.
 
 * Further Elaboration on Technical Details
-** Circular Dependancies
-A Circluar Dependancy is an error that occours when a Document
+** Circular Dependencies
+A Circular Dependency is an error that occurs when a Document
 (/Document A/) includes another Document (/Document B/) in which
 includes the includer document (/Document A/). This includes a
-Document trying to inlcude itself. An example is shown below.
+Document trying to include itself. An example is shown below.
 
 *Parent.html*
 #+BEGIN_SRC html
@@ -508,26 +428,6 @@ Document trying to inlcude itself. An example is shown below.
 You see that? =Parent.html= includes =Child.html= which includes
 =GrandChild.html= which /then/ include =Parent.html=. Thus,
 =Parent.html= is indirectly including itself, this is a circular
-dependancy and will cause an error.
+dependency and will cause an error.
 
 
-
-
-** Library Path
-Processor Files must be placed somewhere in the filesystem. Finding
-these files behaves a lot like system libraries in that they're found
-by transversion enviroment paths (such as =LD_LIBRARY_PATH=). As
-Document Compiler starts up, it will scan through what is known as
-*Library Directories* to prepre the use of relevant Processor
-Files. There can be 0, 1, or many Library Directories. But regardless
-of how many, all of them are stored in what is the call Document
-Compiler's *Library Path*. This Library Path is a string containing a
-list of Library Directories delimited by a colon.
-
-For example, =/usr/lib/doccomp:~/.doccomp:.= means that when Document
-Compiler tries to find a Processor named =foo= it will search for it
-in =/usr/lib/doccomp=, =~/.doccomp=, =.= (the working directory). The
-first match is what is used.
-
-It should be noted that the Document Compiler's Library Path is NOT
-stored in the envrioment. It is stored in the [[Configuration]].
