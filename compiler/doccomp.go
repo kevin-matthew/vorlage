@@ -1,10 +1,11 @@
-package vorlage
+package compiler
 
 import (
 	"fmt"
 	"io"
 	"regexp"
 	"sync/atomic"
+	".."
 )
 
 var validProcessorName = regexp.MustCompile(`^[a-z0-9_\-]+$`)
@@ -15,8 +16,8 @@ var validProcessorName = regexp.MustCompile(`^[a-z0-9_\-]+$`)
 type Compiler struct {
 
 	// these two arrays are associative
-	processors     []Processor
-	processorInfos []ProcessorInfo
+	processors     []vorlage.Processor
+	processorInfos []vorlage.ProcessorInfo
 
 	// used for thread safety of shutdown.
 	concurrentCompiles int64
@@ -26,12 +27,12 @@ type compileRequest struct {
 	compiler       *Compiler
 	filepath       string
 	allInput       map[string]string
-	allStreams     map[string]StreamInput
+	allStreams     map[string]vorlage.StreamInput
 	actionsHandler ActionHandler
-	rid            Rid
+	rid            vorlage.Rid
 
 	// associative array with compiler.processors
-	processorRInfos []RequestInfo
+	processorRInfos []vorlage.RequestInfo
 }
 
 func (c compileRequest) String() string {
@@ -82,85 +83,26 @@ func (c compileRequest) String() string {
 	return str
 }
 
-func (p ProcessorInfo) String() string {
-	ret := ""
-	var args []interface{}
-	//Name
-	ret += "\t%-28s: %s\n"
-	args = append(args, "Name")
-	args = append(args, p.Name)
 
-	//Description
-	ret += "\t%-28s: %s\n"
-	args = append(args, "Description")
-	args = append(args, p.Description)
-
-	//inputs
-	//if len(p.InputProto) == 0 {
-	//	ret += "\tno input needed on request\n"
-	//}
-	printFormatInputProto(p.InputProto, "\t", "inputs", &ret, &args)
-	//if len(p.StreamInputProto) == 0 {
-	//	ret += "\tno streams needed on request\n"
-	//}
-	printFormatInputProto(p.StreamInputProto, "\t", "streams", &ret, &args)
-
-	for _,v := range p.Variables {
-		ret += "\t%-28s: %s\n"
-		varprefix := fmt.Sprintf("variable[%s]", v.Name)
-		args = append(args, varprefix)
-		args = append(args, v.Description)
-			//inputs
-		//if len(p.InputProto) == 0 {
-		//	ret += "\tno input needed on request\n"
-		//}
-		printFormatInputProto(v.InputProto, "\t" + varprefix, "input", &ret, &args)
-		//if len(p.StreamInputProto) == 0 {
-		//	ret += "\tno streams needed on request\n"
-		//}
-		printFormatInputProto(v.StreamInputProto, "\t" + varprefix, "stream", &ret, &args)
-	}
-
-	str := fmt.Sprintf(ret,args...)
-		// remove ending newline
-	if str[len(str)-1] == '\n' {
-		str = str[0 : len(str)-1]
-	}
-	return str
-}
-
-func printFormatInputProto(p []InputPrototype, prefix string, ty string, ret *string, args *[]interface{}) {
-	if len(p) == 0 {
-		*ret += prefix + "no " + ty + " requested\n"
-		return
-	}
-	for _,s := range p {
-		*ret += "%s%-28s: %s\n"
-		*args = append(*args, prefix)
-		*args = append(*args, fmt.Sprintf("%s[%s]",ty, s.Name))
-		*args = append(*args, s.Description)
-	}
-}
-
-func NewCompiler(proc []Processor) (c Compiler, err error) {
+func NewCompiler(proc []vorlage.Processor) (c Compiler, err error) {
 	c.processors = proc
 
 	// load all the infos
-	c.processorInfos = make([]ProcessorInfo, len(proc))
+	c.processorInfos = make([]vorlage.ProcessorInfo, len(proc))
 	for i := range c.processors {
 		c.processorInfos[i] = c.processors[i].Startup()
-		err = c.processorInfos[i].Validate()
+		err = validate(&(c.processorInfos[i]))
 		if err != nil {
 			return c, err
 		}
-		Logger.Infof("loaded processor %s", c.processorInfos[i].Name)
-		Logger.Debugf("%s information:\n%s", c.processorInfos[i].Name, c.processorInfos[i])
+		vorlage.Logger.Infof("loaded processor %s", c.processorInfos[i].Name)
+		vorlage.Logger.Debugf("%s information:\n%s", c.processorInfos[i].Name, c.processorInfos[i])
 	}
 
 	return c, nil
 }
 
-func (info *ProcessorInfo) Validate() error {
+func validate(info *vorlage.ProcessorInfo) error {
 
 	// Name
 	if !validProcessorName.MatchString(info.Name) {
@@ -235,7 +177,7 @@ type ActionHandler interface {
  * Do not attempt to use the streams pointed to by req... they'll be read
  * when the docstream is read.
  */
-func (comp *Compiler) Compile(filepath string, allInput map[string]string, allStreams map[string]StreamInput, actionsHandler ActionHandler) (docstream io.ReadCloser, err CompileStatus) {
+func (comp *Compiler) Compile(filepath string, allInput map[string]string, allStreams map[string]vorlage.StreamInput, actionsHandler ActionHandler) (docstream io.ReadCloser, err CompileStatus) {
 	atomic.AddUint64(&nextRid, 1)
 	atomic.AddInt64(&comp.concurrentCompiles, 1)
 	defer atomic.AddInt64(&comp.concurrentCompiles, -1)
@@ -245,18 +187,18 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 		allInput:        allInput,
 		allStreams:      allStreams,
 		actionsHandler:  actionsHandler,
-		rid:             Rid(atomic.LoadUint64(&nextRid)),
-		processorRInfos: make([]RequestInfo, len(comp.processors)),
+		rid:             vorlage.Rid(atomic.LoadUint64(&nextRid)),
+		processorRInfos: make([]vorlage.RequestInfo, len(comp.processors)),
 	}
-	Logger.Debugf("new request generated: %s", compReq)
+	vorlage.Logger.Debugf("new request generated: %s", compReq)
 
 	for i := range comp.processors {
-		req := RequestInfo{}
+		req := vorlage.RequestInfo{}
 		req.Filepath = filepath
 		req.Rid = compReq.rid
-		req.cookie = new(interface{})
+		req.Cookie = new(interface{})
 		req.Input = make([]string, len(comp.processorInfos[i].InputProto))
-		req.StreamInput = make([]StreamInput, len(comp.processorInfos[i].StreamInputProto))
+		req.StreamInput = make([]vorlage.StreamInput, len(comp.processorInfos[i].StreamInputProto))
 		// assigne the req fields so they match the processor's spec
 		req.ProcessorInfo = &comp.processorInfos[i]
 		// now the input...
@@ -264,7 +206,7 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 			if str, ok := allInput[inpt.Name]; ok {
 				req.Input[inpti] = str
 			} else {
-				Logger.Debugf("processor %s was given an empty %s", comp.processorInfos[i].Name, inpt.Name)
+				vorlage.Logger.Debugf("processor %s was given an empty %s", comp.processorInfos[i].Name, inpt.Name)
 				req.Input[inpti] = ""
 			}
 		}
@@ -272,34 +214,34 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 			if stream, ok := allStreams[inpt.Name]; ok {
 				req.StreamInput[inpti] = stream
 			} else {
-				Logger.Debugf("processor %s was given an empty stream %s", comp.processorInfos[i].Name, inpt.Name)
+				vorlage.Logger.Debugf("processor %s was given an empty stream %s", comp.processorInfos[i].Name, inpt.Name)
 				req.StreamInput[inpti] = nil
 			}
 		}
-		actions := comp.processors[i].OnRequest(req, req.cookie)
+		actions := comp.processors[i].OnRequest(req, req.Cookie)
 		for a := range actions {
 			switch actions[a].Action {
-			case ActionCritical:
+			case vorlage.ActionCritical:
 				erro := NewError("processor had critical error")
 				errz := NewError(string(actions[a].Data))
 				erro.SetBecause(errz)
 				erro.SetSubjectf("%s", comp.processorInfos[i].Name)
 				actionsHandler.ActionCritical(errz)
 				return nil, CompileStatus{erro, true}
-			case ActionAccessFail:
+			case vorlage.ActionAccessFail:
 				erro := NewError("processor denied access")
 				errz := NewError(string(actions[a].Data))
 				erro.SetBecause(errz)
 				erro.SetSubjectf("%s", comp.processorInfos[i].Name)
 				actionsHandler.ActionAccessFail(errz)
 				return nil, CompileStatus{erro, true}
-			case ActionSee:
+			case vorlage.ActionSee:
 				erro := NewError("processor redirect")
 				path := string(actions[a].Data)
 				erro.SetSubjectf("%s redirecting compRequest to %s", comp.processorInfos[i].Name, path)
 				actionsHandler.ActionSee(path)
 				return nil, CompileStatus{erro, true}
-			case ActionHTTPHeader:
+			case vorlage.ActionHTTPHeader:
 				header := string(actions[a].Data)
 				actionsHandler.ActionHTTPHeader(header)
 			}

@@ -7,7 +7,7 @@ import (
 )
 
 func TestLoadGoProcessors(t *testing.T) {
-	p,err := plugin.Open("../go.src/golibtestproc.so")
+	p,err := plugin.Open("../go.src/main/golibtestproc.so")
 	if err != nil {
 		t.Log(err)
 		t.Fail()

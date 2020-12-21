@@ -1,9 +1,11 @@
-package vorlage
+package compiler
+
+import ".."
 
 // todo: I don't think this method should belong to Document...
 // ARCHITECTUAL ERROR.
-func (doc *Document) define(pos variablePos) (Definition, error) {
-	var foundDef Definition
+func (doc *Document) define(pos variablePos) (vorlage.Definition, error) {
+	var foundDef vorlage.Definition
 
 	// we have found a variable in the document.
 	// lets go find it's definition
@@ -47,11 +49,11 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// but what about the variable's inputs... let's make sure they're
 		// populated.
 
-		df := DefineInfo{
+		df := vorlage.DefineInfo{
 			RequestInfo:  &doc.compRequest.processorRInfos[pi],
 			ProcVarIndex: procvarIndex,
 			Input:        make([]string, len(vars[procvarIndex].InputProto)),
-			StreamInput:  make([]StreamInput, len(vars[procvarIndex].StreamInputProto)),
+			StreamInput:  make([]vorlage.StreamInput, len(vars[procvarIndex].StreamInputProto)),
 		}
 
 		// static input
@@ -61,7 +63,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 				df.Input[k] = v
 			} else {
 				// 0 if not given
-				Logger.Debugf("variable %s was not given %s input", pos.String(), name)
+				vorlage.Logger.Debugf("variable %s was not given %s input", pos.String(), name)
 				df.Input[k] = ""
 			}
 		}
@@ -81,7 +83,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 				df.StreamInput[procvarIndex] = v
 			} else {
 				// nil if input Name not given
-				Logger.Debugf("variable %s was not given %s stream input", pos.String(), name)
+				vorlage.Logger.Debugf("variable %s was not given %s stream input", pos.String(), name)
 				df.StreamInput[procvarIndex] = nil
 			}
 		}
@@ -89,7 +91,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// lets recap, it's a processor variable. We found the processor.
 		// we found the variable. we found all of it's inputs.
 		// lets define it.
-		foundDef = doc.compiler.processors[pi].DefineVariable(df, *df.RequestInfo.cookie)
+		foundDef = doc.compiler.processors[pi].DefineVariable(df, *df.RequestInfo.Cookie)
 	} else {
 		// its a normal variable. Easy.
 		// look through all the doucment's normal definitions.

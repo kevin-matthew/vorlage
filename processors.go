@@ -99,7 +99,9 @@ type RequestInfo struct {
 	// treat it as read-only.
 	Rid Rid
 
-	cookie *interface{}
+	// Cookie will be set by the compiler.
+	// treat it as read-only.
+	Cookie *interface{}
 }
 
 // See doc > Loading Process

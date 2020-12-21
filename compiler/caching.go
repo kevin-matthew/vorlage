@@ -1,4 +1,4 @@
-package vorlage
+package compiler
 
 import (
 	"errors"
