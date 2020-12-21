@@ -5,6 +5,7 @@ package procload
 // #include <stdlib.h>
 import "C"
 import (
+	".."
 	"fmt"
 	"io"
 	"sync"
@@ -13,7 +14,7 @@ import (
 
 const CProcessorsMaxConcurrentStreamInputs = 0x20000
 
-var cDescriptors = make([]StreamInput, CProcessorsMaxConcurrentStreamInputs)
+var cDescriptors = make([]vorlage.StreamInput, CProcessorsMaxConcurrentStreamInputs)
 var descriptorsMutex sync.Mutex
 
 type nilStream int
@@ -35,7 +36,7 @@ func (n2 nilStream) Close() error {
 
 var nilstream = nilStream(0)
 
-func createCDescriptor(input StreamInput) *C.int {
+func createCDescriptor(input vorlage.StreamInput) *C.int {
 	descriptorsMutex.Lock()
 	defer descriptorsMutex.Unlock()
 	for i := 0; i < len(cDescriptors); i++ {
@@ -55,7 +56,7 @@ func createCDescriptor(input StreamInput) *C.int {
 	//       to allocate more into the index. (block allocation/smart allocation?)
 	panic(fmt.Sprintf("vorlage buffer for streamed inputs is full, vorlage was built to only handle a max amount of %d of concurrent stream inputs (CProcessorsMaxConcurrentStreamInputs). If you get this error, please contact the vorlage team for help.", CProcessorsMaxConcurrentStreamInputs))
 }
-func getCDescriptor(id *C.int) StreamInput {
+func getCDescriptor(id *C.int) vorlage.StreamInput {
 	descriptorsMutex.Lock()
 	defer descriptorsMutex.Unlock()
 
@@ -68,7 +69,7 @@ func deleteCDescriptor(id *C.int) {
 
 	err := cDescriptors[int(*id)].Close()
 	if err != nil {
-		logger.Errorf("vorlage failed to close streamed input: %s", err.Error())
+		vorlage.Logger.Errorf("vorlage failed to close streamed input: %s", err.Error())
 	}
 	cDescriptors[int(*id)] = nil
 	//fmt.Printf("closing %d\n", *id)
@@ -93,7 +94,7 @@ func vorlage_stream_read(streamptr unsafe.Pointer, buf *C.char, size C.size_t) C
 			}
 			return -2
 		}
-		logger.Errorf("vorlage failed to read from streamed input: %s", err.Error())
+		vorlage.Logger.Errorf("vorlage failed to read from streamed input: %s", err.Error())
 		return -1
 	}
 	return C.int(n)
