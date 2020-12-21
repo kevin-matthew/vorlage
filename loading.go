@@ -114,7 +114,7 @@ type Document struct {
 	// to processor Variables. In accordance to the manual, if a streamed input
 	// is attempted to be used twice, an error will occour (errDoubleInputStream
 	// will be thrown)
-	// The index is the input name, the value is which processor variable
+	// The index is the input Name, the value is which processor variable
 	// had used it, if the value is "" then that means it hasn't been used yet.
 	streamInputsUsed map[string]string
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	vorlage ".."
+	procload "../procload"
 	"../lmgo/conf"
 	"fmt"
 	"net"
@@ -44,7 +45,7 @@ var config = []conf.ConfigBinding{
 	{
 		Name: "vorlage-ldpath",
 		Description: "A path to a directory to which vorlage will search for available processors.",
-		VarAddress: &vorlage.CLoadPath,
+		VarAddress: &procload.CLoadPath,
 	},
 	{
 		Name: "log-debug",
@@ -154,12 +155,12 @@ func main() {
 		context: "vorlage",
 		c:       &logs,
 	}
-	vorlage.SetLogger(vorlagelogcontext)
+	vorlage.Logger = vorlagelogcontext
 
 	// load the c processors
-	mainlogContext.Infof("loading ELF processors out of %s...", vorlage.CLoadPath)
+	mainlogContext.Infof("procload ELF processors out of %s...", procload.CLoadPath)
 	FileExt = append(FileExt, ".html")
-	procs, err := vorlage.LoadCProcessors()
+	procs, err := procload.LoadCProcessors()
 	if err != nil {
 		mainlogContext.Errorf("failed to load ELF processors: %s", err.Error())
 		os.Exit(1)

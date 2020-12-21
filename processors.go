@@ -6,12 +6,9 @@ package vorlage
 
 import (
 	"io"
-	"regexp"
 )
 
 type Rid uint64
-
-var validProcessorName = regexp.MustCompile(`^[a-z0-9_\-]+$`)
 
 /*
  * This is a definition, they can be made either by using '#define' in a file or
@@ -29,13 +26,12 @@ type Definition interface {
 	Close() error
 }
 type InputPrototype struct {
-	name        string
-	description string
+	Name        string
+	Description string
 }
 type ProcessorInfo struct {
-	// todo: I should probably make this private so I can make sure it loads in
-	// via the filename.
-	name string
+	// Name will be set by the loader, do not set this in the processor.
+	Name string
 
 	Description string
 
@@ -101,7 +97,7 @@ type RequestInfo struct {
 
 	// Rid will be set by Compiler.Compile (will be globally unique)
 	// treat it as read-only.
-	rid Rid
+	Rid Rid
 
 	cookie *interface{}
 }
@@ -112,7 +108,7 @@ type Processor interface {
 	OnRequest(RequestInfo, *interface{}) []Action
 
 	// Called multiple times (after PreProcess and before PostProcess).
-	// rid will be the same used in preprocess and post process.
+	// Rid will be the same used in preprocess and post process.
 	// variable pointer will be equal to what was provided from Info().Variables.
 	DefineVariable(DefineInfo, interface{}) Definition
 	OnFinish(RequestInfo, interface{})

@@ -1,4 +1,4 @@
-package vorlage
+package procload
 
 import (
 	"fmt"
@@ -56,7 +56,8 @@ import (
 	"io"
 	"strconv"
 )
-import "./lmgo/errors"
+import "../lmgo/errors"
+import vorlage ".."
 
 type cProc struct {
 	libname  string
@@ -78,8 +79,9 @@ type cProc struct {
 	// raw pointers
 	volageProcInfo C.vorlage_proc_info
 }
+var _ vorlage.Processor = &cProc{}
 
-func requestInfoToCRinfo(info RequestInfo, procinfo C.vorlage_proc_info) *C.vorlage_proc_requestinfo {
+func requestInfoToCRinfo(info vorlage.RequestInfo, procinfo C.vorlage_proc_info) *C.vorlage_proc_requestinfo {
 
 	// make a reqinfo struct in c memeory
 	var reqinfo = (*C.vorlage_proc_requestinfo)(C.malloc(C.sizeof_vorlage_proc_requestinfo))
@@ -88,7 +90,7 @@ func requestInfoToCRinfo(info RequestInfo, procinfo C.vorlage_proc_info) *C.vorl
 	// copy in file path
 	reqinfo.filepath = C.CString(info.Filepath)
 	// copy in rid
-	reqinfo.rid = C.rid(info.rid)
+	reqinfo.rid = C.rid(info.Rid)
 
 	// now put the input information into the request.
 	reqinfo.inputv = inputToCInput(info.Input)
@@ -97,8 +99,7 @@ func requestInfoToCRinfo(info RequestInfo, procinfo C.vorlage_proc_info) *C.vorl
 	// done
 	return reqinfo
 }
-
-func streaminputToCInput(streams []StreamInput) *unsafe.Pointer {
+func streaminputToCInput(streams []vorlage.StreamInput) *unsafe.Pointer {
 	if len(streams) == 0 {
 		return nil
 	}
@@ -120,7 +121,6 @@ func freeCStreamInput(streaminputs *unsafe.Pointer, c C.int) {
 	}
 	C.free(unsafe.Pointer(streaminputs))
 }
-
 func inputToCInput(input []string) **C.char {
 	if len(input) == 0 {
 		return nil
@@ -145,20 +145,17 @@ func freeCInput(input **C.char, inputc C.int) {
 	}
 	C.free(unsafe.Pointer(input))
 }
-
 func freeCRinfo(info *C.vorlage_proc_requestinfo) {
 	C.free(unsafe.Pointer(info.filepath))
 	freeCInput(info.inputv, info.procinfo.inputprotoc)
 	freeCStreamInput(info.streaminputv, info.procinfo.streaminputprotoc)
 	C.free(unsafe.Pointer(info))
 }
-
 type requestContext struct {
 	rinfoInCMemory   *C.vorlage_proc_requestinfo
 	contextInCMemory unsafe.Pointer
 }
-
-func (c *cProc) OnRequest(info RequestInfo, context *interface{}) []Action {
+func (c *cProc) OnRequest(info vorlage.RequestInfo, context *interface{}) []vorlage.Action {
 	var reqinfo = requestInfoToCRinfo(info, c.volageProcInfo)
 	// exec the function and prepare the return in gostyle.
 	var ccontext unsafe.Pointer
@@ -167,12 +164,11 @@ func (c *cProc) OnRequest(info RequestInfo, context *interface{}) []Action {
 	cactions := C.execonrequest(f, *reqinfo, &ccontext)
 	cactionsslice := (*[1 << 28]C.vorlage_proc_action)(unsafe.Pointer(cactions.actionv))[:cactions.actionc:cactions.actionc]
 
-	ret := make([]Action, len(cactionsslice))
+	ret := make([]vorlage.Action, len(cactionsslice))
 	for i := range cactionsslice {
 		ret[i].Action = int(cactionsslice[i].action)
 		ret[i].Data = C.GoBytes(cactionsslice[i].data, cactionsslice[i].datac)
 	}
-
 	*context = requestContext{reqinfo, ccontext}
 	return ret
 }
@@ -222,8 +218,7 @@ func (d descriptorReader) Read(p []byte) (int, error) {
 	}
 	return int(size), nil
 }
-
-func (c *cProc) DefineVariable(info DefineInfo, context interface{}) Definition {
+func (c *cProc) DefineVariable(info vorlage.DefineInfo, context interface{}) vorlage.Definition {
 	var reqinfoContext = (context).(requestContext)
 	reqinfo := reqinfoContext.rinfoInCMemory
 	//requestInfoToCRinfo(*info.RequestInfo, &c.volageProcInfo)
@@ -240,22 +235,20 @@ func (c *cProc) DefineVariable(info DefineInfo, context interface{}) Definition 
 	filedes := C.execdefine(f, d, reqinfoContext.contextInCMemory)
 	return descriptorReader{c, unsafe.Pointer(filedes)}
 }
-
-func (c *cProc) OnFinish(rinfo RequestInfo, context interface{}) {
+func (c *cProc) OnFinish(rinfo vorlage.RequestInfo, context interface{}) {
 	var reqinfoContext = (context).(requestContext)
 	var reqinfo = reqinfoContext.rinfoInCMemory
 	defer freeCRinfo(reqinfo)
 	f := C.vorlage_proc_onfinish_wrap(c.vorlage_proc_onfinish)
 	C.vorlage_proc_onfinish_exec(f, *reqinfo, reqinfoContext.contextInCMemory)
 }
-
-func (c *cProc) Startup() ProcessorInfo {
+func (c *cProc) Startup() vorlage.ProcessorInfo {
 	f := C.startupwrap(c.vorlageStartup)
 	d := C.execstartupwrap(f)
 	c.volageProcInfo = d
-	p := ProcessorInfo{}
+	p := vorlage.ProcessorInfo{}
 	// description
-	p.name = c.procname
+	p.Name = c.procname
 	p.Description = C.GoString(d.description)
 
 	// input proto
@@ -264,11 +257,11 @@ func (c *cProc) Startup() ProcessorInfo {
 	p.Variables = parseVariables(int(d.variablesc), d.variablesv)
 	return p
 }
-func parseVariables(varsc int, varsv *C.vorlage_proc_variable) []ProcessorVariable {
+func parseVariables(varsc int, varsv *C.vorlage_proc_variable) []vorlage.ProcessorVariable {
 	if varsc == 0 {
 		return nil
 	}
-	ret := make([]ProcessorVariable, varsc)
+	ret := make([]vorlage.ProcessorVariable, varsc)
 	slice := (*[1 << 28]C.vorlage_proc_variable)(unsafe.Pointer(varsv))[:varsc:varsc]
 	for i := 0; i < varsc; i++ {
 		iproto := slice[i]
@@ -279,25 +272,25 @@ func parseVariables(varsc int, varsv *C.vorlage_proc_variable) []ProcessorVariab
 	}
 	return ret
 }
-func parseInputProtoType(protoc int, protov *C.vorlage_proc_inputproto) []InputPrototype {
+func parseInputProtoType(protoc int, protov *C.vorlage_proc_inputproto) []vorlage.InputPrototype {
 	if protoc == 0 {
 		return nil
 	}
 	slice := (*[1 << 28]C.vorlage_proc_inputproto)(unsafe.Pointer(protov))[:protoc:protoc]
-	ret := make([]InputPrototype, protoc)
+	ret := make([]vorlage.InputPrototype, protoc)
 	for i := 0; i < protoc; i++ {
 		iproto := slice[i]
-		ret[i].name = C.GoString(iproto.name)
-		ret[i].description = C.GoString(iproto.description)
+		ret[i].Name = C.GoString(iproto.name)
+		ret[i].Description = C.GoString(iproto.description)
 	}
 	return ret
 }
 
-var _ Processor = &cProc{}
+
 var libraryFilenameSig = regexp.MustCompile("^lib([^.]+).so")
 
-func LoadCProcessors() ([]Processor, error) {
-	var procs []Processor
+func LoadCProcessors() ([]vorlage.Processor, error) {
+	var procs []vorlage.Processor
 	files, err := ioutil.ReadDir(CLoadPath)
 	if err != nil {
 		return nil, err
@@ -316,7 +309,7 @@ func LoadCProcessors() ([]Processor, error) {
 				"failed to load library from library path",
 				err,
 				"",
-				"when loading %s from load path %s", f.Name(), CLoadPath)
+				"when procload %s from load path %s", f.Name(), CLoadPath)
 		}
 		err = proc.loadVorlageSymbols()
 		if err != nil {
@@ -324,11 +317,11 @@ func LoadCProcessors() ([]Processor, error) {
 				"failed to load library from library path",
 				err,
 				"",
-				"when loading %s from load path %s", f.Name(), CLoadPath)
+				"when procload %s from load path %s", f.Name(), CLoadPath)
 		}
 		proc.procname = libnames[1]
 		procs = append(procs, proc)
-		logger.Debugf("loaded processor %s from %s", proc.procname, f.Name())
+		vorlage.Logger.Debugf("loaded processor %s from %s", proc.procname, f.Name())
 	}
 	return procs, nil
 }
@@ -364,14 +357,12 @@ func dlOpen(libPath string) (*cProc, error) {
 	}
 	return h, nil
 }
-
 func isInterfaceVersionSupported(ver uint32) bool {
 	if ver != uint32(C.vorlage_proc_interfaceversion) {
 		return false
 	}
 	return true
 }
-
 func (c *cProc) loadVorlageSymbols() error {
 	theirVersion, err := c.getSymbolPointer("vorlage_proc_interfaceversion")
 	if err != nil {
@@ -419,7 +410,6 @@ func (c *cProc) loadVorlageSymbols() error {
 	}
 	return nil
 }
-
 func (c *cProc) getSymbolPointer(symbol string) (unsafe.Pointer, error) {
 	sym := C.CString(symbol)
 	defer C.free(unsafe.Pointer(sym))
@@ -435,12 +425,11 @@ func (c *cProc) getSymbolPointer(symbol string) (unsafe.Pointer, error) {
 	}
 	return p, nil
 }
-
 func (c *cProc) Shutdown() error {
 	f := C.vorlage_proc_shutdown_wrap(c.vorlageShutdown)
 	ret := int(C.vorlage_proc_shutdown_exec(f))
 	if ret != 0 {
-		logger.Errorf("processor shutdown return non-0 exit code (%d)", ret)
+		vorlage.Logger.Errorf("processor shutdown return non-0 exit code (%d)", ret)
 	}
 
 	C.dlerror() // clear last error

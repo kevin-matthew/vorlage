@@ -63,7 +63,7 @@ var errNotImplemented = &Error{ErrStr: "not implemented"}
 
 const (
 	errNoProcessor                  = "no proccessor found"
-	errProcessorName                = "invalid processor name"
+	errProcessorName                = "invalid processor Name"
 	errFailedToReadBytes            = "failed to read bytes from stream"
 	errFailedToReadDocument         = "failed to read from document"
 	errFailedToReadPrependDocument  = "failed to read from prepended document"
@@ -84,6 +84,6 @@ const (
 	errVariableMissingPrefix        = "'$(' not detected"
 	errBufferTooShort               = "the buffer is too short"
 	errVariableDraw                 = "cannot draw variable"
-	errVariableName                 = "variable has an invalid name"
+	errVariableName                 = "variable has an invalid Name"
 	errBadReservedInput             = "reserved input not formatted correctly"
 )

@@ -73,7 +73,7 @@ type DocumentConverter interface {
 
 	/*
 	 * Convert the file and return the nonConvertedFile. If Error
-	 * is non-nil, the document's loading is stopped completely.
+	 * is non-nil, the document's procload is stopped completely.
 	 * note that the SourceFile:Close MUST be called before this function
 	 * returns.
 	 */
@@ -88,7 +88,7 @@ type DocumentConverter interface {
 var _ File = &nonConvertedFile{}
 
 func (doc *Document) getConverted(sourceFile File) (converedFile File, err *Error) {
-	// todo: switch on the source file name to find a good converted (haml->html)
+	// todo: switch on the source file Name to find a good converted (haml->html)
 	file := nonConvertedFile{
 		sourceFile:         sourceFile,
 		sourceDocument:     doc,

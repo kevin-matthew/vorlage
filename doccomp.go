@@ -3,8 +3,13 @@ package vorlage
 import (
 	"fmt"
 	"io"
+	"regexp"
 	"sync/atomic"
 )
+
+var validProcessorName = regexp.MustCompile(`^[a-z0-9_\-]+$`)
+
+
 
 // everything we'd see in both doccomp-http and doccomp-cli and doccomp-pdf
 type Compiler struct {
@@ -32,7 +37,7 @@ type compileRequest struct {
 func (c compileRequest) String() string {
 	var ret string
 	var args []interface{}
-	//rid
+	//Rid
 	ret += "request #%d:\n"
 	args = append(args, c.rid)
 
@@ -46,7 +51,7 @@ func (c compileRequest) String() string {
 	}
 	for _, v := range c.compiler.processorInfos {
 		ret += "\t%-28s: %s\n"
-		args = append(args, fmt.Sprintf("processor[%s]", v.name))
+		args = append(args, fmt.Sprintf("processor[%s]", v.Name))
 		args = append(args, v.Description)
 	}
 
@@ -80,14 +85,14 @@ func (c compileRequest) String() string {
 func (p ProcessorInfo) String() string {
 	ret := ""
 	var args []interface{}
-	//name
+	//Name
 	ret += "\t%-28s: %s\n"
-	args = append(args, "name")
-	args = append(args, p.name)
+	args = append(args, "Name")
+	args = append(args, p.Name)
 
-	//description
+	//Description
 	ret += "\t%-28s: %s\n"
-	args = append(args, "description")
+	args = append(args, "Description")
 	args = append(args, p.Description)
 
 	//inputs
@@ -132,8 +137,8 @@ func printFormatInputProto(p []InputPrototype, prefix string, ty string, ret *st
 	for _,s := range p {
 		*ret += "%s%-28s: %s\n"
 		*args = append(*args, prefix)
-		*args = append(*args, fmt.Sprintf("%s[%s]",ty, s.name))
-		*args = append(*args, s.description)
+		*args = append(*args, fmt.Sprintf("%s[%s]",ty, s.Name))
+		*args = append(*args, s.Description)
 	}
 }
 
@@ -148,8 +153,8 @@ func NewCompiler(proc []Processor) (c Compiler, err error) {
 		if err != nil {
 			return c, err
 		}
-		logger.Infof("loaded processor %s", c.processorInfos[i].name)
-		logger.Debugf("%s information:\n%s", c.processorInfos[i].name, c.processorInfos[i])
+		logger.Infof("loaded processor %s", c.processorInfos[i].Name)
+		logger.Debugf("%s information:\n%s", c.processorInfos[i].Name, c.processorInfos[i])
 	}
 
 	return c, nil
@@ -157,19 +162,19 @@ func NewCompiler(proc []Processor) (c Compiler, err error) {
 
 func (info *ProcessorInfo) Validate() error {
 
-	// name
-	if !validProcessorName.MatchString(info.name) {
+	// Name
+	if !validProcessorName.MatchString(info.Name) {
 		cerr := NewError(errProcessorName)
-		cerr.SetSubject(info.name)
+		cerr.SetSubject(info.Name)
 		return cerr
 	}
 
-	// make sure stream and static don't have the same name.
+	// make sure stream and static don't have the same Name.
 	for _, v := range info.Variables {
 		// make sure no statics are also streams
 		for k := range v.InputProto {
 			for j := range v.StreamInputProto {
-				if v.InputProto[k].name == v.StreamInputProto[j].name {
+				if v.InputProto[k].Name == v.StreamInputProto[j].Name {
 					oerr := NewError(errInputInStreamAndStatic)
 					oerr.SetSubjectf("\"%s\"", k)
 					return oerr
@@ -248,7 +253,7 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 	for i := range comp.processors {
 		req := RequestInfo{}
 		req.Filepath = filepath
-		req.rid = compReq.rid
+		req.Rid = compReq.rid
 		req.cookie = new(interface{})
 		req.Input = make([]string, len(comp.processorInfos[i].InputProto))
 		req.StreamInput = make([]StreamInput, len(comp.processorInfos[i].StreamInputProto))
@@ -256,18 +261,18 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 		req.ProcessorInfo = &comp.processorInfos[i]
 		// now the input...
 		for inpti, inpt := range comp.processorInfos[i].InputProto {
-			if str, ok := allInput[inpt.name]; ok {
+			if str, ok := allInput[inpt.Name]; ok {
 				req.Input[inpti] = str
 			} else {
-				logger.Debugf("processor %s was given an empty %s", comp.processorInfos[i].name, inpt.name)
+				logger.Debugf("processor %s was given an empty %s", comp.processorInfos[i].Name, inpt.Name)
 				req.Input[inpti] = ""
 			}
 		}
 		for inpti, inpt := range comp.processorInfos[i].StreamInputProto {
-			if stream, ok := allStreams[inpt.name]; ok {
+			if stream, ok := allStreams[inpt.Name]; ok {
 				req.StreamInput[inpti] = stream
 			} else {
-				logger.Debugf("processor %s was given an empty stream %s", comp.processorInfos[i].name, inpt.name)
+				logger.Debugf("processor %s was given an empty stream %s", comp.processorInfos[i].Name, inpt.Name)
 				req.StreamInput[inpti] = nil
 			}
 		}
@@ -278,20 +283,20 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 				erro := NewError("processor had critical error")
 				errz := NewError(string(actions[a].Data))
 				erro.SetBecause(errz)
-				erro.SetSubjectf("%s", comp.processorInfos[i].name)
+				erro.SetSubjectf("%s", comp.processorInfos[i].Name)
 				actionsHandler.ActionCritical(errz)
 				return nil, CompileStatus{erro, true}
 			case ActionAccessFail:
 				erro := NewError("processor denied access")
 				errz := NewError(string(actions[a].Data))
 				erro.SetBecause(errz)
-				erro.SetSubjectf("%s", comp.processorInfos[i].name)
+				erro.SetSubjectf("%s", comp.processorInfos[i].Name)
 				actionsHandler.ActionAccessFail(errz)
 				return nil, CompileStatus{erro, true}
 			case ActionSee:
 				erro := NewError("processor redirect")
 				path := string(actions[a].Data)
-				erro.SetSubjectf("%s redirecting compRequest to %s", comp.processorInfos[i].name, path)
+				erro.SetSubjectf("%s redirecting compRequest to %s", comp.processorInfos[i].Name, path)
 				actionsHandler.ActionSee(path)
 				return nil, CompileStatus{erro, true}
 			case ActionHTTPHeader:
@@ -303,7 +308,7 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 	}
 	doc, errd := comp.loadDocument(compReq)
 	if errd != nil {
-		erro := NewError("loading a requested document")
+		erro := NewError("procload a requested document")
 		erro.SetSubject(filepath)
 		erro.SetBecause(errd)
 		return docstream, CompileStatus{erro, false}

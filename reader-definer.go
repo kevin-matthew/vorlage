@@ -14,7 +14,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 		// lets find the right processor...
 		var pi int
 		for pi = range doc.compiler.processorInfos {
-			if doc.compiler.processorInfos[pi].name == pos.processorName {
+			if doc.compiler.processorInfos[pi].Name == pos.processorName {
 				break
 			}
 		}
@@ -56,7 +56,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 
 		// static input
 		for k := range df.Input {
-			name := vars[procvarIndex].InputProto[k].name
+			name := vars[procvarIndex].InputProto[k].Name
 			if v, ok := doc.compRequest.allInput[name]; ok {
 				df.Input[k] = v
 			} else {
@@ -68,7 +68,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 
 		// stream input
 		for k := range df.StreamInput {
-			name := vars[procvarIndex].StreamInputProto[k].name
+			name := vars[procvarIndex].StreamInputProto[k].Name
 			if v, ok := doc.compRequest.allStreams[name]; ok {
 
 				// mark it as used
@@ -80,7 +80,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 				// now actually set the stream
 				df.StreamInput[procvarIndex] = v
 			} else {
-				// nil if input name not given
+				// nil if input Name not given
 				logger.Debugf("variable %s was not given %s stream input", pos.String(), name)
 				df.StreamInput[procvarIndex] = nil
 			}

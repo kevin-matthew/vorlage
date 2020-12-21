@@ -1,16 +1,11 @@
 package vorlage
-
-func SetLogger(l Logger) {
-	logger = l
-}
-
-type Logger interface {
+type Loggert interface {
 	Errorf(format string, args ...interface{})
 	Infof(format string, args ...interface{})
 	Debugf(format string, args ...interface{})
 }
 
-var logger Logger = nullLog{}
+var Logger Loggert = nullLog{}
 
 type nullLog struct{}
 
