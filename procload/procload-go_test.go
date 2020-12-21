@@ -3,10 +3,11 @@ package procload
 import (
 	"plugin"
 	"testing"
+	".."
 )
 
 func TestLoadGoProcessors(t *testing.T) {
-	p,err := plugin.Open("go.src/golibtestproc.so")
+	p,err := plugin.Open("../go.src/golibtestproc.so")
 	if err != nil {
 		t.Log(err)
 		t.Fail()
@@ -16,7 +17,7 @@ func TestLoadGoProcessors(t *testing.T) {
 		t.Log(err)
 		t.Fail()
 	}
-	rid := sym.(func() Rid)()
+	rid := sym.(func() vorlage.Rid)()
 	t.Log(rid)
 	t.Fail()
 }

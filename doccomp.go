@@ -153,8 +153,8 @@ func NewCompiler(proc []Processor) (c Compiler, err error) {
 		if err != nil {
 			return c, err
 		}
-		logger.Infof("loaded processor %s", c.processorInfos[i].Name)
-		logger.Debugf("%s information:\n%s", c.processorInfos[i].Name, c.processorInfos[i])
+		Logger.Infof("loaded processor %s", c.processorInfos[i].Name)
+		Logger.Debugf("%s information:\n%s", c.processorInfos[i].Name, c.processorInfos[i])
 	}
 
 	return c, nil
@@ -248,7 +248,7 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 		rid:             Rid(atomic.LoadUint64(&nextRid)),
 		processorRInfos: make([]RequestInfo, len(comp.processors)),
 	}
-	logger.Debugf("new request generated: %s", compReq)
+	Logger.Debugf("new request generated: %s", compReq)
 
 	for i := range comp.processors {
 		req := RequestInfo{}
@@ -264,7 +264,7 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 			if str, ok := allInput[inpt.Name]; ok {
 				req.Input[inpti] = str
 			} else {
-				logger.Debugf("processor %s was given an empty %s", comp.processorInfos[i].Name, inpt.Name)
+				Logger.Debugf("processor %s was given an empty %s", comp.processorInfos[i].Name, inpt.Name)
 				req.Input[inpti] = ""
 			}
 		}
@@ -272,7 +272,7 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 			if stream, ok := allStreams[inpt.Name]; ok {
 				req.StreamInput[inpti] = stream
 			} else {
-				logger.Debugf("processor %s was given an empty stream %s", comp.processorInfos[i].Name, inpt.Name)
+				Logger.Debugf("processor %s was given an empty stream %s", comp.processorInfos[i].Name, inpt.Name)
 				req.StreamInput[inpti] = nil
 			}
 		}

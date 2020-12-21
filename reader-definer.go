@@ -61,7 +61,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 				df.Input[k] = v
 			} else {
 				// 0 if not given
-				logger.Debugf("variable %s was not given %s input", pos.String(), name)
+				Logger.Debugf("variable %s was not given %s input", pos.String(), name)
 				df.Input[k] = ""
 			}
 		}
@@ -81,7 +81,7 @@ func (doc *Document) define(pos variablePos) (Definition, error) {
 				df.StreamInput[procvarIndex] = v
 			} else {
 				// nil if input Name not given
-				logger.Debugf("variable %s was not given %s stream input", pos.String(), name)
+				Logger.Debugf("variable %s was not given %s stream input", pos.String(), name)
 				df.StreamInput[procvarIndex] = nil
 			}
 		}
