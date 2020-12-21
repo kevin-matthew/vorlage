@@ -321,7 +321,7 @@ func LoadCProcessors() ([]vorlageproc.Processor, error) {
 		}
 		proc.procname = libnames[1]
 		procs = append(procs, proc)
-		Logger.Debugf("loaded processor %s from %s", proc.procname, f.Name())
+		Logger.Debugf("loaded c processor %s from %s", proc.procname, f.Name())
 	}
 	return procs, nil
 }

@@ -156,15 +156,26 @@ func main() {
 	}
 	vorlage.Logger = vorlagelogcontext
 
+	FileExt = append(FileExt, ".html")
+
 	// load the c vorlageproc
 	mainlogContext.Infof("procload ELF vorlageproc out of %s...", vorlage.CLoadPath)
-	FileExt = append(FileExt, ".html")
 	procs, err := vorlage.LoadCProcessors()
 	if err != nil {
 		mainlogContext.Errorf("failed to load ELF vorlageproc: %s", err.Error())
 		os.Exit(1)
 		return
 	}
+
+	// load the go plugins vorlageproc
+	mainlogContext.Infof("procload go plugin vorlageproc out of %s...", vorlage.GoPluginLoadPath)
+	goprocs, err := vorlage.LoadGoProcessors()
+	if err != nil {
+		mainlogContext.Errorf("failed to load go plugin: %s", err)
+		os.Exit(1)
+		return
+	}
+	procs = append(procs, goprocs...)
 
 	// start the server
 	mainlogContext.Infof("starting server for document root \"%s\"...", DocumentRoot)
