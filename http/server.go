@@ -10,11 +10,12 @@ import (
 	"strings"
 )
 
-import doccomp ".."
+import vorlage ".."
+import vorlageproc "../vorlageproc"
 
 type handler struct {
 	docroot  string
-	compiler doccomp.Compiler
+	compiler vorlage.Compiler
 }
 
 type actionhandler struct {
@@ -138,9 +139,9 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	var stream io.ReadCloser
 	var inputs map[string]string
-	var streaminputs map[string]doccomp.StreamInput
+	var streaminputs map[string]vorlageproc.StreamInput
 	var cookies []*http.Cookie
-	var cstat doccomp.CompileStatus
+	var cstat vorlage.CompileStatus
 
 	// does it have the file extension we don't want?
 
@@ -198,7 +199,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	// do the same with the multipart form
 	if request.MultipartForm != nil {
-		streaminputs = make(map[string]doccomp.StreamInput)
+		streaminputs = make(map[string]vorlageproc.StreamInput)
 		for k, s := range request.MultipartForm.File {
 			if len(s) != 1 {
 				httplogContext.Warnf("%s contains multiple streams or is empty", k)
@@ -307,16 +308,16 @@ func isUpwardTransversal(path string) bool {
 
 /*
  * Serve accepts incoming HTTP connections on listener l using
- * net/http to handle all the http protocols and doccomp to handle the
+ * net/http to handle all the http protocols and vorlageproc to handle the
  * putting-together of HTML documents.
  *
  * Make sure if your documentRoot will be local you use "."
  *
  * (confroming too: net/http/server.go)
  */
-func Serve(l net.Listener, procs []doccomp.Processor, useFcgi bool, documentRoot string) error {
+func Serve(l net.Listener, procs []vorlageproc.Processor, useFcgi bool, documentRoot string) error {
 
-	c, err := doccomp.NewCompiler(procs)
+	c, err := vorlage.NewCompiler(procs)
 	if err != nil {
 		return err
 	}

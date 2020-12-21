@@ -1,9 +1,9 @@
-package procload
+package vorlage
 
 import (
 	"plugin"
 	"testing"
-	".."
+	vorlageproc "./vorlageproc"
 )
 
 func TestLoadGoProcessors(t *testing.T) {
@@ -17,7 +17,7 @@ func TestLoadGoProcessors(t *testing.T) {
 		t.Log(err)
 		t.Fail()
 	}
-	rid := sym.(func() vorlage.Rid)()
+	rid := sym.(func() vorlageproc.Rid)()
 	t.Log(rid)
 	t.Fail()
 }

@@ -1,4 +1,4 @@
-package vorlage
+package vorlageproc
 
 import "fmt"
 

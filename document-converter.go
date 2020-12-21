@@ -1,9 +1,9 @@
-package compiler
+package vorlage
 
 import (
 	"io"
 	"os"
-	".."
+	vorlageproc "./vorlageproc"
 )
 
 // its a io.Reader that will read from the file but will NOT read the macros.
@@ -40,7 +40,7 @@ type nonConvertedFile struct {
 	tmpBuff []byte
 
 	// will be nil if not currently reading.
-	currentlyReadingDef vorlage.Definition
+	currentlyReadingDef vorlageproc.Definition
 }
 
 type osFileHandle struct {

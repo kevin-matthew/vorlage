@@ -1,4 +1,4 @@
-package procload
+package vorlage
 
 import (
 	"fmt"
@@ -56,8 +56,8 @@ import (
 	"io"
 	"strconv"
 )
-import "../lmgo/errors"
-import vorlage ".."
+import "./lmgo/errors"
+import "./vorlageproc"
 
 type cProc struct {
 	libname  string
@@ -79,9 +79,9 @@ type cProc struct {
 	// raw pointers
 	volageProcInfo C.vorlage_proc_info
 }
-var _ vorlage.Processor = &cProc{}
+var _ vorlageproc.Processor = &cProc{}
 
-func requestInfoToCRinfo(info vorlage.RequestInfo, procinfo C.vorlage_proc_info) *C.vorlage_proc_requestinfo {
+func requestInfoToCRinfo(info vorlageproc.RequestInfo, procinfo C.vorlage_proc_info) *C.vorlage_proc_requestinfo {
 
 	// make a reqinfo struct in c memeory
 	var reqinfo = (*C.vorlage_proc_requestinfo)(C.malloc(C.sizeof_vorlage_proc_requestinfo))
@@ -99,7 +99,7 @@ func requestInfoToCRinfo(info vorlage.RequestInfo, procinfo C.vorlage_proc_info)
 	// done
 	return reqinfo
 }
-func streaminputToCInput(streams []vorlage.StreamInput) *unsafe.Pointer {
+func streaminputToCInput(streams []vorlageproc.StreamInput) *unsafe.Pointer {
 	if len(streams) == 0 {
 		return nil
 	}
@@ -155,7 +155,7 @@ type requestContext struct {
 	rinfoInCMemory   *C.vorlage_proc_requestinfo
 	contextInCMemory unsafe.Pointer
 }
-func (c *cProc) OnRequest(info vorlage.RequestInfo, context *interface{}) []vorlage.Action {
+func (c *cProc) OnRequest(info vorlageproc.RequestInfo, context *interface{}) []vorlageproc.Action {
 	var reqinfo = requestInfoToCRinfo(info, c.volageProcInfo)
 	// exec the function and prepare the return in gostyle.
 	var ccontext unsafe.Pointer
@@ -164,7 +164,7 @@ func (c *cProc) OnRequest(info vorlage.RequestInfo, context *interface{}) []vorl
 	cactions := C.execonrequest(f, *reqinfo, &ccontext)
 	cactionsslice := (*[1 << 28]C.vorlage_proc_action)(unsafe.Pointer(cactions.actionv))[:cactions.actionc:cactions.actionc]
 
-	ret := make([]vorlage.Action, len(cactionsslice))
+	ret := make([]vorlageproc.Action, len(cactionsslice))
 	for i := range cactionsslice {
 		ret[i].Action = int(cactionsslice[i].action)
 		ret[i].Data = C.GoBytes(cactionsslice[i].data, cactionsslice[i].datac)
@@ -218,7 +218,7 @@ func (d descriptorReader) Read(p []byte) (int, error) {
 	}
 	return int(size), nil
 }
-func (c *cProc) DefineVariable(info vorlage.DefineInfo, context interface{}) vorlage.Definition {
+func (c *cProc) DefineVariable(info vorlageproc.DefineInfo, context interface{}) vorlageproc.Definition {
 	var reqinfoContext = (context).(requestContext)
 	reqinfo := reqinfoContext.rinfoInCMemory
 	//requestInfoToCRinfo(*info.RequestInfo, &c.volageProcInfo)
@@ -235,18 +235,18 @@ func (c *cProc) DefineVariable(info vorlage.DefineInfo, context interface{}) vor
 	filedes := C.execdefine(f, d, reqinfoContext.contextInCMemory)
 	return descriptorReader{c, unsafe.Pointer(filedes)}
 }
-func (c *cProc) OnFinish(rinfo vorlage.RequestInfo, context interface{}) {
+func (c *cProc) OnFinish(rinfo vorlageproc.RequestInfo, context interface{}) {
 	var reqinfoContext = (context).(requestContext)
 	var reqinfo = reqinfoContext.rinfoInCMemory
 	defer freeCRinfo(reqinfo)
 	f := C.vorlage_proc_onfinish_wrap(c.vorlage_proc_onfinish)
 	C.vorlage_proc_onfinish_exec(f, *reqinfo, reqinfoContext.contextInCMemory)
 }
-func (c *cProc) Startup() vorlage.ProcessorInfo {
+func (c *cProc) Startup() vorlageproc.ProcessorInfo {
 	f := C.startupwrap(c.vorlageStartup)
 	d := C.execstartupwrap(f)
 	c.volageProcInfo = d
-	p := vorlage.ProcessorInfo{}
+	p := vorlageproc.ProcessorInfo{}
 	// description
 	p.Name = c.procname
 	p.Description = C.GoString(d.description)
@@ -257,11 +257,11 @@ func (c *cProc) Startup() vorlage.ProcessorInfo {
 	p.Variables = parseVariables(int(d.variablesc), d.variablesv)
 	return p
 }
-func parseVariables(varsc int, varsv *C.vorlage_proc_variable) []vorlage.ProcessorVariable {
+func parseVariables(varsc int, varsv *C.vorlage_proc_variable) []vorlageproc.ProcessorVariable {
 	if varsc == 0 {
 		return nil
 	}
-	ret := make([]vorlage.ProcessorVariable, varsc)
+	ret := make([]vorlageproc.ProcessorVariable, varsc)
 	slice := (*[1 << 28]C.vorlage_proc_variable)(unsafe.Pointer(varsv))[:varsc:varsc]
 	for i := 0; i < varsc; i++ {
 		iproto := slice[i]
@@ -272,12 +272,12 @@ func parseVariables(varsc int, varsv *C.vorlage_proc_variable) []vorlage.Process
 	}
 	return ret
 }
-func parseInputProtoType(protoc int, protov *C.vorlage_proc_inputproto) []vorlage.InputPrototype {
+func parseInputProtoType(protoc int, protov *C.vorlage_proc_inputproto) []vorlageproc.InputPrototype {
 	if protoc == 0 {
 		return nil
 	}
 	slice := (*[1 << 28]C.vorlage_proc_inputproto)(unsafe.Pointer(protov))[:protoc:protoc]
-	ret := make([]vorlage.InputPrototype, protoc)
+	ret := make([]vorlageproc.InputPrototype, protoc)
 	for i := 0; i < protoc; i++ {
 		iproto := slice[i]
 		ret[i].Name = C.GoString(iproto.name)
@@ -289,8 +289,8 @@ func parseInputProtoType(protoc int, protov *C.vorlage_proc_inputproto) []vorlag
 
 var libraryFilenameSig = regexp.MustCompile("^lib([^.]+).so")
 
-func LoadCProcessors() ([]vorlage.Processor, error) {
-	var procs []vorlage.Processor
+func LoadCProcessors() ([]vorlageproc.Processor, error) {
+	var procs []vorlageproc.Processor
 	files, err := ioutil.ReadDir(CLoadPath)
 	if err != nil {
 		return nil, err
@@ -321,7 +321,7 @@ func LoadCProcessors() ([]vorlage.Processor, error) {
 		}
 		proc.procname = libnames[1]
 		procs = append(procs, proc)
-		vorlage.Logger.Debugf("loaded processor %s from %s", proc.procname, f.Name())
+		Logger.Debugf("loaded processor %s from %s", proc.procname, f.Name())
 	}
 	return procs, nil
 }
@@ -369,16 +369,16 @@ func (c *cProc) loadVorlageSymbols() error {
 		return errors.Newf(0x7852b,
 			"failed to find vorlage_proc_interfaceversion symbol",
 			err,
-			"make sure this is a valid vorlage processor and has been built correctly",
+			"make sure this is a valid vorlageproc processor and has been built correctly",
 			"")
 	}
 	tv := (*uint32)(theirVersion)
 	c.vorlageInterfaceVersion = *tv
 	if !isInterfaceVersionSupported(*tv) {
 		return errors.Newf(0x9852b,
-			"vorlage processor interface version not supported",
+			"vorlageproc processor interface version not supported",
 			nil,
-			"find a more up-to-date version of this processor or downgrade your vorlage",
+			"find a more up-to-date version of this processor or downgrade your vorlageproc",
 			"version %x.8", *tv)
 	}
 
@@ -429,7 +429,7 @@ func (c *cProc) Shutdown() error {
 	f := C.vorlage_proc_shutdown_wrap(c.vorlageShutdown)
 	ret := int(C.vorlage_proc_shutdown_exec(f))
 	if ret != 0 {
-		vorlage.Logger.Errorf("processor shutdown return non-0 exit code (%d)", ret)
+		Logger.Errorf("processor shutdown return non-0 exit code (%d)", ret)
 	}
 
 	C.dlerror() // clear last error

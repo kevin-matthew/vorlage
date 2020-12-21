@@ -1,8 +1,8 @@
 /*
- * Note: for documentation on these structs, please see c.src/processors.h
+ * Note: for documentation on these structs, please see c.src/vorlageproc.h
  */
 
-package vorlage
+package vorlageproc
 
 import (
 	"io"
@@ -86,7 +86,7 @@ type Input struct {
 	string
 }
 
-// RequestInfo is sent to processors
+// RequestInfo is sent to vorlageproc
 type RequestInfo struct {
 	ProcessorInfo *ProcessorInfo
 

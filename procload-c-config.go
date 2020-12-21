@@ -1,3 +1,3 @@
-package procload
+package vorlage
 
 var CLoadPath = "c.src"

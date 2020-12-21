@@ -1,7 +1,7 @@
 // note this package is just a shell package. implementations should
 // replace Logger with something other than nullLog to format log output.
 
-package logging
+package vorlage
 type Loggert interface {
 	Errorf(format string, args ...interface{})
 	Infof(format string, args ...interface{})

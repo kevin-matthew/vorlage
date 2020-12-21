@@ -1,11 +1,11 @@
-package compiler
+package vorlage
 
-import ".."
+import vorlageproc "./vorlageproc"
 
 // todo: I don't think this method should belong to Document...
 // ARCHITECTUAL ERROR.
-func (doc *Document) define(pos variablePos) (vorlage.Definition, error) {
-	var foundDef vorlage.Definition
+func (doc *Document) define(pos variablePos) (vorlageproc.Definition, error) {
+	var foundDef vorlageproc.Definition
 
 	// we have found a variable in the document.
 	// lets go find it's definition
@@ -49,11 +49,11 @@ func (doc *Document) define(pos variablePos) (vorlage.Definition, error) {
 		// but what about the variable's inputs... let's make sure they're
 		// populated.
 
-		df := vorlage.DefineInfo{
+		df := vorlageproc.DefineInfo{
 			RequestInfo:  &doc.compRequest.processorRInfos[pi],
 			ProcVarIndex: procvarIndex,
 			Input:        make([]string, len(vars[procvarIndex].InputProto)),
-			StreamInput:  make([]vorlage.StreamInput, len(vars[procvarIndex].StreamInputProto)),
+			StreamInput:  make([]vorlageproc.StreamInput, len(vars[procvarIndex].StreamInputProto)),
 		}
 
 		// static input
@@ -63,7 +63,7 @@ func (doc *Document) define(pos variablePos) (vorlage.Definition, error) {
 				df.Input[k] = v
 			} else {
 				// 0 if not given
-				vorlage.Logger.Debugf("variable %s was not given %s input", pos.String(), name)
+				Logger.Debugf("variable %s was not given %s input", pos.String(), name)
 				df.Input[k] = ""
 			}
 		}
@@ -83,7 +83,7 @@ func (doc *Document) define(pos variablePos) (vorlage.Definition, error) {
 				df.StreamInput[procvarIndex] = v
 			} else {
 				// nil if input Name not given
-				vorlage.Logger.Debugf("variable %s was not given %s stream input", pos.String(), name)
+				Logger.Debugf("variable %s was not given %s stream input", pos.String(), name)
 				df.StreamInput[procvarIndex] = nil
 			}
 		}

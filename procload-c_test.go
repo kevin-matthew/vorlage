@@ -1,4 +1,4 @@
-package procload
+package vorlage
 
 import (
 	"fmt"
