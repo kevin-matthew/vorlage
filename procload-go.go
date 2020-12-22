@@ -110,8 +110,11 @@ func LoadGoProcessors() ([]vorlageproc.Processor, error) {
 		if libnames == nil {
 			continue
 		}
+		path := GoPluginLoadPath + "/" + f.Name()
+		if GoPluginLoadPath == "" {
+			path = f.Name()
+		}
 
-		path := GoPluginLoadPath + f.Name()
 		p,err := loadGoProc(path)
 		if err != nil {
 			return procs,errors.New(0x19945,
@@ -124,6 +127,6 @@ func LoadGoProcessors() ([]vorlageproc.Processor, error) {
 		procs = append(procs, p)
 		Logger.Debugf("loaded go processor %s from %s", p.libname, path)
 	}
-	return nil, nil
+	return procs, nil
 }
 

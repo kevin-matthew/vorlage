@@ -43,8 +43,13 @@ var config = []conf.ConfigBinding{
 	},
 	{
 		Name: "vorlage-ldpath",
-		Description: "A path to a directory to which vorlage will search for available vorlageproc.",
+		Description: "A path to a directory to which vorlage will search for available vorlageprocs.",
 		VarAddress: &vorlage.CLoadPath,
+	},
+	{
+		Name: "vorlage-goldpath",
+		Description: "A path to a directory to which vorlage will search for available go vorlageprocs.",
+		VarAddress: &vorlage.GoPluginLoadPath,
 	},
 	{
 		Name: "log-debug",

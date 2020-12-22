@@ -303,13 +303,17 @@ func LoadCProcessors() ([]vorlageproc.Processor, error) {
 		if libnames == nil {
 			continue
 		}
-		proc, err := dlOpen(CLoadPath + "/" + f.Name())
+		path := CLoadPath + "/" + f.Name()
+		if CLoadPath == "" {
+			path = f.Name()
+		}
+		proc, err := dlOpen(path)
 		if err != nil {
 			return procs, errors.Newf(0x6134bc1,
 				"failed to load library from library path",
 				err,
 				"",
-				"when procload %s from load path %s", f.Name(), CLoadPath)
+				"%s", path)
 		}
 		err = proc.loadVorlageSymbols()
 		if err != nil {
@@ -317,7 +321,7 @@ func LoadCProcessors() ([]vorlageproc.Processor, error) {
 				"failed to load library from library path",
 				err,
 				"",
-				"when procload %s from load path %s", f.Name(), CLoadPath)
+				"%s", path)
 		}
 		proc.procname = libnames[1]
 		procs = append(procs, proc)

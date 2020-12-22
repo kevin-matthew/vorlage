@@ -7,8 +7,12 @@ GOFILES  := $(shell find . -name '*.go' -type f)
 
 build: build/vorlage-http
 
-test: build/procs/libtest-proc.so build/vorlage-http
+test: build/procs/libtest-proc.so build/procs/golibgotestproc.so build/vorlage-http
 	build/vorlage-http testing/testing.conf
+
+build/procs/golibgotestproc.so: testing/gotest-proc.go
+	@mkdir -p build/procs
+	go build -buildmode=plugin -o $@ $^
 
 build/procs/libtest-proc.so: testing/test-proc.c c.src/processors.h c.src/processor-interface.h
 	@mkdir -p build/procs
