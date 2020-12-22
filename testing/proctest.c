@@ -66,7 +66,7 @@ typedef struct {
 const vorlage_proc_actions  vorlage_proc_onrequest(const vorlage_proc_requestinfo rinfo, void **context)
 {
 const char *logme=rinfo.inputv[0];
-fprintf(stdout, "hi I'm being logged from file request %s: %s\n", rinfo.filepath, logme);
+//fprintf(stdout, "hi I'm being logged from file request %s: %s\n", rinfo.filepath, logme);
 
 //test stream
 

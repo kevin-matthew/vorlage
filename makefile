@@ -7,16 +7,16 @@ GOFILES  := $(shell find . -name '*.go' -type f)
 
 build: build/vorlage-http
 
-test: build/procs/libtest-proc.so build/procs/golibgotestproc.so build/vorlage-http
+test: build/procs/libctest.so build/procs/golibgotest.so build/vorlage-http
 	build/vorlage-http testing/testing.conf
 
-build/procs/golibgotestproc.so: testing/gotest-proc.go
+build/procs/golibgotest.so: testing/proctest.go $(wildcard vorlageproc/*.go)
 	@mkdir -p build/procs
-	go build -buildmode=plugin -o $@ $^
+	go build -buildmode=plugin -o $@ $<
 
-build/procs/libtest-proc.so: testing/test-proc.c c.src/processors.h c.src/processor-interface.h
+build/procs/libctest.so: testing/proctest.c c.src/processors.h c.src/processor-interface.h
 	@mkdir -p build/procs
-	gcc -o build/procs/libtest-proc.so -Wall -shared -fpic testing/test-proc.c
+	gcc -o $@ -Wall -shared -fpic $<
 
 build/vorlage-http: $(GOFILES)
 	go build -ldflags "-s -w" -o build/vorlage-http ./http/

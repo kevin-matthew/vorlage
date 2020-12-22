@@ -1,6 +1,9 @@
 #define $(title) Vorlage Home
 #prepend header.html
 #append footer.html
+<!-- This file is modifiable.
+  -- Full license can be found at https://ellem.ai/vorlage/license.html
+  -->
 
 <main>
 	<article>
@@ -34,8 +37,8 @@
 				<input type="text" name="echotext">
 			</p>
 			<p><input type="submit"></p>
-			<p>Output of test.echo: <pre>$(test.echo)</pre></p>
-			<p>A random number from go: <pre>$(gotestproc.
+			<p>Output of test.echo: <pre>$(ctest.echo)</pre></p>
 		</form>
+		<p>Random number from go: <pre>$(gotest.RandomNumber)</pre></p>
 	</article>
 </main>
