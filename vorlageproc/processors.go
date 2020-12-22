@@ -81,6 +81,10 @@ type DefineInfo struct {
 	StreamInput  []StreamInput
 }
 
+func (d DefineInfo) Variable() ProcessorVariable {
+	return d.RequestInfo.ProcessorInfo.Variables[d.ProcVarIndex]
+}
+
 // Input will be associtive to InputPrototype
 type Input struct {
 	string
