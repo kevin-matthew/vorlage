@@ -101,8 +101,8 @@ func (c *nonConvertedFile) Read(dest []byte) (totalBytes int, err error) {
 		// did the buffer (dest) pick up anything AFTER the variable?
 		//
 		// (ie dest[:n] = "123$(varible)abc")
-		//                    ^        ^  ^
-		//                   (a)      (b)(c)
+		//                    ^         ^  ^
+		//                   (a)       (b)(c)
 		//
 		//  (a) = position of nonVarByteCount
 		//  (b) = position of nonVarByteCount + len(pos.fullName)
@@ -128,9 +128,33 @@ func (c *nonConvertedFile) Read(dest []byte) (totalBytes int, err error) {
 		// first go back to the Document and find this variable's definition
 		def, derr := c.sourceDocument.define(*pos)
 		if derr != nil {
+			if oerr,ok := derr.(*Error); ok {
+				switch oerr.ErrStr {
+				case errNoProcessor:
+					Logger.Warnf("%s - %s", pos, derr)
+					goto ignoreerror
+				case errNotDefined:
+					Logger.Debugf("%s - %s", pos, derr)
+					goto ignoreerror
+				case errNotDefinedInProcessor:
+					Logger.Warnf("%s - %s", pos, derr)
+					goto ignoreerror
+				}
+			}
+
 			// many errors can occour here... for intance, the variable
 			// does not exist, the processor doesn't exist, invalid input, ect.
 			return totalBytes, derr
+
+			ignoreerror:
+			// if we're here, then the variable didn't exist. So we've got to
+			// print out the original contents (including '$(' and ')'). The
+			// easiest way I see doing this is: just set the definer to
+			// read from the variable read buffer. An elegant solution.
+			// We'll re-use the NormalDefinition struct to do this. A very
+			// elegant solution indeed.
+			Logger.Debugf("the buffer is: %s", string(c.variableReadBuffer))
+			def = &NormalDefinition{value: pos.fullName, }
 		}
 		// lets start reading it on the next read by setting c.currentlyReadingDef
 		// to a non-nil value (see readDefinition)

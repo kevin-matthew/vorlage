@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
-	vorlageproc "./vorlageproc"
+	vorlageproc "./vorlage-interface/golang/vorlageproc"
 )
 
 //const EndOfLine   = "\n#"
@@ -35,11 +35,6 @@ type NormalDefinition struct {
 func (d *NormalDefinition) Close() error {
 	d.seeker = 0
 	return nil
-}
-
-func (d *NormalDefinition) Length() *uint64 {
-	v := uint64(len(d.value))
-	return &v
 }
 
 var _ vorlageproc.Definition = &NormalDefinition{}

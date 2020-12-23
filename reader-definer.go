@@ -1,6 +1,6 @@
 package vorlage
 
-import vorlageproc "./vorlageproc"
+import vorlageproc "./vorlage-interface/golang/vorlageproc"
 
 // todo: I don't think this method should belong to Document...
 // ARCHITECTUAL ERROR.

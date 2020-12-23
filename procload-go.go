@@ -2,7 +2,7 @@ package vorlage
 
 import (
 	"./lmgo/errors"
-	"./vorlageproc"
+	"./vorlage-interface/golang/vorlageproc"
 	"io/ioutil"
 	"plugin"
 )

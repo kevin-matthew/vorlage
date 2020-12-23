@@ -8,7 +8,7 @@ import (
 )
 
 // #cgo LDFLAGS: -ldl
-// #include "c.src/processors.h"
+// #include "vorlage-interface/shared-library/processors.h"
 // #include <string.h>
 // #include <stdlib.h>
 // #include <dlfcn.h>
@@ -57,7 +57,7 @@ import (
 	"strconv"
 )
 import "./lmgo/errors"
-import "./vorlageproc"
+import "./vorlage-interface/golang/vorlageproc"
 
 type cProc struct {
 	libname  string

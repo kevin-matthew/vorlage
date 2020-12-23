@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-const MaxVariableLength = 32
+const MaxVariableLength = 64
 
 type Cache interface {
 

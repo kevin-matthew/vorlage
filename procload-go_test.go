@@ -3,7 +3,7 @@ package vorlage
 import (
 	"plugin"
 	"testing"
-	vorlageproc "./vorlageproc"
+	vorlageproc "./vorlage-interface/golang/vorlageproc"
 )
 
 func TestLoadGoProcessors(t *testing.T) {
