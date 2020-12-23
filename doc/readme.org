@@ -1,0 +1,45 @@
+* Preamble
+So as you can tell, there's not many files here. That's good. I like
+things simple. Especially when it comes to testing out stuff (just as
+you're testing out vorlage right now).
+
+To start, in order to understand whats all going on in here. you
+*need* to read the [[https://www.ellem.ai/vorlage/specs/specification-1.org][vorlage specification]]. After you do that come back
+and then read the rest of this...
+
+* Jumping strait in.
+So you see that =vorlage= executable? That's all you need, that
+includes the webserver, compiler, cacher, converter, ect. So go ahead
+and start it with the test configuration:
+
+#+BEGIN_SRC bash
+~$ ./vorlage testing.conf
+[main info] logs configured
+[main info] binding to address localhost:8000...
+[main info] loading ELF processors out of ....
+[main info] starting server for document root "."...
+[vorlage info] loaded processor test-proc
+#+END_SRC
+
+Simple as that. You see that second log entry that says =binding to
+address localhost:8000=? Simply go to your browser and go to
+=localhost:8000=. There you'll see a welcome page.
+
+And if you see the "copyright Ellem Inc..." at the bottom (which means
+the entire page was loaded without interruption), then you're
+done. You've just made your first vorlage request.
+
+* Things to play around with.
+ - See the simple power of Vorlage by looking at the macros in =index.html=
+ - For more options to configure, run =./vorlage --help=.
+ - If you wish to mess around with processors, play around with
+   =c.src/test-proc.c=. You can then run =make= to rebuild
+   =libtest-proc.so=. Finally, (re)start vorlage to see your changes in
+   action.
+
+* Licenses
+
+ - Vorlage License Agreement: [[https://ellem.ai/vorlage/license.html]]
+ - Extension Creator's License Agreement: https://ellem.ai/vorlage/ecla.html
+
+And finally, just go ahead and build a website using vorlage!

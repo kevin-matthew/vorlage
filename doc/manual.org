@@ -212,6 +212,50 @@ be processed the instant the #prepend is evaluated.
 
 Note that if a [[Circular Dependency][Circular Dependency]] is detected, the Document will not
 compile and an error outputted.
+* Processors
+/Note, Processors are technical in nature. An increase dependency on
+them will lead to difficult-to-edit documents that defeats entire
+purpose of Vorlage./
+
+Processors provide you with the ability to perform arbitrary code
+execution during points in the Request Phase and the Output
+Phase. A Processor consists of the following:
+
+ 1. A Description of the Processor
+ 2. A comprehendsive list of [[Processed][its variables]] aswell as each variable's
+    [[Input][input]].
+ 3. A list of [[Processor Input][Processor-level input]]
+
+/Note, the actual name of the processor is dictated by the name of the
+encompassing [[Processor File][Processor File]]./
+
+Under normal (non-erroneous) operation, a given Processor has a sole
+duty of defining its variables. Conclusively, Processors allow
+unlimited applications such as databases, authentication, logging,
+auditing, searching, ect.
+
+To create a Processor, you must first compile a *[[Processor File][Processor File]]* and
+then have that file in the relevant directory so that Vorlage can load
+it during the Startup Phase.
+
+** Processor File
+A Processor File is the tangible existance of a processor.
+
+Vorlage loads all proper Processor Files during the Startup Phase and
+unloads them all during the Shutdown Phase. 
+
+A Processor File contains executable code with a unique interface that
+Vorlage will work with called the *Vorlage Interface*. The exact
+definition of the Vorlage Interface depends on the language the
+Processor File was written in:
+
+ - The most primative as well as the most native is an ELF amd64 LSB
+   *Shared Object* (=libmyproc.so=). These can be written in
+   a verity of different languages including C, C++, Go, Swift,
+   Objective-C, Haskell, and Rust.
+ - *Golang* Plugin (=golibmyproc.so=). Much easier to implement than a
+   Shared Object.
+
 * Variables
 Inside of a Document, there exists Variables. During the Output Phase,
 these variables are replaced with arbitrary text (or binary) regarded
@@ -230,11 +274,10 @@ valid. The syntax is as follows:
     middle. This is called the *Variable Name*, and;
  3. finally end with =)= called a *Variable Suffix*
 
-Note: the Vorlage will first attempt to locate Variable
-Prefixes and Suffix pairs, only after that it will then determine the
-validity of the variable name. If you've used an undefined and/or
-misformatted Variable Name, then an Vorlage will fail to
-compile the Document and return an error.
+Note: the Vorlage will first attempt to locate Variable Prefixes and
+Suffix pairs, only after that it will then determine the validity of
+the variable name. If you've used an undefined and/or misformatted
+Variable Name, then an Vorlage will ignore it all together.
 
 Note: no Variable can exceed 32 characters (=MaxVariableLength=). Not
 to be confused with the Variable's Definition, of which can be an
@@ -268,22 +311,28 @@ function call.
 Once a Processed Variable has been fully loaded, meaning that the
 processor was fully loaded, the variable was found, and the inputs are
 a match, the processor will then be responsible for defining it. Note
-that any errors that occur during definition will be logged and will
-not stop the overall Request. Thus, Processed Variables have no
-ability to hinder the Output Phase.
+that any errors that occur during definition will not stop the overall
+Request. Thus, Processors have no ability to hinder the Output Phase
+with the exception of memory violations, which will kill the process
+overall.
 
 * Input
-User input is only used for Processed Variables.
+During the Startup Phase, each [[Processed][Processed Variable]] has the option to
+specify a list of arguments (also refered to as input prototype) known
+as *Variable Input*. Furthermore, the Processor itself has the option
+to provide a processor-level list of Arguments/Input Prototype refered
+to as *[[Processor Input][Processor Input]]*. Each argument will have a name and
+description that will be visible to the front-end developer.
 
-During the Loading Phase, when a processor is loaded, it will provide
-Vorlage with a list of it's Processed Variables (herein "procinfo").
+Input will only be given to the Variable/Processor by Vorlage when it
+was explicitly asked for by during the Startup Phase. Thus, a variable
+amount of arguments is not possible. The Processor Developer must be
+very specific and very mindful of the front-end developer's abilities
+to understand how to use the input.
 
-Each Processed Variable in procinfo will specify it's *Input*. Each
-item in the input is known as a *Input Argument*. Each Input Argument
-will have a name and description. Each Processed Variable must specify
-a comprehensive list of Input Arguments. When the Processed Variable
-is defined during the Output Phase, Vorlage will only be provided the
-Input Arguments it had listed in the procinfo. 
+Input is supplied by the user during the Requesting Phase and that
+same Input is used throughout the request's lifecycle and doesn't
+change.
 
 Example: If =$(mytranslator.german)= is detected inside the document,
 the processor =mytranslator= will be loaded and that processor will
@@ -297,10 +346,8 @@ cause all instances of =$(mytanslator.german)= in
 
 #+BEGIN_COMMENT  I don't want to specify static/streamed in here. leave it impl-specific
 
-The values (ie. =hello=) are ignored by Vorlage and are simply passed
-along to the processor. However; Values comes in two forms: *[[Static Argument values][Static]]*
-[[Stream Argument values][]] and *[[Streamed Values][Streamed Values]]*. The list of Input
-Names for a given Processor Variable must be mutually exclusive
+Values comes in two forms: *[[Static Argument values][Static]]* and *[[Streamed Values][Streamed Values]]*. The list of
+Input Names for a given Processor Variable must be mutually exclusive
 between Static and Streamed.
 
 ** Static Argument values
@@ -343,11 +390,9 @@ Value Input and output the conversions.
 
 #+END_COMMENT
 ** Processor Input
-During the Startup Phase, the procinfo supplied by each processor may
-also request that the processor itself be given Input known as
-*Processor Input*. During the Request Phase, each processor will be
-given their respective Processor Input in the same form as if it was
-being given to a Processor Variable.
+During the Request Phase, each processor will be given their
+respective Processor Input in the same form as if it was being given
+to a Processor Variable.
 
 This give the processors an opportunity to react to the request itself,
 at this time the processor may demand that the overall request be
@@ -356,43 +401,6 @@ that Vorlage is using. For example, a processor may want to set
 cookies in an HTTP request. And of course this cannot be done during
 the Output Phase as HTTP disallows setting cookies during the
 outputting of the page.
-
-* Processors
-Processors provide you with the ability to perform arbitrary code
-execution during points in the Request Phase and the Output
-Phase. Under normal (non-erroneous) operation, a given Processor has
-only one duty and that is to define [[Processed][variables that will be dependent
-on that given processor]]. Thus that when the Document is compiled,
-Processors can dynamically populate these Processed Variables across
-page request.
-
-Conclusively, Processors allow a Vorlage to interact with an
-unlimited amount of applications such as databases, authentication,
-logging, auditing, searching, ect.
-
-To create a Processor, you must first compile a *[[Processor File][Processor File]]* and
-then have it in the relevant Library Path so that Vorlage can load it
-during the Startup Phase. Once that is done, the Processor can then
-define Processor-Variable Names in which will be defined by that
-Processor once the Variables are requested.
-
-Note, Processors are technical in nature. An increase dependency on
-them will lead to difficult-to-edit documents that defeats entire
-purpose of Vorlage. 
-
-** Processor File
-A processor file contains native code that contains the proper
-exports. Support for types of processor files will variety as Vorlage
-gains maturity. As of now, the following supported file types (and
-formats) are supported:
-
- - ELF 64-bit LSB shared object (see [[http://tldp.org/HOWTO/Program-Library-HOWTO/shared-libraries.html][here]]) (=libmyproc.so=)
-
-** Processor Name
-A Processor Name is valid if and only if that name is alphanumeric
-lowercase. The Processor Name should be a short word similar to a
-package name. For example, =abc=, =123=, =abc123= are all valid
-Processor Names and =AbC=, =?dD=, =f f= are not.
 
 * Further Elaboration on Technical Details
 ** Circular Dependencies

@@ -1,7 +1,7 @@
 package main
 
 import (
-	vorlageproc "../vorlageproc"
+	vorlageproc "../vorlage-interface/go/vorlageproc"
 	"math/rand"
 	"strconv"
 )

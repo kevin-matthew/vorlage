@@ -2,7 +2,6 @@
 #define VORLAGE_PROCESSORS_H_ 1
 #include <stdint.h>
 #include <stdio.h>
-#include "vorlage.h"
 
 const uint32_t vorlage_proc_interfaceversion = 0x1;
 
