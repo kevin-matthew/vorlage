@@ -153,7 +153,6 @@ func (c *nonConvertedFile) Read(dest []byte) (totalBytes int, err error) {
 			// read from the variable read buffer. An elegant solution.
 			// We'll re-use the NormalDefinition struct to do this. A very
 			// elegant solution indeed.
-			Logger.Debugf("the buffer is: %s", string(c.variableReadBuffer))
 			def = &NormalDefinition{value: pos.fullName, }
 		}
 		// lets start reading it on the next read by setting c.currentlyReadingDef
