@@ -1,9 +1,9 @@
 package vorlage
 
 import (
+	vorlageproc "./vorlage-interface/golang/vorlageproc"
 	"io"
 	"os"
-	vorlageproc "./vorlageproc"
 )
 
 // its a io.Reader that will read from the file but will NOT read the macros.
@@ -93,7 +93,7 @@ func (doc *Document) getConverted(sourceFile File) (converedFile File, err *Erro
 	file := nonConvertedFile{
 		sourceFile:         sourceFile,
 		sourceDocument:     doc,
-		variableReadBuffer: make([]byte, MacroMaxLength),
+		variableReadBuffer: make([]byte, MaxVariableLength),
 	}
 	return &file, nil
 }
