@@ -7,10 +7,10 @@ GOFILES  := $(shell find . -name '*.go' -type f)
 
 build: build/vorlage-http
 
-test: build/procs/libctest.so build/procs/golibgotest.so build/vorlage-http
+test: build/procs/libctest.so build/procs/libgotest.go.so build/vorlage-http
 	build/vorlage-http testing/testing.conf
 
-build/procs/golibgotest.so: testing/proctest.go $(wildcard vorlageproc/*.go)
+build/procs/libgotest.go.so: testing/proctest.go $(wildcard vorlageproc/*.go)
 	@mkdir -p build/procs
 	go build -buildmode=plugin -o $@ $<
 
