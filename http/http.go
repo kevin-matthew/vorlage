@@ -164,18 +164,26 @@ func main() {
 	mainlogContext.Infof("procload ELF vorlageproc out of %s...", vorlage.CLoadPath)
 	procs, err := vorlage.LoadCProcessors()
 	if err != nil {
-		mainlogContext.Errorf("failed to load ELF vorlageproc: %s", err.Error())
-		os.Exit(1)
-		return
+		if os.IsNotExist(err) {
+			mainlogContext.Noticef("C Processor path not found (%s): %s", vorlage.CLoadPath, err)
+		} else {
+			mainlogContext.Errorf("failed to load ELF vorlageproc: %s", err)
+			os.Exit(1)
+			return
+		}
 	}
 
 	// load the go plugins vorlageproc
 	mainlogContext.Infof("procload go plugin vorlageproc out of %s...", vorlage.GoPluginLoadPath)
 	goprocs, err := vorlage.LoadGoProcessors()
 	if err != nil {
-		mainlogContext.Errorf("failed to load go plugin: %s", err)
-		os.Exit(1)
-		return
+		if os.IsNotExist(err) {
+			mainlogContext.Noticef("Go Processor path not found (%s): %s", vorlage.GoPluginLoadPath, err)
+		} else {
+			mainlogContext.Errorf("failed to load go plugin: %s", err)
+			os.Exit(1)
+			return
+		}
 	}
 	procs = append(procs, goprocs...)
 
