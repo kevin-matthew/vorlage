@@ -2,6 +2,5 @@ package vorlage
 
 import "regexp"
 
-var goLibraryFilenameSig = regexp.MustCompile("^golib([^.]+).so")
+var goLibraryFilenameSig = regexp.MustCompile(`^lib([^.]+)\.go\.so`)
 var GoPluginLoadPath = "go.src"
-

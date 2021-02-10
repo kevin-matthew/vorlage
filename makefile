@@ -14,7 +14,7 @@ build/procs/golibgotest.so: testing/proctest.go $(wildcard vorlageproc/*.go)
 	@mkdir -p build/procs
 	go build -buildmode=plugin -o $@ $<
 
-build/procs/libctest.so: testing/proctest.c c.src/processors.h c.src/processor-interface.h
+build/procs/libctest.so: testing/proctest.c vorlage-interface/shared-library/processors.h vorlage-interface/shared-library/processor-interface.h
 	@mkdir -p build/procs
 	gcc -o $@ -Wall -shared -fpic $<
 

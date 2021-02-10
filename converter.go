@@ -2,8 +2,8 @@ package vorlage
 
 import (
 	vorlageproc "./vorlage-interface/golang/vorlageproc"
-	"io"
 	"os"
+	"regexp"
 )
 
 // its a io.Reader that will read from the file but will NOT read the macros.
@@ -63,27 +63,34 @@ func (o osFileHandle) Close() error {
 	return o.File.Close()
 }
 
-type DocumentConverter interface {
+type DCInfo struct {
+	PathQualifier regexp.Regexp
+	Description   string
+}
+type Converter interface {
+	Startup() DCInfo
 	/*
-	 * ShouldConvert is called to see if this particular document converter
-	 * should handler the conversion of the file. If true is returned,
-	 * ConverFile will be called. If false is returned,
-	 * the next available document converter will be asked the same question.
+	 * Convert must not be dynamic. It must return the same file if given
+	 * the same file, as it will be cached and it is not guarenteed to be called
+	 * every request.
 	 */
-	ShouldConvert(path string) bool
+	Convert(File) (File, error)
+	Shutdown() error
+}
 
-	/*
-	 * Convert the file and return the nonConvertedFile. If Error
-	 * is non-nil, the document's procload is stopped completely.
-	 * note that the SourceFile:Close MUST be called before this function
-	 * returns.
-	 */
-	ConvertFile(reader io.Reader) (io.ReadCloser, error)
+type myconvert struct {
+}
 
-	/*
-	 * For verboseness/errors/UI purposes. No functional signifigance
-	 */
-	GetDescription() string
+func (m myconvert) Startup() DCInfo {
+	panic("implement me")
+}
+
+func (m myconvert) Convert(file File) (File, error) {
+	panic("implement me")
+}
+
+func (m myconvert) Shutdown() error {
+	panic("implement me")
 }
 
 var _ File = &nonConvertedFile{}

@@ -8,14 +8,13 @@ import (
 )
 
 type goProc struct {
-	plugin *plugin.Plugin
-	libname string
-	vorlageStartup   func() vorlageproc.ProcessorInfo
-	vorlageOnRequest func(info vorlageproc.RequestInfo, i *interface{}) []vorlageproc.Action
+	plugin                *plugin.Plugin
+	libname               string
+	vorlageStartup        func() vorlageproc.ProcessorInfo
+	vorlageOnRequest      func(info vorlageproc.RequestInfo, i *interface{}) []vorlageproc.Action
 	vorlageDefineVariable func(info vorlageproc.DefineInfo, i interface{}) vorlageproc.Definition
-	vorlageOnFinish func(info vorlageproc.RequestInfo, i interface{})
-	vorlageShutdown func() error
-
+	vorlageOnFinish       func(info vorlageproc.RequestInfo, i interface{})
+	vorlageShutdown       func() error
 }
 
 func goProchandleerr(err error, ok bool, s string) error {
@@ -47,32 +46,32 @@ func loadGoProc(path string) (g goProc, err error) {
 	}
 	var ok bool
 	var sym plugin.Symbol
-	sym,err = g.plugin.Lookup("VorlageStartup")
-	g.vorlageStartup,ok = sym.(func() vorlageproc.ProcessorInfo)
-	if e := goProchandleerr(err,ok,"VorlageStartup"); e != nil {
-		return g,e
+	sym, err = g.plugin.Lookup("VorlageStartup")
+	g.vorlageStartup, ok = sym.(func() vorlageproc.ProcessorInfo)
+	if e := goProchandleerr(err, ok, "VorlageStartup"); e != nil {
+		return g, e
 	}
-	sym,err = g.plugin.Lookup("VorlageOnRequest")
-	g.vorlageOnRequest,ok = sym.(func(info vorlageproc.RequestInfo, i *interface{}) []vorlageproc.Action)
-	if e := goProchandleerr(err,ok,"VorlageOnRequest"); e != nil {
-		return g,e
+	sym, err = g.plugin.Lookup("VorlageOnRequest")
+	g.vorlageOnRequest, ok = sym.(func(info vorlageproc.RequestInfo, i *interface{}) []vorlageproc.Action)
+	if e := goProchandleerr(err, ok, "VorlageOnRequest"); e != nil {
+		return g, e
 	}
-	sym,err = g.plugin.Lookup("VorlageDefineVariable")
-	g.vorlageDefineVariable,ok = sym.(func(info vorlageproc.DefineInfo, i interface{}) vorlageproc.Definition)
-	if e := goProchandleerr(err,ok,"VorlageDefineVariable"); e != nil {
-		return g,e
+	sym, err = g.plugin.Lookup("VorlageDefineVariable")
+	g.vorlageDefineVariable, ok = sym.(func(info vorlageproc.DefineInfo, i interface{}) vorlageproc.Definition)
+	if e := goProchandleerr(err, ok, "VorlageDefineVariable"); e != nil {
+		return g, e
 	}
-	sym,err = g.plugin.Lookup("VorlageOnFinish")
-	g.vorlageOnFinish,ok = sym.(func(info vorlageproc.RequestInfo, i interface{}))
-	if e := goProchandleerr(err,ok,"VorlageOnFinish"); e != nil {
-		return g,e
+	sym, err = g.plugin.Lookup("VorlageOnFinish")
+	g.vorlageOnFinish, ok = sym.(func(info vorlageproc.RequestInfo, i interface{}))
+	if e := goProchandleerr(err, ok, "VorlageOnFinish"); e != nil {
+		return g, e
 	}
-	sym,err = g.plugin.Lookup("VorlageShutdown")
-	g.vorlageShutdown,ok = sym.(func() error)
-	if e := goProchandleerr(err,ok,"VorlageShutdown"); e != nil {
-		return g,e
+	sym, err = g.plugin.Lookup("VorlageShutdown")
+	g.vorlageShutdown, ok = sym.(func() error)
+	if e := goProchandleerr(err, ok, "VorlageShutdown"); e != nil {
+		return g, e
 	}
-	return g,nil
+	return g, nil
 }
 
 func (g goProc) Startup() vorlageproc.ProcessorInfo {
@@ -95,7 +94,6 @@ func (g goProc) Shutdown() error {
 
 var _ vorlageproc.Processor = goProc{}
 
-
 func LoadGoProcessors() ([]vorlageproc.Processor, error) {
 	var procs []vorlageproc.Processor
 	files, err := ioutil.ReadDir(GoPluginLoadPath)
@@ -115,9 +113,9 @@ func LoadGoProcessors() ([]vorlageproc.Processor, error) {
 			path = f.Name()
 		}
 
-		p,err := loadGoProc(path)
+		p, err := loadGoProc(path)
 		if err != nil {
-			return procs,errors.New(0x19945,
+			return procs, errors.New(0x19945,
 				"failed to load go library",
 				err,
 				"",
@@ -129,4 +127,3 @@ func LoadGoProcessors() ([]vorlageproc.Processor, error) {
 	}
 	return procs, nil
 }
-
