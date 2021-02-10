@@ -18,17 +18,17 @@ type goProc struct {
 }
 
 func goProchandleerr(err error, ok bool, s string) error {
-	if !ok {
-		return errors.New(0x153b41,
+	if err != nil {
+		return errors.New(0x153b42,
 			"symbol not found",
-			nil,
+			err,
 			"ensure the processor was properly built and is up to date",
 			s)
 	}
-	if err != nil {
-		return errors.New(0x153b42,
-			"failed to link symbol",
-			err,
+	if !ok {
+		return errors.New(0x153b41,
+			"symbol not valid",
+			nil,
 			"ensure the processor was properly built and is up to date",
 			s)
 	}
