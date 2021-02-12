@@ -1,3 +1,6 @@
 [submodule "lmgo"]
 	path = lmgo
 	url = /home/ellem-nfs/products/d-lmgo/lmgo.git/
+[submodule "vorlage-interface/golang/vorlageproc"]
+	path = vorlage-interface/golang/vorlageproc
+	url = ellem.so:/home/products/d-vorlage/vorlageproc.git
