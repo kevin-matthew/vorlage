@@ -8,6 +8,7 @@ import (
 	"net/http/fcgi"
 	"os"
 	"strings"
+	"time"
 )
 
 import vorlage ".."
@@ -69,7 +70,6 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	httplogContext.Debugf("%s -> %s %s", request.RemoteAddr, request.Method, request.RequestURI)
 
-
 	var fileToUse = h.docroot + request.URL.Path
 
 	// does this file exist at all?
@@ -95,7 +95,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		// if they had requested a directory but had not included a trailing '/'
 		// then that's not supported as it breaks relative paths for imports.
 		if request.URL.Path[len(request.URL.Path)-1] != '/' {
-			httplogContext.Debugf("%s is a directory, redirecting to %s", request.URL.Path, request.URL.Path + "/")
+			httplogContext.Debugf("%s is a directory, redirecting to %s", request.URL.Path, request.URL.Path+"/")
 			http.Redirect(writer, request, request.URL.Path+"/", http.StatusFound)
 			return
 		}
@@ -169,6 +169,28 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 			httplogContext.Errorf("%s - vorlage failed to open: %s", fileToUse, err)
 			return
 		}
+
+		// if we're reading strait from a file... let's optimize by telling the
+		// browser not to re-download if it wasn't modified recently.
+		stat, err := os.Stat(fileToUse)
+		if err != nil {
+			httplogContext.Noticef("%s - failed to stat (but still opened): %s", fileToUse, err)
+		} else {
+			modtime := stat.ModTime()
+			writer.Header().Add("last-modified", modtime.Format(time.RFC1123))
+			lastmodifiedHeader := request.Header.Get("If-Modified-Sense")
+			if lastmodifiedHeader != "" {
+				lastmod, _ := time.Parse(time.RFC1123, lastmodifiedHeader)
+				// truncate down to the second.
+				fmodtime := modtime.Truncate(time.Second)
+				if !fmodtime.After(lastmod) {
+					writer.WriteHeader(http.StatusNotModified)
+					httplogContext.Debugf("%s - file hasn't been modified before the requested date (%s)", fileToUse, lastmodifiedHeader)
+					return
+				}
+			}
+		}
+
 		goto writeStream
 	}
 
@@ -213,7 +235,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			defer func(){_ = file.Close()}()
+			defer func() { _ = file.Close() }()
 			streaminputs[k] = file
 		}
 	}
