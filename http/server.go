@@ -1,12 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"mime"
 	"net"
 	"net/http"
 	"net/http/fcgi"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 )
@@ -55,7 +57,8 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			httplogContext.Critf("%s", r)
+			httplogContext.Critf("panic recovered: %s (dumping to stderr)", r)
+			_, _ = fmt.Fprintln(os.Stderr, string(debug.Stack()))
 		}
 	}()
 
