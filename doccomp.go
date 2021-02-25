@@ -91,7 +91,7 @@ func NewCompiler(proc []vorlageproc.Processor) (c Compiler, err error) {
 		Logger.Debugf("starting %s...", c.processorInfos[i].Name)
 		if err != nil {
 			Logger.Alertf("processor %s failed to start: %s", c.processorInfos[i].Name, err)
-			continue
+			return c, err
 		}
 		err = validate(&(c.processorInfos[i]))
 		if err != nil {
