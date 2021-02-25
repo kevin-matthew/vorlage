@@ -5,7 +5,7 @@ package vorlage
 // #include <stdlib.h>
 import "C"
 import (
-	"./vorlage-interface/golang/vorlageproc"
+	"ellem.so/vorlageproc"
 	"fmt"
 	"io"
 	"sync"

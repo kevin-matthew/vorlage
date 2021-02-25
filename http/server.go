@@ -11,7 +11,7 @@ import (
 )
 
 import vorlage ".."
-import vorlageproc "../vorlage-interface/golang/vorlageproc"
+import vorlageproc "ellem.so/vorlageproc"
 
 type handler struct {
 	docroot  string

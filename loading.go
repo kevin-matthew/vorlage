@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
-	vorlageproc "./vorlage-interface/golang/vorlageproc"
+	vorlageproc "ellem.so/vorlageproc"
 )
 
 //const EndOfLine   = "\n#"

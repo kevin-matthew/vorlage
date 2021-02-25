@@ -5,7 +5,7 @@ import (
 	"io"
 	"regexp"
 	"sync/atomic"
-	vorlageproc "./vorlage-interface/golang/vorlageproc"
+	vorlageproc "ellem.so/vorlageproc"
 )
 
 var validProcessorName = regexp.MustCompile(`^[a-z0-9_\-]+$`)

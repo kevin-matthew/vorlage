@@ -57,7 +57,7 @@ import (
 	"strconv"
 )
 import "./lmgo/errors"
-import "./vorlage-interface/golang/vorlageproc"
+import "ellem.so/vorlageproc"
 
 type cProc struct {
 	libname  string

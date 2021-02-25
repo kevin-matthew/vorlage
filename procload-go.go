@@ -2,7 +2,7 @@ package vorlage
 
 import (
 	"./lmgo/errors"
-	"./vorlage-interface/golang/vorlageproc"
+	"ellem.so/vorlageproc"
 	"io/ioutil"
 	"plugin"
 )
@@ -10,7 +10,7 @@ import (
 type goProc struct {
 	plugin                *plugin.Plugin
 	libname               string
-	vorlageStartup        func() vorlageproc.ProcessorInfo
+	vorlageStartup        func() (vorlageproc.ProcessorInfo,error)
 	vorlageOnRequest      func(info vorlageproc.RequestInfo, i *interface{}) []vorlageproc.Action
 	vorlageDefineVariable func(info vorlageproc.DefineInfo, i interface{}) vorlageproc.Definition
 	vorlageOnFinish       func(info vorlageproc.RequestInfo, i interface{})
@@ -47,27 +47,37 @@ func loadGoProc(path string) (g goProc, err error) {
 	var ok bool
 	var sym plugin.Symbol
 	sym, err = g.plugin.Lookup("VorlageStartup")
-	g.vorlageStartup, ok = sym.(func() vorlageproc.ProcessorInfo)
+	if err == nil {
+		g.vorlageStartup, ok = sym.(func() (vorlageproc.ProcessorInfo,error))
+	}
 	if e := goProchandleerr(err, ok, "VorlageStartup"); e != nil {
 		return g, e
 	}
 	sym, err = g.plugin.Lookup("VorlageOnRequest")
-	g.vorlageOnRequest, ok = sym.(func(info vorlageproc.RequestInfo, i *interface{}) []vorlageproc.Action)
+	if err == nil {
+		g.vorlageOnRequest, ok = sym.(func(info vorlageproc.RequestInfo, i *interface{}) []vorlageproc.Action)
+	}
 	if e := goProchandleerr(err, ok, "VorlageOnRequest"); e != nil {
 		return g, e
 	}
 	sym, err = g.plugin.Lookup("VorlageDefineVariable")
-	g.vorlageDefineVariable, ok = sym.(func(info vorlageproc.DefineInfo, i interface{}) vorlageproc.Definition)
+	if err == nil {
+		g.vorlageDefineVariable, ok = sym.(func(info vorlageproc.DefineInfo, i interface{}) vorlageproc.Definition)
+	}
 	if e := goProchandleerr(err, ok, "VorlageDefineVariable"); e != nil {
 		return g, e
 	}
 	sym, err = g.plugin.Lookup("VorlageOnFinish")
-	g.vorlageOnFinish, ok = sym.(func(info vorlageproc.RequestInfo, i interface{}))
+	if err == nil {
+		g.vorlageOnFinish, ok = sym.(func(info vorlageproc.RequestInfo, i interface{}))
+	}
 	if e := goProchandleerr(err, ok, "VorlageOnFinish"); e != nil {
 		return g, e
 	}
 	sym, err = g.plugin.Lookup("VorlageShutdown")
-	g.vorlageShutdown, ok = sym.(func() error)
+	if err == nil {
+		g.vorlageShutdown, ok = sym.(func() error)
+	}
 	if e := goProchandleerr(err, ok, "VorlageShutdown"); e != nil {
 		return g, e
 	}
@@ -75,7 +85,10 @@ func loadGoProc(path string) (g goProc, err error) {
 }
 
 func (g goProc) Startup() vorlageproc.ProcessorInfo {
-	r := g.vorlageStartup()
+	r,err := g.vorlageStartup()
+	if err != nil {
+		panic("please implement process startup error handling, vorlage got error: " + err.Error())
+	}
 	r.Name = g.libname
 	return r
 }
