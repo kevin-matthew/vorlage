@@ -21,7 +21,10 @@ build/procs/libctest.so: testing/proctest.c vorlage-interface/shared-library/pro
 build/vorlage-http: $(GOFILES)
 	go build -ldflags "-s -w" -o build/vorlage-http ./http/
 
+install: build/vorlage-http
+	cp build/vorlage-http /usr/local/bin/vorlage
+	cp testing/testing.conf /etc/vorlage/http.conf
 
 
 
-.PHONEY: build test default
+.PHONEY: build test default install
