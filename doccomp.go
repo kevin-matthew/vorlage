@@ -1,16 +1,14 @@
 package vorlage
 
 import (
+	vorlageproc "ellem.so/vorlageproc"
 	"fmt"
 	"io"
 	"regexp"
 	"sync/atomic"
-	vorlageproc "ellem.so/vorlageproc"
 )
 
 var validProcessorName = regexp.MustCompile(`^[a-z0-9_\-]+$`)
-
-
 
 // everything we'd see in both doccomp-http and doccomp-cli and doccomp-pdf
 type Compiler struct {
@@ -83,14 +81,18 @@ func (c compileRequest) String() string {
 	return str
 }
 
-
 func NewCompiler(proc []vorlageproc.Processor) (c Compiler, err error) {
 	c.processors = proc
 
 	// load all the infos
 	c.processorInfos = make([]vorlageproc.ProcessorInfo, len(proc))
 	for i := range c.processors {
-		c.processorInfos[i] = c.processors[i].Startup()
+		c.processorInfos[i], err = c.processors[i].Startup()
+		Logger.Debugf("starting %s...", c.processorInfos[i].Name)
+		if err != nil {
+			Logger.Alertf("processor %s failed to start: %s", c.processorInfos[i].Name, err)
+			continue
+		}
 		err = validate(&(c.processorInfos[i]))
 		if err != nil {
 			return c, err

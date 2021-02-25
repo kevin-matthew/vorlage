@@ -10,7 +10,7 @@ import (
 type goProc struct {
 	plugin                *plugin.Plugin
 	libname               string
-	vorlageStartup        func() (vorlageproc.ProcessorInfo,error)
+	vorlageStartup        func() (vorlageproc.ProcessorInfo, error)
 	vorlageOnRequest      func(info vorlageproc.RequestInfo, i *interface{}) []vorlageproc.Action
 	vorlageDefineVariable func(info vorlageproc.DefineInfo, i interface{}) vorlageproc.Definition
 	vorlageOnFinish       func(info vorlageproc.RequestInfo, i interface{})
@@ -48,7 +48,7 @@ func loadGoProc(path string) (g goProc, err error) {
 	var sym plugin.Symbol
 	sym, err = g.plugin.Lookup("VorlageStartup")
 	if err == nil {
-		g.vorlageStartup, ok = sym.(func() (vorlageproc.ProcessorInfo,error))
+		g.vorlageStartup, ok = sym.(func() (vorlageproc.ProcessorInfo, error))
 	}
 	if e := goProchandleerr(err, ok, "VorlageStartup"); e != nil {
 		return g, e
@@ -84,13 +84,13 @@ func loadGoProc(path string) (g goProc, err error) {
 	return g, nil
 }
 
-func (g goProc) Startup() vorlageproc.ProcessorInfo {
-	r,err := g.vorlageStartup()
-	if err != nil {
-		panic("please implement process startup error handling, vorlage got error: " + err.Error())
-	}
+func (g goProc) Startup() (vorlageproc.ProcessorInfo, error) {
+	r, err := g.vorlageStartup()
 	r.Name = g.libname
-	return r
+	if err != nil {
+		return r, err
+	}
+	return r, nil
 }
 func (g goProc) OnRequest(info vorlageproc.RequestInfo, i *interface{}) []vorlageproc.Action {
 	return g.vorlageOnRequest(info, i)

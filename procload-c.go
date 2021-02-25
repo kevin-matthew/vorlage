@@ -79,6 +79,7 @@ type cProc struct {
 	// raw pointers
 	volageProcInfo C.vorlage_proc_info
 }
+
 var _ vorlageproc.Processor = &cProc{}
 
 func requestInfoToCRinfo(info vorlageproc.RequestInfo, procinfo C.vorlage_proc_info) *C.vorlage_proc_requestinfo {
@@ -151,10 +152,12 @@ func freeCRinfo(info *C.vorlage_proc_requestinfo) {
 	freeCStreamInput(info.streaminputv, info.procinfo.streaminputprotoc)
 	C.free(unsafe.Pointer(info))
 }
+
 type requestContext struct {
 	rinfoInCMemory   *C.vorlage_proc_requestinfo
 	contextInCMemory unsafe.Pointer
 }
+
 func (c *cProc) OnRequest(info vorlageproc.RequestInfo, context *interface{}) []vorlageproc.Action {
 	var reqinfo = requestInfoToCRinfo(info, c.volageProcInfo)
 	// exec the function and prepare the return in gostyle.
@@ -242,7 +245,7 @@ func (c *cProc) OnFinish(rinfo vorlageproc.RequestInfo, context interface{}) {
 	f := C.vorlage_proc_onfinish_wrap(c.vorlage_proc_onfinish)
 	C.vorlage_proc_onfinish_exec(f, *reqinfo, reqinfoContext.contextInCMemory)
 }
-func (c *cProc) Startup() vorlageproc.ProcessorInfo {
+func (c *cProc) Startup() (vorlageproc.ProcessorInfo, error) {
 	f := C.startupwrap(c.vorlageStartup)
 	d := C.execstartupwrap(f)
 	c.volageProcInfo = d
@@ -255,7 +258,7 @@ func (c *cProc) Startup() vorlageproc.ProcessorInfo {
 	p.InputProto = parseInputProtoType(int(d.inputprotoc), d.inputprotov)
 	p.StreamInputProto = parseInputProtoType(int(d.streaminputprotoc), d.streaminputprotov)
 	p.Variables = parseVariables(int(d.variablesc), d.variablesv)
-	return p
+	return p, nil
 }
 func parseVariables(varsc int, varsv *C.vorlage_proc_variable) []vorlageproc.ProcessorVariable {
 	if varsc == 0 {
@@ -285,7 +288,6 @@ func parseInputProtoType(protoc int, protov *C.vorlage_proc_inputproto) []vorlag
 	}
 	return ret
 }
-
 
 var libraryFilenameSig = regexp.MustCompile("^lib([^.]+).so")
 
