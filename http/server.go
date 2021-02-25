@@ -176,9 +176,10 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		if err != nil {
 			httplogContext.Noticef("%s - failed to stat (but still opened): %s", fileToUse, err)
 		} else {
+			writer.Header().Add("cache-control", "private")
 			modtime := stat.ModTime()
 			writer.Header().Add("last-modified", modtime.Format(time.RFC1123))
-			lastmodifiedHeader := request.Header.Get("If-Modified-Sense")
+			lastmodifiedHeader := request.Header.Get("If-Modified-Since")
 			if lastmodifiedHeader != "" {
 				lastmod, _ := time.Parse(time.RFC1123, lastmodifiedHeader)
 				// truncate down to the second.
