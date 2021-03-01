@@ -23,6 +23,7 @@ build/vorlage-http: $(GOFILES)
 
 install: build/vorlage-http
 	cp build/vorlage-http /usr/local/bin/vorlage
+	mkdir /etc/vorlage
 	cp testing/testing.conf /etc/vorlage/http.conf
 
 
