@@ -1,7 +1,7 @@
 package main
 
 import (
-	vorlageproc "../vorlage-interface/go/vorlageproc"
+	vorlageproc "ellem.so/vorlageproc"
 	"math/rand"
 	"strconv"
 )
@@ -10,7 +10,7 @@ func main() {
 
 }
 
-func VorlageStartup() vorlageproc.ProcessorInfo {
+func VorlageStartup() (vorlageproc.ProcessorInfo,error) {
 	rand.Seed(69)
 	return vorlageproc.ProcessorInfo{
 		Name:             "testgoproc",
