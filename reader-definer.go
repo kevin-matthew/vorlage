@@ -80,11 +80,11 @@ func (doc *Document) define(pos variablePos) (vorlageproc.Definition, error) {
 				}
 
 				// now actually set the stream
-				df.StreamInput[procvarIndex] = v
+				df.StreamInput[k] = v
 			} else {
 				// nil if input Name not given
 				Logger.Debugf("variable %s was not given %s stream input", pos.String(), name)
-				df.StreamInput[procvarIndex] = nil
+				df.StreamInput[k] = nil
 			}
 		}
 
