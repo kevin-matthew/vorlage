@@ -80,11 +80,11 @@ func (doc *Document) define(pos variablePos) (vorlageproc.Definition, error) {
 				}
 
 				// now actually set the stream
-				df.StreamInput[procvarIndex] = v
+				df.StreamInput[k] = v
 			} else {
 				// nil if input Name not given
 				Logger.Debugf("variable %s was not given %s stream input", pos.String(), name)
-				df.StreamInput[procvarIndex] = nil
+				df.StreamInput[k] = nil
 			}
 		}
 
@@ -92,6 +92,9 @@ func (doc *Document) define(pos variablePos) (vorlageproc.Definition, error) {
 		// we found the variable. we found all of it's inputs.
 		// lets define it.
 		foundDef = doc.compiler.processors[pi].DefineVariable(df, *df.RequestInfo.Cookie)
+		if foundDef == nil {
+			Logger.Errorf("variable %s exists but processor did not provide a definition", pos)
+		}
 	} else {
 		// its a normal variable. Easy.
 		// look through all the doucment's normal definitions.
