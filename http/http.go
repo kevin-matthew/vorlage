@@ -2,7 +2,7 @@ package main
 
 import (
 	vorlage ".."
-	"../lmgo/conf"
+	"ellem.so/lmgo/conf"
 	"fmt"
 	"net"
 	"os"
@@ -78,6 +78,16 @@ var config = []conf.ConfigBinding{
 		Name:        "log-timestamps",
 		Description: "If true, log files will be given timestamps on each entry. Useless when debugging, really useful when going live.",
 		VarAddress:  &logs.Timestamps,
+	},
+	{
+		Name:        "extensions",
+		Description: "The list of valid extensions to which vorlage will compile",
+		VarAddress:  &FileExt,
+	},
+	{
+		Name:        "tryfiles",
+		Description: "A list of file names that vorlage will look for when a directory is requested",
+		VarAddress:  &TryFiles,
 	},
 }
 
@@ -157,8 +167,6 @@ func main() {
 		c:       &logs,
 	}
 	vorlage.Logger = vorlagelogcontext
-
-	FileExt = append(FileExt, ".html")
 
 	// load the c vorlageproc
 	mainlogContext.Infof("procload ELF vorlageproc out of %s...", vorlage.CLoadPath)
