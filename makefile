@@ -22,9 +22,9 @@ build/vorlage-http: $(GOFILES)
 	go build -ldflags "-s -w" -o build/vorlage-http ./http/
 
 install: build/vorlage-http
-	cp build/vorlage-http /usr/local/bin/vorlage
-	@mkdir -p /etc/vorlage
-	cp testing/testing.conf /etc/vorlage/http.conf
+	cp build/vorlage-http $(DESTDIR)/usr/local/bin/vorlage
+	@mkdir -p $(DESTDIR)/etc/vorlage
+	cp testing/testing.conf $(DESTDIR)/etc/vorlage/http.conf
 
 
 
