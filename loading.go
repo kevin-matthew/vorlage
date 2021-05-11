@@ -1,6 +1,7 @@
 package vorlage
 
 import (
+	vorlageproc "ellem.so/vorlageproc"
 	"fmt"
 	"io"
 	"os"
@@ -8,7 +9,6 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
-	vorlageproc "ellem.so/vorlageproc"
 )
 
 //const EndOfLine   = "\n#"
@@ -698,9 +698,17 @@ func (doc *Document) Close() error {
 
 	// close child docs
 	for _, d := range doc.prepends {
+		// in the case that a prepend failed to load,
+		// it will be nil.
+		if d == nil {
+			continue
+		}
 		_ = d.Close()
 	}
 	for _, d := range doc.appends {
+		if d == nil {
+			continue
+		}
 		_ = d.Close()
 	}
 
