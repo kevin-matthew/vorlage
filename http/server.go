@@ -260,7 +260,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		} else {
 			_, _ = writer.Write([]byte("server failed to load document"))
 		}
-		httplogContext.Errorf("vorlage failed to compile %s: %s", fileToUse, err)
+		httplogContext.Errorf("vorlage failed to compile %s: %s", fileToUse, cstat.Err)
 		return
 	}
 	httplogContext.Debugf("vorlage will output %s", fileToUse)
