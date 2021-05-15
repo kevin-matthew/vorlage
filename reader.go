@@ -117,18 +117,63 @@ func (c *nonConvertedFile) Read(dest []byte) (totalBytes int, err error) {
 			// there's something after the variable that we've scanned in.
 			// lets move it all into tmpBuff.
 
-			// calculate the remaining buffer length (c-b)
+			// calculate the remaining buffer length (c - b)
 			remainingBuffLen := n - (nonVarByteCount + len(pos.fullName))
+			var newtmpbuf []byte
+
+			// bug fix for the "forgotten tmp buffer" problem:
+			//
+			// there's a possibility that tmpbuff
+			// currently has stuff in it that hasn't been read into dest.
+			// this happens when the previous/parent
+			// call had put a valid variable placed in tmpbuff, (to which this
+			// current call is now processing) in order to process a preceeding
+			// variable.
+			// for instance
+			//
+			//    let $(var1) = vvvv1111,
+			//    let $(var2) = vvvv2222,
+			//    and let destlen = 24
+			//    call1 - source (scanned in from file): "$(var1)...$(var2)...abcd" (24 chars)
+			//    call1 - stored into tmpbuf: "...$(var2)...abcd" (17 chars)
+			//    call1 - stored into dest: "vvvv1111" (8 chars)
+			//
+			//   at this point, call1 has written 8 character to dest. this means
+			//   call2 must deal with a len(dest) of 16... BUT it is handed a tmpbuf
+			//   with a len of 17. so lets continue to see what this causes:
+			//
+			//    call2 - source (scanned in from tmpbuff): "...$(var2)...abc" (16 characters... notice the absense of 'd'
+			//                                                                  because dest didn't have enough room to
+			//                                                                  pull in the entirety of tmpbuf.)
+			//
+			//   now if do not apply this fix, what happens is vorlage detects $(var2)
+			//   as well as content after ("...abc"), to which will replace the
+			//   tmpbuf and completely forget about the previous non-emptied
+			//   tmpbuf:
+			//
+			//
+			//    call2 - stored into tmpbuf: "...abc" (6 chars, if we hadn't included the following if statment,
+			//                                          that 'd' character now ceases to exist as we've just replaced
+			//                                          the last tmpbuf which still had a 'd' in it.)
+			if len(c.tmpBuff) != 0 {
+				remainingBuffLen += len(c.tmpBuff)
+			}
+
 			// make the tmp buff the size of everything after the variable.
-			c.tmpBuff = make([]byte, remainingBuffLen)
+			newtmpbuf = make([]byte, remainingBuffLen)
 			// copy everything after that variable into that buffer.
-			copy(c.tmpBuff, dest[nonVarByteCount+len(pos.fullName):n])
+			copyNew := copy(newtmpbuf, dest[nonVarByteCount+len(pos.fullName):n])
+
+			// see "forgotten tmp buffer" problem above
+			copy(newtmpbuf[copyNew:], c.tmpBuff)
+
+			c.tmpBuff = newtmpbuf
 		}
 
 		// first go back to the Document and find this variable's definition
 		def, derr := c.sourceDocument.define(*pos)
 		if derr != nil {
-			if oerr,ok := derr.(*Error); ok {
+			if oerr, ok := derr.(*Error); ok {
 				switch oerr.ErrStr {
 				case errNoProcessor:
 					Logger.Warnf("%s - %s", pos, derr)
@@ -146,14 +191,14 @@ func (c *nonConvertedFile) Read(dest []byte) (totalBytes int, err error) {
 			// does not exist, the processor doesn't exist, invalid input, ect.
 			return totalBytes, derr
 
-			ignoreerror:
+		ignoreerror:
 			// if we're here, then the variable didn't exist. So we've got to
 			// print out the original contents (including '$(' and ')'). The
 			// easiest way I see doing this is: just set the definer to
 			// read from the variable read buffer. An elegant solution.
 			// We'll re-use the NormalDefinition struct to do this. A very
 			// elegant solution indeed.
-			def = &NormalDefinition{value: pos.fullName, }
+			def = &NormalDefinition{value: pos.fullName}
 		}
 		// lets start reading it on the next read by setting c.currentlyReadingDef
 		// to a non-nil value (see readDefinition)
