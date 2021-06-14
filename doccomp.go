@@ -250,6 +250,7 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 				// todo: this is weird compared to how the other actions are handled...
 				//       maybe a design flaw... seeing how I rushed to get this action
 				//       in here.
+				Logger.Infof("%s called setstream", comp.processorInfos[i])
 				header := actions[a].Data.(vorlageproc.SetStream)
 				return header, CompileStatus{}
 			}
