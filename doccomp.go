@@ -225,27 +225,33 @@ func (comp *Compiler) Compile(filepath string, allInput map[string]string, allSt
 			switch actions[a].Action {
 			case vorlageproc.ActionCritical:
 				erro := NewError("processor had critical error")
-				errz := NewError(string(actions[a].Data))
+				errz := NewError(string(actions[a].Data.([]byte)))
 				erro.SetBecause(errz)
 				erro.SetSubjectf("%s", comp.processorInfos[i].Name)
 				actionsHandler.ActionCritical(errz)
 				return nil, CompileStatus{erro, true}
 			case vorlageproc.ActionAccessFail:
 				erro := NewError("processor denied access")
-				errz := NewError(string(actions[a].Data))
+				errz := NewError(string(actions[a].Data.([]byte)))
 				erro.SetBecause(errz)
 				erro.SetSubjectf("%s", comp.processorInfos[i].Name)
 				actionsHandler.ActionAccessFail(errz)
 				return nil, CompileStatus{erro, true}
 			case vorlageproc.ActionSee:
 				erro := NewError("processor redirect")
-				path := string(actions[a].Data)
+				path := string(actions[a].Data.([]byte))
 				erro.SetSubjectf("%s redirecting compRequest to %s", comp.processorInfos[i].Name, path)
 				actionsHandler.ActionSee(path)
 				return nil, CompileStatus{erro, true}
 			case vorlageproc.ActionHTTPHeader:
-				header := string(actions[a].Data)
+				header := string(actions[a].Data.([]byte))
 				actionsHandler.ActionHTTPHeader(header)
+			case vorlageproc.ActionSet:
+				// todo: this is weird compared to how the other actions are handled...
+				//       maybe a design flaw... seeing how I rushed to get this action
+				//       in here.
+				header := actions[a].Data.(vorlageproc.SetStream)
+				return header, CompileStatus{}
 			}
 		}
 		compReq.processorRInfos[i] = req
