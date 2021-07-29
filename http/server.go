@@ -250,6 +250,15 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		inputs[cookies[i].Name] = cookies[i].Value
 	}
 
+	// lastly, we'll put in some of our server's inputs.
+	inputs["HTTP_REMOTE_ADDR"] = request.RemoteAddr
+	inputs["HTTP_DOCUMENT_ROOT"] = h.docroot
+	if request.TLS == nil {
+		inputs["HTTP_HTTPS"] = ""
+	} else {
+		inputs["HTTP_HTTPS"] = "true"
+	}
+
 	// compile the document and get an Rid
 	stream, cstat = h.compiler.Compile(fileToUse, inputs, streaminputs, actionhandler{writer, request})
 	if cstat.Err != nil {
