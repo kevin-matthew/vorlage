@@ -8,6 +8,10 @@ import (
 	"os"
 )
 
+// config var set on build
+var buildVersion string
+var buildHash string
+
 var DocumentRoot string = "."
 var BindAddress string = "localhost:80"
 var UseFcgi bool = false
@@ -129,8 +133,15 @@ func main() {
 		os.Exit(0)
 	}
 
-	if len(os.Args) == 2 && os.Args[1] == "--defaults" {
+	if len(os.Args) == 2 && os.Args[1] == "--version" {
+		_, _ = fmt.Printf(`vorlage %s (build %s)
+Copyright (c) 2021 Ellem Inc., all rights reserved.
+Full license at https://www.ellem.ai/vorlage/license.html
+`, buildVersion, buildHash)
+		os.Exit(0)
+	}
 
+	if len(os.Args) == 2 && os.Args[1] == "--defaults" {
 		_, _ = fmt.Printf("%s", conf.HelpFile())
 		os.Exit(0)
 	}
