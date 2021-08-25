@@ -121,15 +121,22 @@ func main() {
 	if len(os.Args) == 2 && os.Args[1] == "--help" {
 
 		_, _ = fmt.Printf("usage: %s [--ARGUMENT=VALUE]... [CONFIG_FILE]\n", os.Args[0])
+		_, _ = fmt.Printf(`       %s --help
+`, os.Args[0])
+		_, _ = fmt.Printf(`       %s --version
+`, os.Args[0])
+		_, _ = fmt.Printf(`       %s --default-conf
+
+`, os.Args[0])
 		fmt.Printf("Valid --ARGUMENT=VALUE pairs:\n")
 		// load the config file so that help menu shows the default values after
 		// the configure file has been loaded.
 		_ = conf.LoadConfFile(ConfigFile)
 		_, _ = fmt.Fprintf(os.Stdout, conf.HelpArgs())
 
-		_, _ = fmt.Fprintf(os.Stderr, "Note: The above arguments can be pre-set in the CONFIG_FILE\n")
-		_, _ = fmt.Fprintf(os.Stderr, "      as ARGUMENT=VALUE pairs.\n")
-		_, _ = fmt.Fprintf(os.Stderr, "Note: The default CONFIG_FILE location is %s\n", ConfigFile)
+		_, _ = fmt.Fprintf(os.Stdout, "Note: The above arguments can be pre-set in the CONFIG_FILE\n")
+		_, _ = fmt.Fprintf(os.Stdout, "      as ARGUMENT=VALUE pairs.\n")
+		_, _ = fmt.Fprintf(os.Stdout, "Note: The default CONFIG_FILE location is %s\n", ConfigFile)
 		os.Exit(0)
 	}
 
@@ -141,7 +148,7 @@ Full license at https://www.ellem.ai/vorlage/license.html
 		os.Exit(0)
 	}
 
-	if len(os.Args) == 2 && os.Args[1] == "--defaults" {
+	if len(os.Args) == 2 && os.Args[1] == "--default-conf" {
 		_, _ = fmt.Printf("%s", conf.HelpFile())
 		os.Exit(0)
 	}
