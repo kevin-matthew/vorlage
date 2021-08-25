@@ -350,7 +350,12 @@ func isUpwardTransversal(path string) bool {
  *
  * (confroming too: net/http/server.go)
  */
-func Serve(l net.Listener, procs []vorlageproc.Processor, useFcgi bool, documentRoot string) error {
+func Serve(l net.Listener,
+	procs []vorlageproc.Processor,
+	useFcgi bool,
+	documentRoot string,
+	privkey,
+	pubkey string) error {
 
 	c, err := vorlage.NewCompiler(procs)
 	if err != nil {
@@ -364,6 +369,10 @@ func Serve(l net.Listener, procs []vorlageproc.Processor, useFcgi bool, document
 	if useFcgi {
 		return fcgi.Serve(l, h)
 	} else {
+		if privkey != "" {
+			mainlogContext.Infof("serving TLS")
+			return http.ServeTLS(l, h, pubkey, privkey)
+		}
 		return http.Serve(l, h)
 	}
 }

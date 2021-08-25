@@ -12,6 +12,8 @@ var DocumentRoot string = "."
 var BindAddress string = "localhost:80"
 var UseFcgi bool = false
 var ConfigFile = "/etc/vorlage/http.conf"
+var TLSPrivateKey = ""
+var TLSPublicKey = ""
 
 var config = []conf.ConfigBinding{
 	{
@@ -33,6 +35,18 @@ var config = []conf.ConfigBinding{
 		Name:        "http-buffer-multipart",
 		Description: "The maximum memory allocated during multipart requests.",
 		VarAddress:  &MultipartMaxMemory,
+	},
+	{
+		Name: "http-tls-private-key",
+		Description: `location of the private key for the use of https. leave blank to disable https.
+If you wish to enable https, make sure your http-bindaddress specifies :443 as the port.
+If http-usefcgi is enabled, this is ignored.`,
+		VarAddress: &TLSPrivateKey,
+	},
+	{
+		Name:        "http-tls-public-key",
+		Description: "location of the public key for the use of https, if http-tls-private-key is empty this will be ignored.",
+		VarAddress:  &TLSPublicKey,
 	},
 	//{
 	//	Name: "vorlage-buffer",
@@ -197,9 +211,9 @@ func main() {
 
 	// start the server
 	mainlogContext.Infof("starting server for document root \"%s\"...", DocumentRoot)
-	err = Serve(l, procs, UseFcgi, DocumentRoot)
+	err = Serve(l, procs, UseFcgi, DocumentRoot, TLSPrivateKey, TLSPublicKey)
 	if err != nil {
-		mainlogContext.Infof("http server exited with error: %s", err.Error())
+		mainlogContext.Infof("http server exited with error: %s", err)
 		os.Exit(1)
 		return
 	}
