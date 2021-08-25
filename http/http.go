@@ -32,7 +32,7 @@ var config = []conf.ConfigBinding{
 	},
 	{
 		Name:        "http-usefcgi",
-		Description: "if true, vorlage will bind to http-bindaddress as an fcgi application. this is a long description because fuck you and fuck me we're all going to die and forgotten in 200 years.",
+		Description: "if true, vorlage will bind to http-bindaddress as an fcgi application.",
 		VarAddress:  &UseFcgi,
 	},
 	{
