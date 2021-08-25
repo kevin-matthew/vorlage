@@ -41,5 +41,6 @@ build/vorlage.tar.gz:
 	DESTDIR=build/deb $(MAKE) install
 	tar -czf build/vorlage.tar.gz -C build/deb .
 
+package: build/vorlage.tar.gz
 
 .PHONEY: build test default install package
