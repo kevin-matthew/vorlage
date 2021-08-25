@@ -1,0 +1,19 @@
+[Unit]
+Description=Vorlage HTTP server
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/vorlage /etc/vorlage/http-systemd.conf
+# User=www-data
+# Group=www-data
+StandardOutput=append:/var/log/vorlage-info.log
+StandardError=append:/var/log/vorlage-error.log
+
+# Prevents writes to /usr, /boot, and /ect
+ProtectSystem=full
+
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target

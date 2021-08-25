@@ -23,12 +23,23 @@ build/procs/libctest.so: testing/proctest.c vorlage-interface/shared-library/pro
 build/vorlage-http: $(GOFILES)
 	GO111MODULE=off go build -ldflags "$(linkvars) -s -w" -o build/vorlage-http ./http/
 
-install: build/vorlage-http
+install: build/vorlage-http conf/vorlage.service
 	@mkdir -p $(DESTDIR)/usr/local/bin/
 	cp build/vorlage-http $(DESTDIR)/usr/local/bin/vorlage
 	@mkdir -p $(DESTDIR)/etc/vorlage
-	cp testing/testing.conf $(DESTDIR)/etc/vorlage/http.conf
+	$(DESTDIR)/usr/local/bin/vorlage --default-conf > $(DESTDIR)/etc/vorlage/http-systemd.conf
+	cp conf/http.conf $(DESTDIR)/etc/vorlage/http.conf
+	@mkdir -p $(DESTDIR)/lib/systemd/system
+	cp conf/vorlage.service $(DESTDIR)/lib/systemd/system
+	@mkdir -p $(DESTDIR)/var/log
+	@mkdir -p $(DESTDIR)/lib/vorlage
+	touch $(DESTDIR)/var/log/vorlage-info.log
+	touch $(DESTDIR)/var/log/vorlage-error.log
+
+build/vorlage.tar.gz:
+	@mkdir -p build/deb
+	DESTDIR=build/deb $(MAKE) install
+	tar -czf build/vorlage.tar.gz -C build/deb .
 
 
-
-.PHONEY: build test default install
+.PHONEY: build test default install package

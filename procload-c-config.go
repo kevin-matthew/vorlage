@@ -1,4 +1,3 @@
 package vorlage
 
-
-var CLoadPath = "c.src"
+var CLoadPath = "/usr/lib/vorlage"

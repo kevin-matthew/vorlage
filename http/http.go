@@ -12,7 +12,7 @@ import (
 var buildVersion string
 var buildHash string
 
-var DocumentRoot string = "."
+var DocumentRoot string = "/var/www"
 var BindAddress string = "localhost:80"
 var UseFcgi bool = false
 var ConfigFile = "/etc/vorlage/http.conf"
