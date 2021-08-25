@@ -24,15 +24,15 @@ build/vorlage-http: $(GOFILES)
 	GO111MODULE=off go build -ldflags "$(linkvars) -s -w" -o build/vorlage-http ./http/
 
 install: build/vorlage-http conf/vorlage.service
-	@mkdir -p $(DESTDIR)/usr/local/bin/
-	cp build/vorlage-http $(DESTDIR)/usr/local/bin/vorlage
+	@mkdir -p $(DESTDIR)/usr/bin/
+	cp build/vorlage-http $(DESTDIR)/usr/bin/vorlage
 	@mkdir -p $(DESTDIR)/etc/vorlage
-	$(DESTDIR)/usr/local/bin/vorlage --default-conf > $(DESTDIR)/etc/vorlage/http-systemd.conf
+	$(DESTDIR)/usr/bin/vorlage --default-conf > $(DESTDIR)/etc/vorlage/http-systemd.conf
 	cp conf/http.conf $(DESTDIR)/etc/vorlage/http.conf
 	@mkdir -p $(DESTDIR)/lib/systemd/system
 	cp conf/vorlage.service $(DESTDIR)/lib/systemd/system
 	@mkdir -p $(DESTDIR)/var/log
-	@mkdir -p $(DESTDIR)/lib/vorlage
+	@mkdir -p $(DESTDIR)/usr/lib/vorlage/go
 	touch $(DESTDIR)/var/log/vorlage-info.log
 	touch $(DESTDIR)/var/log/vorlage-error.log
 
