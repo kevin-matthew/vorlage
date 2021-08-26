@@ -24,22 +24,25 @@ build/vorlage-http: $(GOFILES)
 	GO111MODULE=off go build -ldflags "$(linkvars) -s -w" -o build/vorlage-http ./http/
 
 install: build/vorlage-http conf/vorlage.service
-	@mkdir -p $(DESTDIR)/usr/bin/
+	@mkdir -pm 755 $(DESTDIR)
+	umask 0022
+	chmod g-s $(DESTDIR)
+	@mkdir -pm 755 $(DESTDIR)/usr/bin/
 	cp build/vorlage-http $(DESTDIR)/usr/bin/vorlage
-	@mkdir -p $(DESTDIR)/etc/vorlage
+	@mkdir -pm 755 $(DESTDIR)/etc/vorlage
 	$(DESTDIR)/usr/bin/vorlage --default-conf > $(DESTDIR)/etc/vorlage/http-systemd.conf
 	cp conf/http.conf $(DESTDIR)/etc/vorlage/http.conf
-	@mkdir -p $(DESTDIR)/lib/systemd/system
-	cp conf/vorlage.service $(DESTDIR)/lib/systemd/system
-	@mkdir -p $(DESTDIR)/var/log
-	@mkdir -p $(DESTDIR)/usr/lib/vorlage/go
+	@mkdir -pm 755 $(DESTDIR)/usr/lib/systemd/system
+	cp conf/vorlage.service $(DESTDIR)/usr/lib/systemd/system
+	@mkdir -pm 755 $(DESTDIR)/var/log
+	@mkdir -pm 755 $(DESTDIR)/usr/lib/vorlage/go
 	touch $(DESTDIR)/var/log/vorlage-info.log
 	touch $(DESTDIR)/var/log/vorlage-error.log
 
 build/vorlage.tar.gz:
 	@mkdir -p build/deb
 	DESTDIR=build/deb $(MAKE) install
-	tar -czf build/vorlage.tar.gz -C build/deb .
+	tar --owner=root --group=root -czf build/vorlage.tar.gz -C build/deb .
 
 package: build/vorlage.tar.gz
 
