@@ -24,9 +24,8 @@ build/vorlage-http: $(GOFILES)
 	GO111MODULE=off go build -ldflags "$(linkvars) -s -w" -o build/vorlage-http ./http/
 
 install: build/vorlage-http conf/vorlage.service
-	@mkdir -pm 755 $(DESTDIR)
+	@mkdir -pm 755 $(DESTDIR)/
 	umask 0022
-	chmod g-s $(DESTDIR)
 	@mkdir -pm 755 $(DESTDIR)/usr/bin/
 	cp build/vorlage-http $(DESTDIR)/usr/bin/vorlage
 	@mkdir -pm 755 $(DESTDIR)/etc/vorlage
