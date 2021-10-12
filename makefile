@@ -5,7 +5,11 @@ buildh := $(shell git rev-parse HEAD)
 linkvars := -X main.buildVersion=$(buildv) -X main.buildHash=$(buildh)
 
 GOFILES  := $(shell find . -name '*.go' -type f)
+cwd := $(shell pwd)
 
+rebuild:
+	rm -rf ./build
+	$(MAKE) build
 
 build: build/vorlage-http
 
@@ -21,7 +25,7 @@ build/procs/libctest.so: testing/proctest.c vorlage-interface/shared-library/pro
 	gcc -o $@ -Wall -shared -fpic $<
 
 build/vorlage-http: $(GOFILES)
-	GO111MODULE=off go build -ldflags "$(linkvars) -s -w" -o build/vorlage-http ./http/
+	GO111MODULE=off go build -gcflags=-trimpath=$(cwd) -asmflags=-trimpath=$(cwd) -ldflags "$(linkvars) -s -w" -o build/vorlage-http ./http/
 
 install: build/vorlage-http conf/vorlage.service
 	@mkdir -pm 755 $(DESTDIR)/
@@ -38,7 +42,7 @@ install: build/vorlage-http conf/vorlage.service
 	touch $(DESTDIR)/var/log/vorlage-info.log
 	touch $(DESTDIR)/var/log/vorlage-error.log
 
-build/vorlage.tar.gz:
+build/vorlage.tar.gz: $(GOFILES)
 	@mkdir -p build/deb
 	DESTDIR=build/deb $(MAKE) install
 	tar --owner=root --group=root -czf build/vorlage.tar.gz -C build/deb .
