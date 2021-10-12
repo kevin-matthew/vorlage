@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"mime"
@@ -371,7 +372,13 @@ func Serve(l net.Listener,
 	} else {
 		if privkey != "" {
 			mainlogContext.Infof("serving TLS")
-			return http.ServeTLS(l, h, pubkey, privkey)
+			srvr := &http.Server{
+				Handler: h,
+				TLSConfig: &tls.Config{
+					MinVersion: tls.VersionTLS12,
+				},
+			}
+			return srvr.ServeTLS(l, pubkey, privkey)
 		}
 		return http.Serve(l, h)
 	}
