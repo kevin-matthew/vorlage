@@ -9,7 +9,6 @@ import (
 
 type goProc struct {
 	plugin                *plugin.Plugin
-	libname               string
 	vorlageStartup        func() (vorlageproc.ProcessorInfo, error)
 	vorlageOnRequest      func(info vorlageproc.RequestInfo, i *interface{}) []vorlageproc.Action
 	vorlageDefineVariable func(info vorlageproc.DefineInfo, i interface{}) vorlageproc.Definition
@@ -35,10 +34,10 @@ func goProchandleerr(err error, ok bool, s string) error {
 	return nil
 }
 
-func loadGoProc(path string) (g goProc, err error) {
-	g.plugin, err = plugin.Open(path)
+func loadGoProc(path string) (gv []goProc, err error) {
+	plug, err := plugin.Open(path)
 	if err != nil {
-		return g, errors.New(3185,
+		return gv, errors.New(3185,
 			"failed to open plugin file",
 			err,
 			"make sure the file is valid",
@@ -46,42 +45,73 @@ func loadGoProc(path string) (g goProc, err error) {
 	}
 	var ok bool
 	var sym plugin.Symbol
+	var v2procs []vorlageproc.VorlageGo
+
+	// Lets look for the V2 interface...
+	var vorlagegov func() []vorlageproc.VorlageGo
+	sym, err = plug.Lookup("VorlageGoV")
+	if err != nil {
+		// symbol not found. Go to the v1 interface
+		goto v1
+	}
+	vorlagegov, ok = sym.(func() []vorlageproc.VorlageGo)
+	if e := goProchandleerr(err, ok, "VorlageGoV"); e != nil {
+		return gv, e
+	}
+
+	// v2 symbol is valid. Make the call.
+	v2procs = vorlagegov()
+	gv = make([]goProc, len(v2procs))
+	for i := range v2procs {
+		gv[i].plugin = plug
+		gv[i].vorlageStartup = v2procs[i].VorlageStartup
+		gv[i].vorlageOnRequest = v2procs[i].VorlageOnRequest
+		gv[i].vorlageDefineVariable = v2procs[i].VorlageDefineVariable
+		gv[i].vorlageOnFinish = v2procs[i].VorlageOnFinish
+		gv[i].vorlageShutdown = v2procs[i].VorlageShutdown
+	}
+	// v2 symbol linked successfully.
+	return gv, nil
+
+v1:
+	g := goProc{}
 	sym, err = g.plugin.Lookup("VorlageStartup")
 	if err == nil {
 		g.vorlageStartup, ok = sym.(func() (vorlageproc.ProcessorInfo, error))
 	}
 	if e := goProchandleerr(err, ok, "VorlageStartup"); e != nil {
-		return g, e
+		return gv, e
 	}
 	sym, err = g.plugin.Lookup("VorlageOnRequest")
 	if err == nil {
 		g.vorlageOnRequest, ok = sym.(func(info vorlageproc.RequestInfo, i *interface{}) []vorlageproc.Action)
 	}
 	if e := goProchandleerr(err, ok, "VorlageOnRequest"); e != nil {
-		return g, e
+		return gv, e
 	}
 	sym, err = g.plugin.Lookup("VorlageDefineVariable")
 	if err == nil {
 		g.vorlageDefineVariable, ok = sym.(func(info vorlageproc.DefineInfo, i interface{}) vorlageproc.Definition)
 	}
 	if e := goProchandleerr(err, ok, "VorlageDefineVariable"); e != nil {
-		return g, e
+		return gv, e
 	}
 	sym, err = g.plugin.Lookup("VorlageOnFinish")
 	if err == nil {
 		g.vorlageOnFinish, ok = sym.(func(info vorlageproc.RequestInfo, i interface{}))
 	}
 	if e := goProchandleerr(err, ok, "VorlageOnFinish"); e != nil {
-		return g, e
+		return gv, e
 	}
 	sym, err = g.plugin.Lookup("VorlageShutdown")
 	if err == nil {
 		g.vorlageShutdown, ok = sym.(func() error)
 	}
 	if e := goProchandleerr(err, ok, "VorlageShutdown"); e != nil {
-		return g, e
+		return gv, e
 	}
-	return g, nil
+	// good link for v1
+	return []goProc{g}, nil
 }
 
 func (g goProc) Startup() (vorlageproc.ProcessorInfo, error) {
