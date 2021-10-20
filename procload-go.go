@@ -75,6 +75,7 @@ func loadGoProc(path string) (gv []goProc, err error) {
 
 v1:
 	g := goProc{}
+	g.plugin = plug
 	sym, err = g.plugin.Lookup("VorlageStartup")
 	if err == nil {
 		g.vorlageStartup, ok = sym.(func() (vorlageproc.ProcessorInfo, error))
