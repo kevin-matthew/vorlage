@@ -116,7 +116,6 @@ v1:
 
 func (g goProc) Startup() (vorlageproc.ProcessorInfo, error) {
 	r, err := g.vorlageStartup()
-	r.Name = g.libname
 	if err != nil {
 		return r, err
 	}
@@ -149,6 +148,7 @@ func LoadGoProcessors() ([]vorlageproc.Processor, error) {
 		}
 		libnames := goLibraryFilenameSig.FindStringSubmatch(f.Name())
 		if libnames == nil {
+			Logger.Debugf("%s - not valid name format to be considered as golang processor", f.Name())
 			continue
 		}
 		path := GoPluginLoadPath + "/" + f.Name()
@@ -164,9 +164,12 @@ func LoadGoProcessors() ([]vorlageproc.Processor, error) {
 				"",
 				path)
 		}
-		p.libname = libnames[1]
-		procs = append(procs, p)
-		Logger.Debugf("loaded go processor %s from %s", p.libname, path)
+		var pconv = make([]vorlageproc.Processor, len(p))
+		for i := range pconv {
+			pconv[i] = p[i]
+		}
+		procs = append(procs, pconv...)
+		Logger.Debugf("loaded golang elf %s from %s (%d processors)", f.Name(), path, len(p))
 	}
 	return procs, nil
 }
