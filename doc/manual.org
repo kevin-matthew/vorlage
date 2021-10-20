@@ -213,21 +213,14 @@ be processed the instant the #prepend is evaluated.
 Note that if a [[Circular Dependency][Circular Dependency]] is detected, the Document will not
 compile and an error outputted.
 * Processors
-/Note, Processors are technical in nature. An increase dependency on
-them will lead to difficult-to-edit documents that defeats entire
-purpose of Vorlage./
-
 Processors provide you with the ability to perform arbitrary code
 execution during points in the Request Phase and the Output
 Phase. A Processor consists of the following:
 
- 1. A Description of the Processor
+ 1. A Name and description of the Processor
  2. A comprehendsive list of [[Processed][its variables]] aswell as each variable's
     [[Input][input]].
  3. A list of [[Processor Input][Processor-level input]]
-
-/Note, the actual name of the processor is dictated by the name of the
-encompassing [[Processor File][Processor File]]./
 
 Under normal (non-erroneous) operation, a given Processor has a sole
 duty of defining its variables. Conclusively, Processors allow
@@ -255,6 +248,14 @@ Processor File was written in:
    Objective-C, Haskell, and Rust.
  - *Golang* Plugin (=golibmyproc.so=). Much easier to implement than a
    Shared Object.
+
+
+#+BEGIN_COMMENT
+
+Technical details on this still need to be elaborated
+in full. This includes symbols and dependencies.
+
+#+END_COMMENT
 
 * Variables
 Inside of a Document, there exists Variables. During the Output Phase,
