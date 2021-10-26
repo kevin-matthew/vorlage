@@ -56,7 +56,7 @@ import (
 	"io"
 	"strconv"
 )
-import "./lmgo/errors"
+import "ellem.so/lmgo/errors"
 import "ellem.so/vorlageproc"
 
 type cProc struct {
@@ -186,11 +186,11 @@ func (d descriptorReader) Close() error {
 	f := C.vorlage_proc_definer_close_wrap(d.c.vorlage_proc_definer_close)
 	returnCode := int(C.vorlage_proc_definer_close_exec(f, d.ptr))
 	if returnCode != 0 {
-		return errors.NewCauseString(0x983452b,
+		return errors.New(0x983452b,
 			"failed to close definer",
-			"error code "+strconv.Itoa(returnCode),
+			nil,
 			"",
-			"")
+			"error code "+strconv.Itoa(returnCode),)
 	}
 	return nil
 }
@@ -198,11 +198,11 @@ func (d descriptorReader) Reset() error {
 	f := C.vorlage_proc_definer_reset_wrap(d.c.vorlage_proc_definer_reset)
 	returnCode := int(C.vorlage_proc_definer_reset_exec(f, d.ptr))
 	if returnCode != 0 {
-		return errors.NewCauseString(0x983452a,
+		return errors.New(0x983452a,
 			"failed to reset definer",
-			"error code "+strconv.Itoa(returnCode),
+			nil,
 			"",
-			"")
+			"error code "+strconv.Itoa(returnCode))
 	}
 	return nil
 }
@@ -213,11 +213,11 @@ func (d descriptorReader) Read(p []byte) (int, error) {
 		if size == -2 {
 			return 0, io.EOF
 		}
-		return 0, errors.NewCauseString(0x983452c,
+		return 0, errors.New(0x983452c,
 			"failed to read",
-			fmt.Sprintf("%d", size),
+			nil,
 			"",
-			"")
+			fmt.Sprintf("%d", size),)
 	}
 	return int(size), nil
 }
@@ -351,11 +351,11 @@ func dlOpen(libPath string) (*cProc, error) {
 				libPath)
 
 		}
-		return nil, errors.NewCauseString(0x10baa,
+		return nil, errors.New(0x10baa,
 			"failed to load in library",
-			C.GoString(e),
+			nil,
 			"make sure the library exists and it links properly",
-			libPath)
+			C.GoString(e))
 	}
 	h := &cProc{
 		handle:  handle,
@@ -423,11 +423,10 @@ func (c *cProc) getSymbolPointer(symbol string) (unsafe.Pointer, error) {
 	p := C.dlsym(c.handle, sym)
 	e := C.dlerror()
 	if e != nil {
-		return nil, errors.NewCauseStringf(0x10b341,
-			"failed to get symbol",
-			C.GoString(e),
+		return nil, errors.Newf(0x10b341,
+			"failed to get symbol",nil,
 			"make sure this library has the proper symbol exported",
-			"finding symbol '%s' in %s", symbol, c.libname)
+			"finding symbol '%s' in %s: %s", symbol, c.libname,C.GoString(e))
 	}
 	return p, nil
 }
@@ -442,10 +441,10 @@ func (c *cProc) Shutdown() error {
 	C.dlclose(c.handle)
 	e := C.dlerror()
 	if e != nil {
-		return errors.NewCauseString(0x584148,
+		return errors.New(0x584148,
 			"dlclose failed to close handle",
+			nil,
 			C.GoString(e),
-			"",
 			c.libname)
 	}
 	return nil

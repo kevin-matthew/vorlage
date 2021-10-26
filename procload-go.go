@@ -1,7 +1,7 @@
 package vorlage
 
 import (
-	"./lmgo/errors"
+	"ellem.so/lmgo/errors"
 	"ellem.so/vorlageproc"
 	"io/ioutil"
 	"plugin"
