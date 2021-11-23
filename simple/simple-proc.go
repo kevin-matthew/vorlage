@@ -6,7 +6,7 @@ import (
 
 func VorlageStartup() (vorlageproc.ProcessorInfo, error) {
 	p := vorlageproc.ProcessorInfo{
-		Name:        "PCI Complience Headers",
+		Name:        "pcicomplienceheaders",
 		Description: "Provides several headers that make the webserver cplient to PCI",
 	}
 	return p, nil

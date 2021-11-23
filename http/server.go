@@ -367,9 +367,12 @@ func Serve(l net.Listener,
 		docroot:  documentRoot,
 		compiler: c,
 	}
+
 	if useFcgi {
-		return fcgi.Serve(l, h)
+		// serve over fcgi
+		err = fcgi.Serve(l, h)
 	} else {
+		// serve over TLS
 		if privkey != "" {
 			mainlogContext.Infof("serving TLS")
 			srvr := &http.Server{
@@ -378,8 +381,14 @@ func Serve(l net.Listener,
 					MinVersion: tls.VersionTLS12,
 				},
 			}
-			return srvr.ServeTLS(l, pubkey, privkey)
+			err = srvr.ServeTLS(l, pubkey, privkey)
+		} else {
+			// serve as normal http
+			err = http.Serve(l, h)
 		}
-		return http.Serve(l, h)
 	}
+
+	// when done, tell the processors that we're done.
+	c.Shutdown()
+	return err
 }

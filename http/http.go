@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 )
 
 // config var set on build
@@ -227,13 +230,34 @@ Full license at https://www.ellem.ai/vorlage/license.html
 	}
 	procs = append(procs, goprocs...)
 
+	// before we start the server, listen to common signals
+	var shutdown bool
+	var shutdownmu sync.Mutex
+	go func() {
+		sc := make(chan os.Signal, 1)
+		signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
+		sig := <-sc
+		mainlogContext.Debugf("signal %s received, shutting down", sig.String())
+		shutdownmu.Lock()
+		shutdown = true
+		shutdownmu.Unlock()
+		// got a signal, shut 'er down.
+		_ = l.Close()
+	}()
+
 	// start the server
 	mainlogContext.Infof("starting server for document root \"%s\"...", DocumentRoot)
 	err = Serve(l, procs, UseFcgi, DocumentRoot, TLSPrivateKey, TLSPublicKey)
-	if err != nil {
-		mainlogContext.Infof("http server exited with error: %s", err)
+	shutdownmu.Lock()
+	if shutdown {
+		shutdownmu.Unlock()
+		os.Exit(0)
+	} else {
+		shutdownmu.Unlock()
+		if err != nil {
+			mainlogContext.Infof("http server exited unexpected with error: %s", err)
+		}
 		os.Exit(1)
-		return
 	}
-	mainlogContext.Infof("vorlage http server closed without error")
+	return
 }
