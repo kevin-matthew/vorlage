@@ -283,14 +283,16 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 writeStream:
 	// lets clear out some headers
 	// content type
-	extI := strings.LastIndex(fileToUse, ".")
-	if extI != -1 {
-		mimeT := mime.TypeByExtension(fileToUse[extI:])
-		httplogContext.Debugf("determined %s is of %s mimetype", fileToUse, mimeT)
-		writer.Header().Add("Content-Type", mimeT)
-	} else {
-		httplogContext.Debugf("determined %s is not a mimetype, assuming octet-stream", fileToUse)
-		writer.Header().Add("Content-Type", "application/octet-stream")
+	if writer.Header().Get("Content-Type") == "" {
+		extI := strings.LastIndex(fileToUse, ".")
+		if extI != -1 {
+			mimeT := mime.TypeByExtension(fileToUse[extI:])
+			httplogContext.Debugf("determined %s is of %s mimetype", fileToUse, mimeT)
+			writer.Header().Add("Content-Type", mimeT)
+		} else {
+			httplogContext.Debugf("determined %s is not a mimetype, assuming octet-stream", fileToUse)
+			writer.Header().Add("Content-Type", "application/octet-stream")
+		}
 	}
 	buff := make([]byte, ProcessingBufferSize)
 	_, err = io.CopyBuffer(writer, stream, buff)
