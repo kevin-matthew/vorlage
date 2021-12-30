@@ -81,6 +81,7 @@ func (c compileRequest) String() string {
 	return str
 }
 
+// will return an error if a processor failed to start and/or is invalid
 func NewCompiler(proc []vorlageproc.Processor) (c Compiler, err error) {
 	c.processors = proc
 
