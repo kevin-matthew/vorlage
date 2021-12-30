@@ -32,6 +32,9 @@ var TryFiles []string = []string{"index.html", "index.proc.html"}
  */
 var FileExt []string = []string{".html", ".proc.html", ".proc.json"}
 
+// todo
+var DaemonMode bool = false
+
 /*
  * If a requested filepath (regardless of its validity) is prefixed by
  * any entry found in AuthPrefixes, authencation will be needed

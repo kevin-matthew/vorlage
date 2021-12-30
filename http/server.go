@@ -353,17 +353,15 @@ func isUpwardTransversal(path string) bool {
  *
  * (confroming too: net/http/server.go)
  */
+// todo: need to move the tls logic outside of this function so that
+//      those errors are not mixed up with socket errors.
 func Serve(l net.Listener,
 	procs []vorlageproc.Processor,
 	useFcgi bool,
 	documentRoot string,
+	c vorlage.Compiler,
 	privkey,
-	pubkey string) error {
-
-	c, err := vorlage.NewCompiler(procs)
-	if err != nil {
-		return err
-	}
+	pubkey string) (err error) {
 
 	h := handler{
 		docroot:  documentRoot,
@@ -376,11 +374,11 @@ func Serve(l net.Listener,
 	} else {
 		// serve over TLS
 		if privkey != "" {
-			mainlogContext.Infof("serving TLS")
+			mainlogContext.Infof("Serving TLS")
 			srvr := &http.Server{
 				Handler: h,
 				TLSConfig: &tls.Config{
-					MinVersion: tls.VersionTLS12,
+					MinVersion: tls.VersionTLS13,
 				},
 			}
 			err = srvr.ServeTLS(l, pubkey, privkey)

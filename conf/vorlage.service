@@ -2,8 +2,14 @@
 Description=Vorlage HTTP server
 
 [Service]
-Type=simple
+Type=notify
+NotifyAccess=main
+
+
 ExecStart=/usr/bin/vorlage /etc/vorlage/http-systemd.conf
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s TERM $MAINPID
+
 # User=www-data
 # Group=www-data
 StandardOutput=append:/var/log/vorlage-info.log

@@ -116,13 +116,16 @@ var mainlogContext logcontext
 var httplogContext logcontext
 
 func main() {
+
 	// configure
 	if err := conf.BindAll(config); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "failed to start configuring: "+err.Error())
+		_, _ = fmt.Fprintf(os.Stderr, `failed to read configuring: %s
+`, err)
 		os.Exit(1)
 	}
-	if len(os.Args) == 2 && os.Args[1] == "--help" {
 
+	// --help and --version (GNU standard)
+	if len(os.Args) == 2 && os.Args[1] == "--help" {
 		_, _ = fmt.Printf("usage: %s [--ARGUMENT=VALUE]... [CONFIG_FILE]\n", os.Args[0])
 		_, _ = fmt.Printf(`       %s --help
 `, os.Args[0])
@@ -136,13 +139,11 @@ func main() {
 		// the configure file has been loaded.
 		_ = conf.LoadConfFile(ConfigFile)
 		_, _ = fmt.Fprintf(os.Stdout, conf.HelpArgs())
-
 		_, _ = fmt.Fprintf(os.Stdout, "Note: The above arguments can be pre-set in the CONFIG_FILE\n")
 		_, _ = fmt.Fprintf(os.Stdout, "      as ARGUMENT=VALUE pairs.\n")
 		_, _ = fmt.Fprintf(os.Stdout, "Note: The default CONFIG_FILE location is %s\n", ConfigFile)
 		os.Exit(0)
 	}
-
 	if len(os.Args) == 2 && os.Args[1] == "--version" {
 		_, _ = fmt.Printf(`vorlage %s (build %s)
 Copyright (c) 2021 Ellem Inc., all rights reserved.
@@ -151,31 +152,35 @@ Full license at https://www.ellem.ai/vorlage/license.html
 		os.Exit(0)
 	}
 
+	// --default-conf (prints out the default configuration file)
 	if len(os.Args) == 2 && os.Args[1] == "--default-conf" {
 		_, _ = fmt.Printf("%s", conf.HelpFile())
 		os.Exit(0)
 	}
 
+	// if there is at least 1 argument, that is the configuration file.
+	// so load that one instead of the default configuration
 	params := conf.GetParameters(os.Args[1:])
 	if len(params) == 1 {
 		ConfigFile = params[0]
 	}
-
 	if err := conf.LoadConfFile(ConfigFile); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, err.Error()+"\n")
 		_, _ = fmt.Fprintf(os.Stderr, "See "+os.Args[0]+" --help\n")
 		os.Exit(1)
 	}
 
+	// now parse in the args ontop of the configuration file
 	if err := conf.LoadConfArgs(os.Args[1:]); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, err.Error()+"\n")
 		_, _ = fmt.Fprintf(os.Stderr, "See "+os.Args[0]+" --help\n")
 		os.Exit(1)
 	}
+
 	// configuration complete.
 	// now lets set up our logging
 	if err := logs.LoadChannels(); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "failed to open log file: "+err.Error()+"\n")
+		_, _ = fmt.Fprint(os.Stderr, "failed to open log file: "+err.Error()+"\n")
 		os.Exit(1)
 	}
 	mainlogContext = logcontext{
@@ -186,13 +191,17 @@ Full license at https://www.ellem.ai/vorlage/license.html
 		context: "http",
 		c:       &logs,
 	}
-	mainlogContext.Infof("logs configured")
 
 	// bind to the address we'll be using for http request
 	mainlogContext.Infof("binding to address %s...", BindAddress)
 	l, err := net.Listen("tcp", BindAddress)
 	if err != nil {
-		mainlogContext.Errorf("failed to bind to address %s: %s", BindAddress, err)
+		errmsg := fmt.Sprintf("failed to bind to address %s: %s", BindAddress, err)
+		mainlogContext.Errorf("%s", errmsg)
+		err2 := sdError(syscall.ENOTCONN, errmsg)
+		if err2 != nil {
+			mainlogContext.Noticef("failed to update systemd status: %s", err2.Error())
+		}
 		os.Exit(1)
 	}
 
@@ -204,13 +213,18 @@ Full license at https://www.ellem.ai/vorlage/license.html
 	vorlage.Logger = vorlagelogcontext
 
 	// load the c vorlageproc
-	mainlogContext.Infof("procload ELF vorlageproc out of %s...", vorlage.CLoadPath)
+	mainlogContext.Debugf("procload ELF vorlageproc out of %s...", vorlage.CLoadPath)
 	procs, err := vorlage.LoadCProcessors()
 	if err != nil {
 		if os.IsNotExist(err) {
 			mainlogContext.Noticef("C Processor path not found (%s): %s", vorlage.CLoadPath, err)
 		} else {
-			mainlogContext.Errorf("failed to load ELF vorlageproc: %s", err)
+			errmsg := fmt.Sprintf("failed to load ELF vorlageproc: %s", err)
+			mainlogContext.Errorf(errmsg)
+			err2 := sdError(syscall.ELIBACC, errmsg)
+			if err2 != nil {
+				mainlogContext.Noticef("failed to update systemd status: %s", err2.Error())
+			}
 			os.Exit(1)
 			return
 		}
@@ -223,39 +237,113 @@ Full license at https://www.ellem.ai/vorlage/license.html
 		if os.IsNotExist(err) {
 			mainlogContext.Noticef("Go Processor path not found (%s): %s", vorlage.GoPluginLoadPath, err)
 		} else {
-			mainlogContext.Errorf("failed to load go plugin: %s", err)
+			errmsg := fmt.Sprintf("failed to load go plugin: %s", err)
+			mainlogContext.Errorf(errmsg)
+			err2 := sdError(syscall.ELIBACC, errmsg)
+			if err2 != nil {
+				mainlogContext.Noticef("failed to update systemd status: %s", err2.Error())
+			}
 			os.Exit(1)
 			return
 		}
 	}
 	procs = append(procs, goprocs...)
+	// build up the compiler
+	c, err := vorlage.NewCompiler(procs)
+	if err != nil {
+		errmsg := fmt.Sprintf("failed to load go plugin: %s", err)
+		mainlogContext.Errorf(errmsg)
+		err2 := sdError(syscall.ELIBEXEC, errmsg)
+		if err2 != nil {
+			mainlogContext.Noticef("failed to update systemd status: %s", err2.Error())
+		}
+		os.Exit(1)
+		return
+	}
 
+
+	// all the hard setup work is done.
+
+
+	// set up signals to listen too.
 	// before we start the server, listen to common signals
 	var shutdown bool
 	var shutdownmu sync.Mutex
 	go func() {
 		sc := make(chan os.Signal, 1)
-		signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
+		// TODO: SIGHUP
+		signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, /*syscall.SIGHUP,*/ os.Interrupt)
 		sig := <-sc
-		mainlogContext.Debugf("signal %s received, shutting down", sig.String())
-		shutdownmu.Lock()
-		shutdown = true
-		shutdownmu.Unlock()
-		// got a signal, shut 'er down.
-		_ = l.Close()
+		switch sig {
+		/*case syscall.SIGHUP:
+			// reload
+			mainlogContext.Debugf("signal %s received, reloading", sig.String())
+
+			// let systemd know we're reloading
+			err = sdReloading()
+			if err != nil {
+				mainlogContext.Noticef("%s", err)
+			}
+
+			// TODO reload logic.
+
+			return*/
+
+		case syscall.SIGINT:
+			fallthrough
+		case syscall.SIGTERM:
+			// shutdown
+			mainlogContext.Debugf("signal %s received, shutting down", sig.String())
+
+			// let systemd know we're stopping
+			err = sdStopping()
+			if err != nil {
+				mainlogContext.Noticef("%s", err)
+			}
+			shutdownmu.Lock()
+			shutdown = true
+			shutdownmu.Unlock()
+			// got a signal, shut 'er down.
+			_ = l.Close()
+			return
+		}
 	}()
 
+
 	// start the server
-	mainlogContext.Infof("starting server for document root \"%s\"...", DocumentRoot)
-	err = Serve(l, procs, UseFcgi, DocumentRoot, TLSPrivateKey, TLSPublicKey)
+	var srvmsg string = "Serving "
+	if UseFcgi == true {
+		srvmsg += "FCGI requests "
+	} else if TLSPrivateKey != "" {
+		srvmsg += "HTTPS requests "
+	} else {
+		srvmsg += "HTTP requests "
+	}
+	srvmsg += "out of " + DocumentRoot
+
+	mainlogContext.Infof(srvmsg)
+	err2 := sdReady(srvmsg, uint64(os.Getpid()))
+	if err2 != nil {
+		mainlogContext.Noticef("failed to update systemd status: %s", err2.Error())
+	}
+
+	err = Serve(l, procs, UseFcgi, DocumentRoot,c, TLSPrivateKey, TLSPublicKey)
 	shutdownmu.Lock()
 	if shutdown {
 		shutdownmu.Unlock()
 		os.Exit(0)
 	} else {
 		shutdownmu.Unlock()
+		var errmsg string
 		if err != nil {
-			mainlogContext.Infof("http server exited unexpected with error: %s", err)
+			errmsg = fmt.Sprintf("http server exited unexpected with error: %s", err)
+		} else {
+			errmsg = fmt.Sprintf("http server exited unexpectedly without error")
+		}
+		mainlogContext.Errorf(errmsg)
+		err2 := sdError(syscall.ENETDOWN, errmsg)
+		if err2 != nil {
+			mainlogContext.Noticef("failed to update systemd status: %s", err2.Error())
 		}
 		os.Exit(1)
 	}
