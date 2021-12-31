@@ -290,22 +290,22 @@ Full license at https://www.ellem.ai/vorlage/license.html
 	go func() {
 		sc := make(chan os.Signal, 1)
 		// TODO: SIGHUP
-		signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, /*syscall.SIGHUP,*/ os.Interrupt)
+		signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM /*syscall.SIGHUP,*/, os.Interrupt)
 		sig := <-sc
 		switch sig {
 		/*case syscall.SIGHUP:
-			// reload
-			mainlogContext.Debugf("signal %s received, reloading", sig.String())
+		// reload
+		mainlogContext.Debugf("signal %s received, reloading", sig.String())
 
-			// let systemd know we're reloading
-			err = sdReloading()
-			if err != nil {
-				mainlogContext.Noticef("%s", err)
-			}
+		// let systemd know we're reloading
+		err = sdReloading()
+		if err != nil {
+			mainlogContext.Noticef("%s", err)
+		}
 
-			// TODO reload logic.
+		// TODO reload logic.
 
-			return*/
+		return*/
 
 		case syscall.SIGINT:
 			fallthrough
@@ -326,7 +326,6 @@ Full license at https://www.ellem.ai/vorlage/license.html
 			return
 		}
 	}()
-
 
 	// start the server
 	var srvmsg string = "Serving "
@@ -366,18 +365,4 @@ Full license at https://www.ellem.ai/vorlage/license.html
 		os.Exit(1)
 	}
 	return
-}
-
-
-func makehttpslistener(certFile,keyFile string) (*tls.Config,error) {
-	var config tls.Config
-	config.MinVersion = tls.VersionTLS13
-	config.NextProtos = append(config.NextProtos, "http/1.1")
-	var err error
-	config.Certificates = make([]tls.Certificate, 1)
-	config.Certificates[0], err = tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return &config,err
-	}
-	return &config,nil
 }
