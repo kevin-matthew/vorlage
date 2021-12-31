@@ -1,12 +1,14 @@
 package main
 // This file will just hold all the things needed to work with systemd.
 
+// #cgo LDFLAGS: -lsystemd
 // #include <systemd/sd-daemon.h>
 // #include <stdlib.h>
 import "C"
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -16,23 +18,23 @@ import (
 
 
 func sdReady(status string, pid uint64) error {
-	cstr := C.CString(`READY=1
+	status = strings.Replace(status, `
+`, `\n`, -1)
+	cstr := C.CString(fmt.Sprintf(`READY=1
 STATUS=%s
-MAINPID=%lu`)
-	cstr2 := C.CString(status)
-	ret := (int)(C.sd_notifyf(0, cstr, cstr2, C.ulong(pid)))
+MAINPID=%d`, status, pid))
+	ret := (int)(C.sd_notify(0, cstr))
 	C.free(unsafe.Pointer(cstr))
-	C.free(unsafe.Pointer(cstr2))
 	return _sdhandlerr(ret)
 }
 
 func sdError(errorno syscall.Errno, errorstr string) error {
-	cstr := C.CString(`STATUS=%s
-ERRNO=%i`)
-	cstr2 := C.CString(errorstr)
-	ret := (int)(C.sd_notifyf(0, cstr, cstr2, C.ulong(uint64(errorno))))
+		errorstr = strings.Replace(errorstr, `
+`, `\n`, -1)
+	cstr := C.CString(fmt.Sprintf(`STATUS=%s
+ERRNO=%d`, errorstr, errorno))
+	ret := (int)(C.sd_notify(0, cstr))
 	C.free(unsafe.Pointer(cstr))
-	C.free(unsafe.Pointer(cstr2))
 	return _sdhandlerr(ret)
 }
 
@@ -55,14 +57,14 @@ func _sdhandlerr(err int) error {
 // ... other words, Make sure you call sdReady / sdError when youre done.
 func sdReloading() error {
 	cstr := C.CString(`RELOADING=1`)
-	ret := (int)(C.sd_notifyf(0, cstr))
+	ret := (int)(C.sd_notify(0, cstr))
 	C.free(unsafe.Pointer(cstr))
 	return _sdhandlerr(ret)
 }
 
 func sdStopping() error {
 	cstr := C.CString(`STOPPING=1`)
-	ret := (int)(C.sd_notify(0, ))
+	ret := (int)(C.sd_notify(0, cstr))
 	C.free(unsafe.Pointer(cstr))
 	return _sdhandlerr(ret)
 }

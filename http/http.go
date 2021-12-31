@@ -2,6 +2,7 @@ package main
 
 import (
 	vorlage ".."
+	"crypto/tls"
 	"ellem.so/lmgo/conf"
 	"fmt"
 	"net"
@@ -261,9 +262,26 @@ Full license at https://www.ellem.ai/vorlage/license.html
 		return
 	}
 
+	// Load the TLS files if present
+	// This step is largely redundant. As the LoadX509KeyPair will be called
+	// from the serve function. We do this now to see if we have any errors
+	// as to report back earlier than later.
+	// We report any TLS errors before sdReady.
+	if TLSPrivateKey != "" {
+		_, err = tls.LoadX509KeyPair(TLSPublicKey, TLSPrivateKey)
+		if err != nil {
+			errmsg := fmt.Sprintf("failed to load TLS X509 key pair: %s", err)
+			mainlogContext.Errorf(errmsg)
+			err2 := sdError(syscall.ENOENT, errmsg)
+			if err2 != nil {
+				mainlogContext.Noticef("failed to update systemd status: %s", err2.Error())
+			}
+			os.Exit(1)
+			return
+		}
+	}
 
 	// all the hard setup work is done.
-
 
 	// set up signals to listen too.
 	// before we start the server, listen to common signals
@@ -327,7 +345,7 @@ Full license at https://www.ellem.ai/vorlage/license.html
 		mainlogContext.Noticef("failed to update systemd status: %s", err2.Error())
 	}
 
-	err = Serve(l, procs, UseFcgi, DocumentRoot,c, TLSPrivateKey, TLSPublicKey)
+	err = Serve(l, procs, UseFcgi, DocumentRoot, c, TLSPrivateKey, TLSPublicKey)
 	shutdownmu.Lock()
 	if shutdown {
 		shutdownmu.Unlock()
@@ -348,4 +366,18 @@ Full license at https://www.ellem.ai/vorlage/license.html
 		os.Exit(1)
 	}
 	return
+}
+
+
+func makehttpslistener(certFile,keyFile string) (*tls.Config,error) {
+	var config tls.Config
+	config.MinVersion = tls.VersionTLS13
+	config.NextProtos = append(config.NextProtos, "http/1.1")
+	var err error
+	config.Certificates = make([]tls.Certificate, 1)
+	config.Certificates[0], err = tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return &config,err
+	}
+	return &config,nil
 }
