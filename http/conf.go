@@ -35,7 +35,7 @@ var FileExt []string = []string{".html", ".proc.html", ".proc.json"}
 // Any files that match this perl-style regexp will not be served, the user
 // will see a AccessForbidden message instead.
 //
-var BlockedFilesRegexp string = `/\.+[^/.]+`
+var BlockedFilesRegexp string = `/(\.[^/.]+|\.\.[^/]+)`
 
 /*
  * If a requested filepath (regardless of its validity) is prefixed by

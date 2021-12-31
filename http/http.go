@@ -115,7 +115,7 @@ If http-usefcgi is enabled, this is ignored.`,
 	{
 		Name: "blocking-regexp",
 		Description: `A perl-style regular expression that if matches the requested path, will not serve. For example, if you wanted to prevent all files under '/mystuff' from being served, set this equal to '^/mystuff'.
-By default, this is set to "/\.+[^/.]+", which means it will block all files that either start with '.' and/or are a decedent of a folder that starts with a '.'`,
+By default, this is set to "/(\.[^/.]+|\.\.[^/]+)", which means it will block all files that either start with '.' and/or are a decedent of a folder that starts with a '.'`,
 		VarAddress: &BlockedFilesRegexp,
 	},
 }
