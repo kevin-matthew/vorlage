@@ -348,6 +348,7 @@ Full license at https://www.ellem.ai/vorlage/license.html
 	shutdownmu.Lock()
 	if shutdown {
 		shutdownmu.Unlock()
+		mainlogContext.Infof("shutting down peacefully")
 		os.Exit(0)
 	} else {
 		shutdownmu.Unlock()
