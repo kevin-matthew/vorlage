@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"regexp"
 	"sync"
 	"syscall"
 )
@@ -110,6 +111,12 @@ If http-usefcgi is enabled, this is ignored.`,
 		Name:        "tryfiles",
 		Description: "A list of file names that vorlage will look for when a directory is requested",
 		VarAddress:  &TryFiles,
+	},
+	{
+		Name: "blocking-regexp",
+		Description: `A perl-style regular expression that if matches the requested path, will not serve. For example, if you wanted to prevent all files under '/mystuff' from being served, set this equal to '^/mystuff'.
+By default, this is set to "/\.+[^/.]+", which means it will block all files that either start with '.' and/or are a decedent of a folder that starts with a '.'`,
+		VarAddress: &BlockedFilesRegexp,
 	},
 }
 
@@ -327,6 +334,22 @@ Full license at https://www.ellem.ai/vorlage/license.html
 		}
 	}()
 
+	// if they supplied a blocking regexep, compile it
+	var blockingregexp *regexp.Regexp
+	if BlockedFilesRegexp != "" {
+		blockingregexp, err = regexp.Compile(BlockedFilesRegexp)
+		if err != nil {
+			errmsg := fmt.Sprintf("failed to compile blocking regexp: %s", err)
+			mainlogContext.Errorf(errmsg)
+			err2 := sdError(0x38193, errmsg)
+			if err2 != nil {
+				mainlogContext.Noticef("failed to update systemd status: %s", err2.Error())
+			}
+			os.Exit(1)
+			return
+		}
+	}
+
 	// start the server
 	var srvmsg string = "Serving "
 	if UseFcgi == true {
@@ -344,7 +367,7 @@ Full license at https://www.ellem.ai/vorlage/license.html
 		mainlogContext.Noticef("failed to update systemd status: %s", err2.Error())
 	}
 
-	err = Serve(l, procs, UseFcgi, DocumentRoot, c, TLSPrivateKey, TLSPublicKey)
+	err = Serve(l, procs, UseFcgi, DocumentRoot, c, blockingregexp, TLSPrivateKey, TLSPublicKey)
 	shutdownmu.Lock()
 	if shutdown {
 		shutdownmu.Unlock()

@@ -32,8 +32,10 @@ var TryFiles []string = []string{"index.html", "index.proc.html"}
  */
 var FileExt []string = []string{".html", ".proc.html", ".proc.json"}
 
-// todo
-var DaemonMode bool = false
+// Any files that match this perl-style regexp will not be served, the user
+// will see a AccessForbidden message instead.
+//
+var BlockedFilesRegexp string = `/\.+[^/.]+`
 
 /*
  * If a requested filepath (regardless of its validity) is prefixed by

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/fcgi"
 	"os"
+	"regexp"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -18,8 +19,9 @@ import vorlage ".."
 import vorlageproc "ellem.so/vorlageproc"
 
 type handler struct {
-	docroot  string
-	compiler vorlage.Compiler
+	docroot        string
+	compiler       vorlage.Compiler
+	blockingRegexp *regexp.Regexp
 }
 
 type actionhandler struct {
@@ -91,6 +93,13 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		}
 		writer.WriteHeader(http.StatusBadRequest)
 		httplogContext.Warnf("%s - %s", fileToUse, err)
+		return
+	}
+
+	// make sure the url path is not blacklisted.
+	if h.blockingRegexp != nil && h.blockingRegexp.Match([]byte(request.URL.Path)) {
+		writer.WriteHeader(http.StatusForbidden)
+		httplogContext.Warnf("%s - vorlage failed to read due to having bad permissions: %s", fileToUse, err)
 		return
 	}
 
@@ -360,12 +369,14 @@ func Serve(l net.Listener,
 	useFcgi bool,
 	documentRoot string,
 	c vorlage.Compiler,
+	blockingregexp *regexp.Regexp,
 	privkey,
 	pubkey string) (err error) {
 
 	h := handler{
-		docroot:  documentRoot,
-		compiler: c,
+		docroot:        documentRoot,
+		compiler:       c,
+		blockingRegexp: blockingregexp,
 	}
 
 	if useFcgi {
