@@ -86,4 +86,5 @@ const (
 	errVariableDraw                 = "cannot draw variable"
 	errVariableName                 = "variable has an invalid Name"
 	errBadReservedInput             = "reserved input not formatted correctly"
+	errCircularDefinition           = "circular definition detected"
 )

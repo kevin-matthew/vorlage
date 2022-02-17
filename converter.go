@@ -43,18 +43,9 @@ type nonConvertedFile struct {
 	// will be nil if not currently reading.
 	currentlyReadingDef vorlageproc.Definition
 
-	// definitionStack will be used to enter subsequent defintions and define
-	// those as it goes along.
-	// For example,
-	//
-	//    #define $(Hello) My name is $(Name)
-	//    $(Hello)
-	//
-	// When the server gets around to defining $(Hello), the first element of
-	// the stack will be $(Hello), and the second element will soon become
-	// $(Name). And then they will be poped out of the array as their definitions
-	// finish.
-	definitionStack *[]vorlageproc.Definition
+	// definitionStack will be used to check for circular definitions within
+	// nested normal definitions and will error out if it does detect one.
+	definitionStack *[]string
 }
 
 type osFileHandle struct {
@@ -115,7 +106,7 @@ func (doc *Document) getConverted(sourceFile File) (converedFile File, err *Erro
 		sourceFile:         sourceFile,
 		sourceDocument:     doc,
 		variableReadBuffer: make([]byte, MaxVariableLength),
-		definitionStack:    new([]vorlageproc.Definition),
+		definitionStack:    new([]string),
 	}
 	return &file, nil
 }

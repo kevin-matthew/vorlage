@@ -1,6 +1,9 @@
 package vorlage
 
-import "io"
+import (
+	"io"
+	"strings"
+)
 
 // helper function for nonConvertedFile.Read
 // returns io.EOF if the definition has been completely read from.
@@ -15,6 +18,9 @@ func (c *nonConvertedFile) readDefinition(dest []byte) (n int, err error) {
 			}
 			// we're done reading the current definition.
 			c.currentlyReadingDef = nil
+			// pop this defintion from the stack
+			newstack := *c.definitionStack
+			*c.definitionStack = newstack[:len(newstack)-1]
 			return n, io.EOF
 		} else {
 			// we're not done reading the definition yet.
@@ -44,9 +50,6 @@ func (c *nonConvertedFile) readSource(dest []byte) (n int, err error) {
 }
 
 func (c *nonConvertedFile) Read(dest []byte) (totalBytes int, err error) {
-	if c.hasEOFd {
-		return 0, io.EOF
-	}
 	var n int
 
 	// first, read any definition that we may be in currently.
@@ -72,8 +75,6 @@ func (c *nonConvertedFile) Read(dest []byte) (totalBytes int, err error) {
 	if err != nil && err != io.EOF {
 		return totalBytes, err
 	}
-	// set hasEOFd so future calls will return EOF.
-	c.hasEOFd = err == io.EOF
 
 	// now lets check to see if the source file gave us any variables to chew
 	// on. Also, You will not understand the following code until you understand
@@ -171,10 +172,14 @@ func (c *nonConvertedFile) Read(dest []byte) (totalBytes int, err error) {
 		}
 
 		// first go back to the Document and find this variable's definition
+		var definitionError *Error
 		def, derr := c.sourceDocument.define(*pos)
 		if derr != nil {
-			if oerr, ok := derr.(*Error); ok {
-				switch oerr.ErrStr {
+			var ok bool
+			if definitionError, ok = derr.(*Error); ok {
+				// we need to handle these errors, as the solution to each
+				// of them is to log what happened and just output a Non-variable
+				switch definitionError.ErrStr {
 				case errNoProcessor:
 					Logger.Warnf("%s - %s", pos, derr)
 					goto ignoreerror
@@ -192,17 +197,52 @@ func (c *nonConvertedFile) Read(dest []byte) (totalBytes int, err error) {
 			return totalBytes, derr
 
 		ignoreerror:
+			// Non-variables:
 			// if we're here, then the variable didn't exist. So we've got to
 			// print out the original contents (including '$(' and ')'). The
 			// easiest way I see doing this is: just set the definer to
 			// read from the variable read buffer. An elegant solution.
 			// We'll re-use the NormalDefinition struct to do this. A very
 			// elegant solution indeed.
+			// To detect if def is a non-variable, just check if definitionError
+			// is non-nil
 			def = &NormalDefinition{value: pos.fullName}
 		}
 		// lets start reading it on the next read by setting c.currentlyReadingDef
 		// to a non-nil value (see readDefinition)
-		c.currentlyReadingDef = def
+		// We will also add it to the definition stack to detect for circular
+		// definitions
+		*c.definitionStack = append(*c.definitionStack, pos.fullName)
+
+		// if its a normal variable, the definition up as a file so it can
+		// read from other definitions.
+		// we also have to make sure that it's a valid variable and not
+		// just variable name defining itself (see Non-variables)
+		if pos.processorName == "" && definitionError == nil {
+			// but before we go on, lets make sure we are not running into
+			// a recursively defining defintion.
+			for i := 0; i < len(*c.definitionStack)-1; i++ {
+				if (*c.definitionStack)[i] != pos.fullName {
+					continue
+				}
+				// oh no. A parent definition is trying to define itself
+				// right now, thats a recursive problem. Error out.
+				oerr := NewError(errCircularDefinition)
+				attemptedstack := append(*c.definitionStack, pos.fullName)
+				oerr.SetSubjectf("%s", strings.Join(attemptedstack, " -> "))
+				return totalBytes, oerr
+			}
+			c.currentlyReadingDef = &nonConvertedFile{
+				sourceDocument:     c.sourceDocument,
+				sourceFile:         def,
+				variableReadBuffer: make([]byte, MaxVariableLength),
+				definitionStack:    c.definitionStack,
+			}
+		} else {
+			// it is a processor variable, do not allow nested variables to be
+			// defined.
+			c.currentlyReadingDef = def
+		}
 
 		// This next if statment is completely optional.
 		// all this does is ask if there's any more space in dest we haven't
@@ -225,17 +265,16 @@ func (c *nonConvertedFile) Read(dest []byte) (totalBytes int, err error) {
 	return totalBytes, err
 }
 
-func (c *nonConvertedFile) Rewind() error {
+func (c *nonConvertedFile) Reset() error {
 	//clear the variable buffer
 	for i := 0; i < len(c.variableReadBuffer); i++ {
 		c.variableReadBuffer[i] = 0
 	}
 
-	err := c.sourceFile.Rewind()
+	err := c.sourceFile.Reset()
 	if err != nil {
 		return err
 	}
-	c.hasEOFd = false
 
 	c.bytesRead = 0
 	return nil
