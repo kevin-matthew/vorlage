@@ -10,10 +10,12 @@ import (
 type File interface {
 	// n will sometimes be < len(p) but that does not mean it's the end of the
 	// file. Only when 0, io.EOF is returned will it be the end of the file.
-	Read(p []byte) (int, error)
+	// As per io.Reader definition, Read can an will return a non nil error
+	// with n > 0
+	Read(p []byte) (n int, err error)
 
 	// returns to the beginning of the file
-	Rewind() error
+	Reset() error
 
 	// must be called when conversion is done.
 	Close() error
@@ -41,6 +43,20 @@ type nonConvertedFile struct {
 
 	// will be nil if not currently reading.
 	currentlyReadingDef vorlageproc.Definition
+
+	// definitionStack will be used to enter subsequent defintions and define
+	// those as it goes along.
+	// For example,
+	//
+	//    #define $(Hello) My name is $(Name)
+	//    $(Hello)
+	//
+	// When the server gets around to defining $(Hello), the first element of
+	// the stack will be $(Hello), and the second element will soon become
+	// $(Name). And then they will be poped out of the array as their definitions
+	// finish.
+	definitionStack *[]vorlageproc.Definition
+	tmp             string
 }
 
 type osFileHandle struct {
@@ -55,7 +71,7 @@ func osFileToFile(file *os.File, resetPos int64) File {
 func (o osFileHandle) Read(p []byte) (int, error) {
 	return o.File.Read(p)
 }
-func (o osFileHandle) Rewind() error {
+func (o osFileHandle) Reset() error {
 	_, err := o.File.Seek(o.resetPos, 0)
 	return err
 }
@@ -101,6 +117,8 @@ func (doc *Document) getConverted(sourceFile File) (converedFile File, err *Erro
 		sourceFile:         sourceFile,
 		sourceDocument:     doc,
 		variableReadBuffer: make([]byte, MaxVariableLength),
+		definitionStack:    new([]vorlageproc.Definition),
+		tmp:                "source",
 	}
 	return &file, nil
 }
