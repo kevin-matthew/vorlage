@@ -1,18 +1,18 @@
 package vorlage
 
 import (
+	vorlageproc "ellem.so/vorlageproc"
 	"plugin"
 	"testing"
-	vorlageproc "./vorlage-interface/golang/vorlageproc"
 )
 
 func TestLoadGoProcessors(t *testing.T) {
-	p,err := plugin.Open("./go.src/golibtestproc.so")
+	p, err := plugin.Open("./go.src/golibtestproc.so")
 	if err != nil {
 		t.Log(err)
 		t.Fail()
 	}
-	sym,err := p.Lookup("Test")
+	sym, err := p.Lookup("Test")
 	if err != nil {
 		t.Log(err)
 		t.Fail()

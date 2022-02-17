@@ -56,7 +56,6 @@ import (
 	"io"
 	"strconv"
 )
-import "ellem.so/lmgo/errors"
 import "ellem.so/vorlageproc"
 
 type cProc struct {
@@ -186,11 +185,11 @@ func (d descriptorReader) Close() error {
 	f := C.vorlage_proc_definer_close_wrap(d.c.vorlage_proc_definer_close)
 	returnCode := int(C.vorlage_proc_definer_close_exec(f, d.ptr))
 	if returnCode != 0 {
-		return errors.New(0x983452b,
+		return lmerrorNew(0x983452b,
 			"failed to close definer",
 			nil,
 			"",
-			"error code "+strconv.Itoa(returnCode),)
+			"error code "+strconv.Itoa(returnCode))
 	}
 	return nil
 }
@@ -198,7 +197,7 @@ func (d descriptorReader) Reset() error {
 	f := C.vorlage_proc_definer_reset_wrap(d.c.vorlage_proc_definer_reset)
 	returnCode := int(C.vorlage_proc_definer_reset_exec(f, d.ptr))
 	if returnCode != 0 {
-		return errors.New(0x983452a,
+		return lmerrorNew(0x983452a,
 			"failed to reset definer",
 			nil,
 			"",
@@ -213,11 +212,11 @@ func (d descriptorReader) Read(p []byte) (int, error) {
 		if size == -2 {
 			return 0, io.EOF
 		}
-		return 0, errors.New(0x983452c,
+		return 0, lmerrorNew(0x983452c,
 			"failed to read",
 			nil,
 			"",
-			fmt.Sprintf("%d", size),)
+			fmt.Sprintf("%d", size))
 	}
 	return int(size), nil
 }
@@ -311,7 +310,7 @@ func LoadCProcessors() ([]vorlageproc.Processor, error) {
 		}
 		proc, err := dlOpen(path)
 		if err != nil {
-			return procs, errors.Newf(0x6134bc1,
+			return procs, lmerrorNewf(0x6134bc1,
 				"failed to load library from library path",
 				err,
 				"",
@@ -319,7 +318,7 @@ func LoadCProcessors() ([]vorlageproc.Processor, error) {
 		}
 		err = proc.loadVorlageSymbols()
 		if err != nil {
-			return procs, errors.Newf(0x6134bc2,
+			return procs, lmerrorNewf(0x6134bc2,
 				"failed to load library from library path",
 				err,
 				"",
@@ -344,14 +343,14 @@ func dlOpen(libPath string) (*cProc, error) {
 	if handle == nil {
 		e := C.dlerror()
 		if e == nil {
-			return nil, errors.New(0x82acb,
+			return nil, lmerrorNew(0x82acb,
 				"dlopen failed but dlerror did not return an error",
 				nil,
 				"I have no idea what to do.",
 				libPath)
 
 		}
-		return nil, errors.New(0x10baa,
+		return nil, lmerrorNew(0x10baa,
 			"failed to load in library",
 			nil,
 			"make sure the library exists and it links properly",
@@ -372,7 +371,7 @@ func isInterfaceVersionSupported(ver uint32) bool {
 func (c *cProc) loadVorlageSymbols() error {
 	theirVersion, err := c.getSymbolPointer("vorlage_proc_interfaceversion")
 	if err != nil {
-		return errors.Newf(0x7852b,
+		return lmerrorNewf(0x7852b,
 			"failed to find vorlage_proc_interfaceversion symbol",
 			err,
 			"make sure this is a valid vorlageproc processor and has been built correctly",
@@ -381,7 +380,7 @@ func (c *cProc) loadVorlageSymbols() error {
 	tv := (*uint32)(theirVersion)
 	c.vorlageInterfaceVersion = *tv
 	if !isInterfaceVersionSupported(*tv) {
-		return errors.Newf(0x9852b,
+		return lmerrorNewf(0x9852b,
 			"vorlageproc processor interface version not supported",
 			nil,
 			"find a more up-to-date version of this processor or downgrade your vorlageproc",
@@ -406,7 +405,7 @@ func (c *cProc) loadVorlageSymbols() error {
 	for _, s := range goodsyms {
 		p, err := c.getSymbolPointer(s.string)
 		if err != nil {
-			return errors.New(0xaab151,
+			return lmerrorNew(0xaab151,
 				"could not find required symbol in library",
 				err,
 				"make sure you've implemented all functions found in processor-interface.h",
@@ -423,10 +422,10 @@ func (c *cProc) getSymbolPointer(symbol string) (unsafe.Pointer, error) {
 	p := C.dlsym(c.handle, sym)
 	e := C.dlerror()
 	if e != nil {
-		return nil, errors.Newf(0x10b341,
-			"failed to get symbol",nil,
+		return nil, lmerrorNewf(0x10b341,
+			"failed to get symbol", nil,
 			"make sure this library has the proper symbol exported",
-			"finding symbol '%s' in %s: %s", symbol, c.libname,C.GoString(e))
+			"finding symbol '%s' in %s: %s", symbol, c.libname, C.GoString(e))
 	}
 	return p, nil
 }
@@ -441,7 +440,7 @@ func (c *cProc) Shutdown() error {
 	C.dlclose(c.handle)
 	e := C.dlerror()
 	if e != nil {
-		return errors.New(0x584148,
+		return lmerrorNew(0x584148,
 			"dlclose failed to close handle",
 			nil,
 			C.GoString(e),

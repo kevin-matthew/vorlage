@@ -1,7 +1,7 @@
 package vorlage
 
 import (
-	vorlageproc "./vorlage-interface/golang/vorlageproc"
+	vorlageproc "ellem.so/vorlageproc"
 	"os"
 	"regexp"
 )

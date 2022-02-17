@@ -1,7 +1,6 @@
 package vorlage
 
 import (
-	"ellem.so/lmgo/errors"
 	"ellem.so/vorlageproc"
 	"io/ioutil"
 	"plugin"
@@ -18,14 +17,14 @@ type goProc struct {
 
 func goProchandleerr(err error, ok bool, s string) error {
 	if err != nil {
-		return errors.New(0x153b42,
+		return lmerrorNew(0x153b42,
 			"symbol not found",
 			err,
 			"ensure the processor was properly built and is up to date",
 			s)
 	}
 	if !ok {
-		return errors.New(0x153b41,
+		return lmerrorNew(0x153b41,
 			"symbol not valid",
 			nil,
 			"ensure the processor was properly built and is up to date",
@@ -37,7 +36,7 @@ func goProchandleerr(err error, ok bool, s string) error {
 func loadGoProc(path string) (gv []goProc, err error) {
 	plug, err := plugin.Open(path)
 	if err != nil {
-		return gv, errors.New(3185,
+		return gv, lmerrorNew(3185,
 			"failed to open plugin file",
 			err,
 			"make sure the file is valid",
@@ -159,7 +158,7 @@ func LoadGoProcessors() ([]vorlageproc.Processor, error) {
 
 		p, err := loadGoProc(path)
 		if err != nil {
-			return procs, errors.New(0x19945,
+			return procs, lmerrorNew(0x19945,
 				"failed to load go library",
 				err,
 				"",

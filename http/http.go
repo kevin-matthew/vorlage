@@ -3,7 +3,6 @@ package main
 import (
 	vorlage ".."
 	"crypto/tls"
-	"ellem.so/lmgo/conf"
 	"fmt"
 	"net"
 	"os"
@@ -24,7 +23,7 @@ var ConfigFile = "/etc/vorlage/http.conf"
 var TLSPrivateKey = ""
 var TLSPublicKey = ""
 
-var config = []conf.ConfigBinding{
+var config = []ConfigBinding{
 	{
 		Name:        "http-documentroot",
 		Description: "the document root where the server will run at",
@@ -126,7 +125,7 @@ var httplogContext logcontext
 func main() {
 
 	// configure
-	if err := conf.BindAll(config); err != nil {
+	if err := BindAll(config); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, `failed to read configuring: %s
 `, err)
 		os.Exit(1)
@@ -145,8 +144,8 @@ func main() {
 		fmt.Printf("Valid --ARGUMENT=VALUE pairs:\n")
 		// load the config file so that help menu shows the default values after
 		// the configure file has been loaded.
-		_ = conf.LoadConfFile(ConfigFile)
-		_, _ = fmt.Fprintf(os.Stdout, conf.HelpArgs())
+		_ = LoadConfFile(ConfigFile)
+		_, _ = fmt.Fprintf(os.Stdout, HelpArgs())
 		_, _ = fmt.Fprintf(os.Stdout, "Note: The above arguments can be pre-set in the CONFIG_FILE\n")
 		_, _ = fmt.Fprintf(os.Stdout, "      as ARGUMENT=VALUE pairs.\n")
 		_, _ = fmt.Fprintf(os.Stdout, "Note: The default CONFIG_FILE location is %s\n", ConfigFile)
@@ -162,24 +161,24 @@ Full license at https://www.ellem.ai/vorlage/license.html
 
 	// --default-conf (prints out the default configuration file)
 	if len(os.Args) == 2 && os.Args[1] == "--default-conf" {
-		_, _ = fmt.Printf("%s", conf.HelpFile())
+		_, _ = fmt.Printf("%s", HelpFile())
 		os.Exit(0)
 	}
 
 	// if there is at least 1 argument, that is the configuration file.
 	// so load that one instead of the default configuration
-	params := conf.GetParameters(os.Args[1:])
+	params := GetParameters(os.Args[1:])
 	if len(params) == 1 {
 		ConfigFile = params[0]
 	}
-	if err := conf.LoadConfFile(ConfigFile); err != nil {
+	if err := LoadConfFile(ConfigFile); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, err.Error()+"\n")
 		_, _ = fmt.Fprintf(os.Stderr, "See "+os.Args[0]+" --help\n")
 		os.Exit(1)
 	}
 
 	// now parse in the args ontop of the configuration file
-	if err := conf.LoadConfArgs(os.Args[1:]); err != nil {
+	if err := LoadConfArgs(os.Args[1:]); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, err.Error()+"\n")
 		_, _ = fmt.Fprintf(os.Stderr, "See "+os.Args[0]+" --help\n")
 		os.Exit(1)
@@ -305,9 +304,9 @@ Full license at https://www.ellem.ai/vorlage/license.html
 		mainlogContext.Debugf("signal %s received, reloading", sig.String())
 
 		// let systemd know we're reloading
-		err = sdReloading()
-		if err != nil {
-			mainlogContext.Noticef("%s", err)
+		errT = sdReloading()
+		if errT != nil {
+			mainlogContext.Noticef("%s", errT)
 		}
 
 		// TODO reload logic.
