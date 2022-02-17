@@ -568,7 +568,7 @@ func (doc *Document) Read(dest []byte) (int,
 	// may just have to remove.
 	if doc.documentEOF {
 		Logger.Debugf("rewinding EOF'd document '%s' for reading", doc.path)
-		cerr := doc.Rewind()
+		cerr := doc.Reset()
 		if cerr != nil {
 			oerr := NewError(errFailedToReadPrependDocument)
 			oerr.SetSubject(doc.prepends[doc.prependReadingIndex].path)
@@ -646,9 +646,9 @@ func (doc *Document) Read(dest []byte) (int,
 
 // Calling Rewind on a document on a thread that is different from the original
 // thread the document was created on (via Compiler.Compile) is undefined behaviour.
-func (doc *Document) Rewind() error {
+func (doc *Document) Reset() error {
 	Logger.Debugf("rewinding document %s", doc.path)
-	cerr := doc.ConvertedFile.Rewind()
+	cerr := doc.ConvertedFile.Reset()
 	if cerr != nil {
 		oerr := NewError(errRewind)
 		oerr.SetSubject(doc.path)
@@ -656,7 +656,7 @@ func (doc *Document) Rewind() error {
 		return oerr
 	}
 	for i := 0; i < doc.prependReadingIndex; i++ {
-		cerr := doc.prepends[i].Rewind()
+		cerr := doc.prepends[i].Reset()
 		if cerr != nil {
 			oerr := NewError(errRewind)
 			oerr.SetSubject(doc.path)
@@ -666,7 +666,7 @@ func (doc *Document) Rewind() error {
 	}
 
 	for i := 0; i < doc.appendReadingIndex; i++ {
-		cerr := doc.appends[i].Rewind()
+		cerr := doc.appends[i].Reset()
 		if cerr != nil {
 			oerr := NewError(errRewind)
 			oerr.SetSubject(doc.path)
