@@ -197,6 +197,25 @@ Hello, my name is $(Name).
 Note that if =#define= attempts to define an previously defined
 variable, the Document will not be compiled and will return an error.
 
+For Normal Definitions, they can make use of subsequent variables,
+both normal and processed. 
+
+For example:
+
+#+BEGIN_SRC html
+#define $(Lastname) Marschke
+#define $(Name) Kevin $(Lastname)
+
+Hello, my name is $(Name).
+
+#+END_SRC
+
+The above will output "Hello, my name is Kevin Marschke".
+
+If the compiler finds a circular-defintion of a single, or collection
+of variables, an error will occour before the document is compiled.
+
+
 ** #append
 Append includes a Document (the includee) that, when compiled, be
 outputted /after/ the includer. The includee's Macros will
