@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/http/fcgi"
@@ -243,7 +244,9 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 				return
 			}
 
-			file, err := request.MultipartForm.File[k][0].Open()
+			var file fupload
+			file.size = uint64(request.MultipartForm.File[k][0].Size)
+			file.multipartfile, err = request.MultipartForm.File[k][0].Open()
 			if err != nil {
 				httplogContext.Errorf("failed to open stream from %s: %s", k, err)
 				writer.WriteHeader(http.StatusInternalServerError)
@@ -313,6 +316,25 @@ writeStream:
 		return
 	}
 }
+
+type fupload struct {
+	size          uint64
+	multipartfile multipart.File
+}
+
+func (f fupload) Read(p []byte) (n int, err error) {
+	return f.multipartfile.Read(p)
+}
+
+func (f fupload) Close() error {
+	return f.multipartfile.Close()
+}
+
+func (f fupload) GetLen() (n uint64, err error) {
+	return f.size, nil
+}
+
+var _ vorlageproc.StreamInput = fupload{}
 
 /*
  * Returns true if path will upward transversal (aka transversal attack).

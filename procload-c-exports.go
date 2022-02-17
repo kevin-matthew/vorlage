@@ -33,6 +33,9 @@ func (n2 nilStream) Read(p []byte) (n int, err error) {
 func (n2 nilStream) Close() error {
 	return nil
 }
+func (n2 nilStream) GetLen() (uint64, error) {
+	return 0, nilerror
+}
 
 var nilstream = nilStream(0)
 
