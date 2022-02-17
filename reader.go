@@ -243,7 +243,7 @@ func (c *nonConvertedFile) Rewind() error {
 
 func (c *nonConvertedFile) Close() error {
 	if c.currentlyReadingDef != nil {
-		_ = c.currentlyReadingDef.Reset()
+		_ = c.currentlyReadingDef.Close()
 	}
 
 	err := c.sourceFile.Close()
