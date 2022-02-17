@@ -32,7 +32,6 @@ type nonConvertedFile struct {
 
 	// the file to read, close, rewind.
 	sourceFile File
-	hasEOFd    bool
 
 	// used for drawParser
 	variableReadBuffer []byte
@@ -56,7 +55,6 @@ type nonConvertedFile struct {
 	// $(Name). And then they will be poped out of the array as their definitions
 	// finish.
 	definitionStack *[]vorlageproc.Definition
-	tmp             string
 }
 
 type osFileHandle struct {
@@ -118,7 +116,6 @@ func (doc *Document) getConverted(sourceFile File) (converedFile File, err *Erro
 		sourceDocument:     doc,
 		variableReadBuffer: make([]byte, MaxVariableLength),
 		definitionStack:    new([]vorlageproc.Definition),
-		tmp:                "source",
 	}
 	return &file, nil
 }
