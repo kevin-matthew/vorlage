@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"syscall"
 )
 
@@ -172,8 +173,12 @@ type Document struct {
  * be used. If no converters return true, the document is not converted and will
  * be read as normal (via io.OpenFile).
  */
-func (compiler *Compiler) loadDocument(compReq compileRequest) (doc Document,
+func (compiler *Compiler) loadDocument(compReq compileRequest) (doc *Document,
 	oerr *Error) {
+
+	// this number will decrease by 1 when the streamed document returned
+	// by this function is closed.
+	atomic.AddInt32(&compiler.concurrentReaders, 1)
 	d, err := loadDocumentFromPath(compReq.filepath, compiler, compReq, nil, nil)
 	if err != nil {
 		return d, err
@@ -193,11 +198,20 @@ func loadDocumentFromPath(path string,
 	compiler *Compiler,
 	request compileRequest,
 	parent *Document,
-	root *Document) (doc Document, oerr *Error) {
+	root *Document) (doc *Document, oerr *Error) {
 
+	// in all cases, if we return this function with an error... we
+	// must close the document
+	defer func() {
+		if oerr != nil {
+			_ = doc.Close()
+		}
+	}()
+
+	// structure set up (no returning)
 	oerr = &Error{}
 	oerr.SetSubject(path)
-
+	doc = new(Document)
 	doc.MacroReadBuffer = make([]byte, MacroMaxLength)
 	doc.VariableDetectionBuffer = make([]byte, len(VariablePrefix))
 	doc.parent = parent
@@ -209,22 +223,24 @@ func loadDocumentFromPath(path string,
 	for i := range doc.VariableDetectionBuffer {
 		doc.VariableDetectionBuffer[i] = 0
 	}
-
 	// see the document struct's instructions about 'allIncluded' and
 	// 'allDefinitions'
 	if doc.root != nil {
+		// this is the root documetn
 		doc.allDefinitions = doc.root.allDefinitions
 		doc.allIncluded = doc.root.allIncluded
 		doc.compRequest = doc.root.compRequest
 		doc.streamInputsUsed = doc.root.streamInputsUsed
 	} else {
-		doc.root = &doc
+		// this is a child document
+		doc.root = doc
 		doc.allDefinitions = &[]NormalDefinition{}
 		doc.allIncluded = &[]*Document{}
 		doc.compRequest = request
 		doc.streamInputsUsed = make(map[string]string, len(request.allStreams))
 	}
 
+	// now that structure set up is done, do some validation...
 	sourceerr := doc.ancestorHasPath(path)
 	if sourceerr != nil {
 		oerr.ErrStr = "circular inclusion"
@@ -232,11 +248,12 @@ func loadDocumentFromPath(path string,
 		return doc, oerr
 	}
 
+	// validation is complete. Lets start the fs ops.
+
 	file, serr := os.Open(path)
 	if serr != nil {
 		oerr.ErrStr = "failed to open file"
 		oerr.SetBecause(NewError(serr.Error()))
-		_ = doc.Close()
 		return doc, oerr
 	}
 	doc.rawFile = file
@@ -245,7 +262,6 @@ func loadDocumentFromPath(path string,
 	if serr != nil {
 		oerr.ErrStr = "failed to get inode for file"
 		oerr.SetBecause(NewError(serr.Error()))
-		_ = doc.Close()
 		return doc, oerr
 	}
 	doc.fileInode = stat.Ino
@@ -256,7 +272,6 @@ func loadDocumentFromPath(path string,
 	if err != nil {
 		oerr.ErrStr = "failed to detect macros"
 		oerr.SetBecause(err)
-		_ = doc.Close()
 		return doc, oerr
 	}
 
@@ -265,7 +280,6 @@ func loadDocumentFromPath(path string,
 	if err != nil {
 		oerr.ErrStr = "failed to interpret macros"
 		oerr.SetBecause(err)
-		_ = doc.Close()
 		return doc, oerr
 	}
 
@@ -278,7 +292,6 @@ func loadDocumentFromPath(path string,
 		if err != nil {
 			oerr.ErrStr = "failed to prepend document"
 			oerr.SetBecause(err)
-			_ = doc.Close()
 			return doc, oerr
 		}
 		doc.prepends[i] = inc
@@ -293,7 +306,6 @@ func loadDocumentFromPath(path string,
 		if err != nil {
 			oerr.ErrStr = "failed to append document"
 			oerr.SetBecause(err)
-			_ = doc.Close()
 			return doc, oerr
 		}
 		doc.appends[i] = inc
@@ -307,7 +319,6 @@ func loadDocumentFromPath(path string,
 			oerr.ErrStr = "cannot parse definition"
 			oerr.SetSubjectf("%s %s", path, d.ToString())
 			oerr.SetBecause(err)
-			_ = doc.Close()
 			return doc, oerr
 		}
 
@@ -316,7 +327,6 @@ func loadDocumentFromPath(path string,
 			oerr.ErrStr = "failed to add normal definition"
 			oerr.SetSubjectf("%s '%s'", path, d.ToString())
 			oerr.SetBecause(err)
-			_ = doc.Close()
 			return doc, oerr
 		}
 	}
@@ -326,7 +336,7 @@ func loadDocumentFromPath(path string,
 	if serr != nil {
 		oerr.ErrStr = errFailedToSeek
 		oerr.SetBecause(NewError(serr.Error()))
-		_ = doc.Close()
+		return doc, oerr
 	}
 
 	// variables we need to convert the document to the target format.
@@ -335,7 +345,6 @@ func loadDocumentFromPath(path string,
 	if err != nil {
 		oerr.ErrStr = errConvert
 		oerr.SetBecause(err)
-		_ = doc.Close()
 		return doc, oerr
 	}
 
@@ -521,8 +530,8 @@ func (doc *Document) include(path string) (incdoc *Document, oerr *Error) {
 		return nil, oerr
 	}
 
-	*doc.allIncluded = append(*doc.allIncluded, &adoc)
-	return &adoc, nil
+	*doc.allIncluded = append(*doc.allIncluded, adoc)
+	return adoc, nil
 
 }
 
@@ -713,12 +722,20 @@ func (doc *Document) Close() error {
 	}
 
 	// does this mark the finish of the compRequest?
-	if doc.root == nil {
+	if doc.root == doc {
 		// we just closed the root document. Which means this compRequest
 		// has been finished. So call the onFinish to the vorlageproc.
 		for i := range doc.compiler.processors {
 			rinfo := doc.compRequest.processorRInfos[i]
 			doc.compiler.processors[i].OnFinish(rinfo, *rinfo.Cookie)
+		}
+
+		// now that this reader is closed, we can decrease the concurrent
+		// readers by this compiler by 1.
+		newi := atomic.AddInt32(&doc.compiler.concurrentReaders, -1)
+		shutdowncode := atomic.LoadInt32(&doc.compiler.atomicShutdown)
+		if newi == 0 && shutdowncode == 3 {
+			doc.compiler.shutdownReaders0 <- true
 		}
 	}
 	return nil

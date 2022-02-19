@@ -22,6 +22,7 @@ var UseFcgi bool = false
 var ConfigFile = "/etc/vorlage/http.conf"
 var TLSPrivateKey = ""
 var TLSPublicKey = ""
+var reloadProcessors = true
 
 var config = []ConfigBinding{
 	{
@@ -70,6 +71,11 @@ If http-usefcgi is enabled, this is ignored.`,
 		Name:        "vorlage-goldpath",
 		Description: "A path to a directory to which vorlage will search for available go vorlageprocs.",
 		VarAddress:  &vorlage.GoPluginLoadPath,
+	},
+	{
+		Name:        "vorlage-reload-processors",
+		Description: "If true, then vorlage will automatically re-load processors if it detects the file has changed. Use only for debugging and developing.",
+		VarAddress:  &reloadProcessors,
 	},
 	{
 		Name:        "log-debug",
@@ -219,44 +225,8 @@ Full license at https://www.ellem.ai/vorlage/license.html
 	}
 	vorlage.Logger = vorlagelogcontext
 
-	// load the c vorlageproc
-	mainlogContext.Debugf("procload ELF vorlageproc out of %s...", vorlage.CLoadPath)
-	procs, err := vorlage.LoadCProcessors()
-	if err != nil {
-		if os.IsNotExist(err) {
-			mainlogContext.Noticef("C Processor path not found (%s): %s", vorlage.CLoadPath, err)
-		} else {
-			errmsg := fmt.Sprintf("failed to load ELF vorlageproc: %s", err)
-			mainlogContext.Errorf(errmsg)
-			err2 := sdError(syscall.ELIBACC, errmsg)
-			if err2 != nil {
-				mainlogContext.Noticef("failed to update systemd status: %s", err2.Error())
-			}
-			os.Exit(1)
-			return
-		}
-	}
-
-	// load the go plugins vorlageproc
-	mainlogContext.Infof("procload go plugin vorlageproc out of %s...", vorlage.GoPluginLoadPath)
-	goprocs, err := vorlage.LoadGoProcessors()
-	if err != nil {
-		if os.IsNotExist(err) {
-			mainlogContext.Noticef("Go Processor path not found (%s): %s", vorlage.GoPluginLoadPath, err)
-		} else {
-			errmsg := fmt.Sprintf("failed to load go plugin: %s", err)
-			mainlogContext.Errorf(errmsg)
-			err2 := sdError(syscall.ELIBACC, errmsg)
-			if err2 != nil {
-				mainlogContext.Noticef("failed to update systemd status: %s", err2.Error())
-			}
-			os.Exit(1)
-			return
-		}
-	}
-	procs = append(procs, goprocs...)
 	// build up the compiler
-	c, err := vorlage.NewCompiler(procs)
+	c, err := vorlage.NewCompiler()
 	if err != nil {
 		errmsg := fmt.Sprintf("failed to load go plugin: %s", err)
 		mainlogContext.Errorf(errmsg)
@@ -366,7 +336,7 @@ Full license at https://www.ellem.ai/vorlage/license.html
 		mainlogContext.Noticef("failed to update systemd status: %s", err2.Error())
 	}
 
-	err = Serve(l, procs, UseFcgi, DocumentRoot, c, blockingregexp, TLSPrivateKey, TLSPublicKey)
+	err = Serve(l, UseFcgi, DocumentRoot, c, blockingregexp, TLSPrivateKey, TLSPublicKey)
 	shutdownmu.Lock()
 	if shutdown {
 		shutdownmu.Unlock()

@@ -290,9 +290,9 @@ func parseInputProtoType(protoc int, protov *C.vorlage_proc_inputproto) []vorlag
 
 var libraryFilenameSig = regexp.MustCompile("^lib([^.]+).so")
 
-func LoadCProcessors() ([]vorlageproc.Processor, error) {
-	var procs []vorlageproc.Processor
-	files, err := ioutil.ReadDir(CLoadPath)
+func loadCProcessors(dir string) ([]*cProc, error) {
+	var procs []*cProc
+	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -304,8 +304,8 @@ func LoadCProcessors() ([]vorlageproc.Processor, error) {
 		if libnames == nil {
 			continue
 		}
-		path := CLoadPath + "/" + f.Name()
-		if CLoadPath == "" {
+		path := dir + "/" + f.Name()
+		if dir == "" {
 			path = f.Name()
 		}
 		proc, err := dlOpen(path)

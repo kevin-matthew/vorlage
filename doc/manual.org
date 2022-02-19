@@ -137,7 +137,8 @@ use the Vorlage, not develop for it.
     of the life cycle for the document.
  5. *Shutdown Phase*: Vorlage unloads all the processors and deloads
     all supporting libraries. All connections and requests will be
-    terminated.
+    terminated. The processors must shut everything down, and must free all
+    memory allocated.
 
 * Documents
 Documents are UTF-8 encoded files. The text is not canonicalized, so a

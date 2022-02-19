@@ -3,16 +3,21 @@ package vorlage
 import (
 	"ellem.so/vorlageproc"
 	"io/ioutil"
+	"os"
 	"plugin"
 )
 
 type goProc struct {
+	sourcefile            string
 	plugin                *plugin.Plugin
 	vorlageStartup        func() (vorlageproc.ProcessorInfo, error)
 	vorlageOnRequest      func(info vorlageproc.RequestInfo, i *interface{}) []vorlageproc.Action
 	vorlageDefineVariable func(info vorlageproc.DefineInfo, i interface{}) vorlageproc.Definition
 	vorlageOnFinish       func(info vorlageproc.RequestInfo, i interface{})
 	vorlageShutdown       func() error
+
+	// set in NewCompiler
+	indexincompiler int
 }
 
 func goProchandleerr(err error, ok bool, s string) error {
@@ -33,7 +38,9 @@ func goProchandleerr(err error, ok bool, s string) error {
 	return nil
 }
 
-func loadGoProc(path string) (gv []goProc, err error) {
+// parses a file and returns 1 or many goProc to be used as a vorlageproc.Processor(s).
+// does NOT run .VorlageStartup().
+func loadGoProc(path string, fname string) (gv []*goProc, err error) {
 	plug, err := plugin.Open(path)
 	if err != nil {
 		return gv, lmerrorNew(3185,
@@ -60,8 +67,10 @@ func loadGoProc(path string) (gv []goProc, err error) {
 
 	// v2 symbol is valid. Make the call.
 	v2procs = vorlagegov()
-	gv = make([]goProc, len(v2procs))
+	gv = make([]*goProc, len(v2procs))
 	for i := range v2procs {
+		gv[i] = new(goProc)
+		gv[i].sourcefile = fname
 		gv[i].plugin = plug
 		gv[i].vorlageStartup = v2procs[i].VorlageStartup
 		gv[i].vorlageOnRequest = v2procs[i].VorlageOnRequest
@@ -111,7 +120,7 @@ v1:
 		return gv, e
 	}
 	// good link for v1
-	return []goProc{g}, nil
+	return []*goProc{&g}, nil
 }
 
 func (g goProc) Startup() (vorlageproc.ProcessorInfo, error) {
@@ -136,9 +145,13 @@ func (g goProc) Shutdown() error {
 
 var _ vorlageproc.Processor = goProc{}
 
-func LoadGoProcessors() ([]vorlageproc.Processor, error) {
-	var procs []vorlageproc.Processor
-	files, err := ioutil.ReadDir(GoPluginLoadPath)
+// reloadindex can be nil
+// reloadindex will channel in indexes from this returned array that need to
+// be reloaded because they were changed.
+// If you want to shut the watcher down, just jam a -1 in that channel
+func loadGoProcessors(dir string) ([]*goProc, error) {
+	var procs []*goProc
+	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -146,17 +159,16 @@ func LoadGoProcessors() ([]vorlageproc.Processor, error) {
 		if f.IsDir() {
 			continue
 		}
-		libnames := goLibraryFilenameSig.FindStringSubmatch(f.Name())
-		if libnames == nil {
-			Logger.Debugf("%s - not valid name format to be considered as golang processor", f.Name())
+		if !validGoProcName(f.Name()) {
 			continue
 		}
-		path := GoPluginLoadPath + "/" + f.Name()
-		if GoPluginLoadPath == "" {
+
+		path := dir + "/" + f.Name()
+		if dir == "" {
 			path = f.Name()
 		}
 
-		p, err := loadGoProc(path)
+		p, err := loadGoProc(path, f.Name())
 		if err != nil {
 			return procs, lmerrorNew(0x19945,
 				"failed to load go library",
@@ -164,7 +176,7 @@ func LoadGoProcessors() ([]vorlageproc.Processor, error) {
 				"",
 				path)
 		}
-		var pconv = make([]vorlageproc.Processor, len(p))
+		var pconv = make([]*goProc, len(p))
 		for i := range pconv {
 			pconv[i] = p[i]
 		}
@@ -172,4 +184,94 @@ func LoadGoProcessors() ([]vorlageproc.Processor, error) {
 		Logger.Debugf("loaded golang elf %s from %s (%d processors)", f.Name(), path, len(p))
 	}
 	return procs, nil
+}
+
+func validGoProcName(fname string) bool {
+	libnames := goLibraryFilenameSig.FindStringSubmatch(fname)
+	if libnames == nil {
+		Logger.Debugf("%s - not valid name format to be considered as golang processor", fname)
+		return false
+	}
+	return true
+}
+
+func (c *Compiler) watchGoPath(path string) {
+	w, err := newwatcher(path)
+	if err != nil {
+		Logger.Alertf("watcher failed: %s", err)
+		return
+	}
+	c.gowatcher = &w
+	defer w.close()
+	var filename string
+	for {
+		filename, err = w.waitForUpdate()
+		if err != nil {
+			Logger.Alertf("watcher failed to wait for update (will be closing): %s", err)
+			w.closederr = err
+			w.closed = true
+			return
+		}
+		// a file was just closed from being written too...
+
+		// get the file's info
+		fullpath := path + "/" + filename
+		stat, err := os.Stat(fullpath)
+		if err != nil {
+			Logger.Noticef("auto-reload detected file %s in %s but failed to get a stat on it, skipping.", filename, path)
+			continue
+		}
+		// is it a directory?
+		if stat.IsDir() {
+			Logger.Debugf("new file %s placed in %s is a directory, auto-reload doing nothing.", filename, path)
+			continue
+		}
+
+		// is it a valid name?
+		if !validGoProcName(filename) {
+			continue
+		}
+
+		// okay so at this point we know they just moved in / replaced a file
+		// that is attempting to be a valid processor.
+		newprocs, err := loadGoProc(fullpath, filename)
+		if err != nil {
+			Logger.Errorf("auto-detect failed to load new go processor: %s", err)
+			continue
+		}
+
+		// and now we know it IS a valid processor, go forth update it.
+		Logger.Infof("new valid processor detected (%s)", fullpath)
+		err = c.updategoproc(filename, newprocs)
+		if err != nil {
+			Logger.Alertf("watcher failed to wait for update (will be closing): %s", err)
+			w.closederr = err
+			w.closed = true
+			return
+		}
+
+	}
+}
+
+func (c *Compiler) updategoproc(filename string, newprocs []*goProc) (err error) {
+
+	// lets begin to stall new compiles until we get this thing loaded in.
+	c.makestall(4)
+	// and when everything is sorted out, remove the stall.
+	defer c.cont()
+
+	// was this new file replacing an old one that had previously gave us
+	// processors?
+	for i := range c.goprocessors {
+		if c.goprocessors[i].sourcefile == filename {
+			// set them to be deleted. they are outdated.
+			plugin.Open()
+			c.goprocessors[i] = nil
+		}
+	}
+
+	// add the new processors
+	c.goprocessors = append(c.goprocessors, newprocs...)
+
+	return c.rebuildProcessors()
 }

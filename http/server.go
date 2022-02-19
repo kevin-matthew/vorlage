@@ -21,7 +21,7 @@ import vorlageproc "ellem.so/vorlageproc"
 
 type handler struct {
 	docroot        string
-	compiler       vorlage.Compiler
+	compiler       *vorlage.Compiler
 	blockingRegexp *regexp.Regexp
 }
 
@@ -54,6 +54,10 @@ func (a actionhandler) ActionHTTPHeader(header string) {
 }
 
 func auth() {
+
+}
+
+func (h handler) ListenToChanges() {
 
 }
 
@@ -252,7 +256,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 				writer.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			defer func() { _ = file.Close() }()
+			defer func(file fupload) { _ = file.Close() }(file)
 			streaminputs[k] = file
 		}
 	}
@@ -308,7 +312,10 @@ writeStream:
 	}
 	buff := make([]byte, ProcessingBufferSize)
 	_, err = io.CopyBuffer(writer, stream, buff)
-	_ = stream.Close()
+	err2 := stream.Close()
+	if err2 != nil {
+		httplogContext.Warnf("failed to close output stream: %s", err2)
+	}
 	if err != nil {
 		// cannot write headers here becauase we already wrote the
 		// headers earlier.
@@ -387,10 +394,9 @@ func isUpwardTransversal(path string) bool {
 // todo: need to move the tls logic outside of this function so that
 //      those errors are not mixed up with socket errors.
 func Serve(l net.Listener,
-	procs []vorlageproc.Processor,
 	useFcgi bool,
 	documentRoot string,
-	c vorlage.Compiler,
+	c *vorlage.Compiler,
 	blockingregexp *regexp.Regexp,
 	privkey,
 	pubkey string) (err error) {
