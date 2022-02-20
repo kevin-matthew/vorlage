@@ -265,7 +265,6 @@ func (c *Compiler) updategoproc(filename string, newprocs []*goProc) (err error)
 	for i := range c.goprocessors {
 		if c.goprocessors[i].sourcefile == filename {
 			// set them to be deleted. they are outdated.
-			plugin.Open()
 			c.goprocessors[i] = nil
 		}
 	}
