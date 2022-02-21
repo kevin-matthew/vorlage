@@ -67,6 +67,7 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		if r := recover(); r != nil {
 			httplogContext.Critf("panic recovered: %s (dumping to stderr)", r)
 			_, _ = fmt.Fprintln(os.Stderr, string(debug.Stack()))
+			panic(r)
 		}
 	}()
 
@@ -160,6 +161,11 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	var streaminputs map[string]vorlageproc.StreamInput
 	var cookies []*http.Cookie
 	var cstat vorlage.CompileStatus
+	defer func() {
+		if stream != nil {
+			stream.Close()
+		}
+	}()
 
 	// does it have the file extension we don't want?
 
@@ -312,10 +318,6 @@ writeStream:
 	}
 	buff := make([]byte, ProcessingBufferSize)
 	_, err = io.CopyBuffer(writer, stream, buff)
-	err2 := stream.Close()
-	if err2 != nil {
-		httplogContext.Warnf("failed to close output stream: %s", err2)
-	}
 	if err != nil {
 		// cannot write headers here becauase we already wrote the
 		// headers earlier.
@@ -334,6 +336,9 @@ func (f fupload) Read(p []byte) (n int, err error) {
 }
 
 func (f fupload) Close() error {
+	if f.multipartfile == nil {
+		return nil
+	}
 	return f.multipartfile.Close()
 }
 

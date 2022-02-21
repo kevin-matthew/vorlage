@@ -281,6 +281,10 @@ func (c *nonConvertedFile) Reset() error {
 }
 
 func (c *nonConvertedFile) Close() error {
+	if c == nil {
+		return nil
+	}
+
 	if c.currentlyReadingDef != nil {
 		_ = c.currentlyReadingDef.Close()
 	}

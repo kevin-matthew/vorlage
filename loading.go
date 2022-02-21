@@ -694,6 +694,10 @@ func (doc *Document) Reset() error {
 // Calling Close on a document on a thread that is different from the original
 // thread the document was created on (via Compiler.Compile) is undefined behaviour.
 func (doc *Document) Close() error {
+	if doc == nil {
+		Logger.Debugf("closing nil document")
+		return nil
+	}
 
 	// close self
 	Logger.Debugf("closing '%s'",
