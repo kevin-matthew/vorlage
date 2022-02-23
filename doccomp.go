@@ -339,10 +339,6 @@ type ActionHandler interface {
 func (comp *Compiler) Compile(filepath string, allInput map[string]string,
 	allStreams map[string]vorlageproc.StreamInput, actionsHandler ActionHandler) (docstream io.ReadCloser, err CompileStatus) {
 
-	for i := range comp.processors {
-		Logger.Errorf("%v", comp.processors[i])
-	}
-
 	if shutdowncode := atomic.LoadInt32(&comp.atomicShutdown); shutdowncode != 0 {
 		var erro error
 		switch shutdowncode {
