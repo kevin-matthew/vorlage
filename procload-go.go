@@ -197,7 +197,6 @@ func loadGoProcessors(dir string) ([]*goProc, error) {
 				"",
 				path)
 		}
-		p = append(p, preLoadGo...)
 		var pconv = make([]*goProc, len(p))
 		for i := range pconv {
 			pconv[i] = p[i]
@@ -205,6 +204,7 @@ func loadGoProcessors(dir string) ([]*goProc, error) {
 		procs = append(procs, pconv...)
 		Logger.Debugf("loaded golang elf %s from %s (%d processors)", f.Name(), path, len(p))
 	}
+	procs = append(procs, preLoadGo...)
 	return procs, nil
 }
 
