@@ -25,7 +25,7 @@ build/procs/libctest.so: testing/proctest.c vorlage-interface/shared-library/pro
 	gcc -o $@ -Wall -shared -fpic $<
 
 build/vorlage-http: $(GOFILES)
-	GO111MODULE=off go build -gcflags=-trimpath=$(cwd) -asmflags=-trimpath=$(cwd) -ldflags "$(linkvars) -s -w" -o build/vorlage-http ./http/
+	GO111MODULE=off go build -gcflags=-trimpath=$(cwd) -asmflags=-trimpath=$(cwd) -ldflags "$(linkvars) -s -w" -o build/vorlage-http ./http/main
 
 install: build/vorlage-http conf/vorlage.service
 	@mkdir -pm 755 $(DESTDIR)/

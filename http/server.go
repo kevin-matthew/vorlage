@@ -1,4 +1,4 @@
-package main
+package vorhttp
 
 import (
 	"crypto/tls"

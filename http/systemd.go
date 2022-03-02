@@ -1,4 +1,4 @@
-package main
+package vorhttp
 
 // This file will just hold all the things needed to work with systemd.
 

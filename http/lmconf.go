@@ -1,6 +1,6 @@
 // everything in here copied from ellem.so/lmgo/conf
 
-package main
+package vorhttp
 
 import (
 	"fmt"

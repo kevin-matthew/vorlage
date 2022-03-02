@@ -1,4 +1,4 @@
-package main
+package vorhttp
 
 import (
 	vorlage ".."
@@ -128,7 +128,7 @@ By default, this is set to "/(\.[^/.]+|\.\.[^/]+)", which means it will block al
 var mainlogContext logcontext
 var httplogContext logcontext
 
-func main() {
+func Main() {
 
 	// configure
 	if err := BindAll(config); err != nil {
@@ -197,7 +197,7 @@ Full license at https://www.ellem.ai/vorlage/license.html
 		os.Exit(1)
 	}
 	mainlogContext = logcontext{
-		context: "main",
+		context: "Main",
 		c:       &logs,
 	}
 	httplogContext = logcontext{

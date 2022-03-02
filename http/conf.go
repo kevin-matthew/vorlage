@@ -1,4 +1,4 @@
-package main
+package vorhttp
 
 /*
  * if false, Transversal request will be allowed.

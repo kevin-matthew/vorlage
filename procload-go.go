@@ -38,6 +38,27 @@ func goProchandleerr(err error, ok bool, s string) error {
 	return nil
 }
 
+// used for debugging
+func GoAddToPreload(f func() []vorlageproc.VorlageGo) {
+	// v2 symbol is valid. Make the call.
+	v2procs := f()
+	gv := make([]*goProc, len(v2procs))
+	for i := range v2procs {
+		gv[i] = new(goProc)
+		gv[i].sourcefile = "__INTERNAL__"
+		gv[i].plugin = nil
+		gv[i].vorlageStartup = v2procs[i].VorlageStartup
+		gv[i].vorlageOnRequest = v2procs[i].VorlageOnRequest
+		gv[i].vorlageDefineVariable = v2procs[i].VorlageDefineVariable
+		gv[i].vorlageOnFinish = v2procs[i].VorlageOnFinish
+		gv[i].vorlageShutdown = v2procs[i].VorlageShutdown
+	}
+	// v2 symbol linked successfully.
+	preLoadGo = append(preLoadGo, gv...)
+}
+
+var preLoadGo []*goProc
+
 // parses a file and returns 1 or many goProc to be used as a vorlageproc.Processor(s).
 // does NOT run .VorlageStartup().
 func loadGoProc(path string, fname string) (gv []*goProc, err error) {
@@ -176,6 +197,7 @@ func loadGoProcessors(dir string) ([]*goProc, error) {
 				"",
 				path)
 		}
+		p = append(p, preLoadGo...)
 		var pconv = make([]*goProc, len(p))
 		for i := range pconv {
 			pconv[i] = p[i]
