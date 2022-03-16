@@ -422,7 +422,8 @@ func Serve(l net.Listener,
 			srvr := &http.Server{
 				Handler: h,
 				TLSConfig: &tls.Config{
-					MinVersion: tls.VersionTLS13,
+					MinVersion: tls.VersionTLS12,
+					MaxVersion: tls.VersionTLS13,
 				},
 			}
 			err = srvr.ServeTLS(l, pubkey, privkey)
