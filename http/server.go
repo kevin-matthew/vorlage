@@ -285,17 +285,21 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	// compile the document and get an Rid
 	stream, cstat = h.compiler.Compile(fileToUse, inputs, streaminputs, actionhandler{writer, request})
 	if cstat.Err != nil {
-		writer.WriteHeader(http.StatusInternalServerError)
 		if cstat.WasProcessor {
 			// don't do anything because actionhandler's interface was called
 			// and the relevant function already sent the bad headers.
+			//
+			// We don't need to log the error either sense the processor-based
+			// error is documented not the server's fault.
+			// debug just in case.
+			httplogContext.Debugf("processor set error %s: %s", fileToUse, cstat.Err)
 		} else {
+			writer.WriteHeader(http.StatusInternalServerError)
 			_, _ = writer.Write([]byte("server failed to load document"))
+			httplogContext.Errorf("vorlage failed to compile %s: %s", fileToUse, cstat.Err)
 		}
-		httplogContext.Errorf("vorlage failed to compile %s: %s", fileToUse, cstat.Err)
 		return
 	}
-	httplogContext.Debugf("vorlage will output %s", fileToUse)
 
 	// now that we have the Rid, add everything in the RequestInfo pool.
 	// be sure to de allocate when we're done writting to stream.
