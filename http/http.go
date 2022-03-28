@@ -1,7 +1,6 @@
 package vorhttp
 
 import (
-	vorlage ".."
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -10,6 +9,7 @@ import (
 	"regexp"
 	"sync"
 	"syscall"
+	"vorlage"
 )
 
 // config var set on build

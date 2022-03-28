@@ -1,6 +1,6 @@
 package main
 
-import ".."
+import vorhttp "vorlage/http"
 
 func main() {
 	vorhttp.Main()

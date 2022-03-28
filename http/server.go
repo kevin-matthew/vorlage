@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-import vorlage ".."
+import vorlage "vorlage"
 import vorlageproc "ellem.so/vorlageproc"
 
 type handler struct {
