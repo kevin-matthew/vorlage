@@ -2,6 +2,7 @@ package http
 
 import (
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"os"
@@ -25,7 +26,6 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		}
 	}
 
-	var tryFilesIndex = 0
 	var fileToUse = h.docroot + request.URL.Path
 
 	// does this file exist at all?
@@ -51,9 +51,9 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		for i = 0; i < len(TryFiles); i++ {
 			// make sure we don't add an extra '/' if it's already there.
 			if request.URL.Path[len(request.URL.Path)-1] == '/' {
-				fileToUse = h.docroot + request.URL.Path + TryFiles[tryFilesIndex]
+				fileToUse = h.docroot + request.URL.Path + TryFiles[i]
 			} else {
-				fileToUse = h.docroot + request.URL.Path + "/" + TryFiles[tryFilesIndex]
+				fileToUse = h.docroot + request.URL.Path + "/" + TryFiles[i]
 			}
 
 			// check the stat of the path+tryfile to see if we have an
@@ -175,10 +175,19 @@ func (h handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	// now that we have the Rid, add everything in the Request pool.
 	// be sure to de allocate when we're done writting to stream.
-	currentConnectionPool[req.Rid] = Request{writer, request}
-	defer func() { delete(currentConnectionPool, req.Rid) }()
+	addToConnectionPool(req.Rid, writer, request, stream)
+	defer removeFromConnectionPool(req.Rid)
 
 writeStream:
+	// lets clear out some headers
+	// content type
+	extI := strings.LastIndex(fileToUse, ".")
+	if extI != -1 {
+		mimeT := mime.TypeByExtension(fileToUse[extI:])
+		writer.Header().Add("Content-Type", mimeT)
+	} else {
+		writer.Header().Add("Content-Type", "application/octet-stream")
+	}
 	buff := make([]byte, ProcessingBufferSize)
 	_, err = io.CopyBuffer(writer, stream, buff)
 	_ = stream.Close()
@@ -189,6 +198,21 @@ writeStream:
 		return
 	}
 	// at this point we've successfully found, processed, and served the file.
+}
+
+// thread safe
+func addToConnectionPool(rid doccomp.Rid, writer http.ResponseWriter, r *http.Request, docstream io.ReadCloser) {
+	connectionMu.Lock()
+	currentConnectionPool[rid] = Request{writer, r, docstream}
+	connectionMu.Unlock()
+}
+
+// thread safe
+func removeFromConnectionPool(rid doccomp.Rid) {
+	connectionMu.Lock()
+	delete(currentConnectionPool, rid)
+	connectionMu.Unlock()
+
 }
 
 func (h handler) writeError(err error) {

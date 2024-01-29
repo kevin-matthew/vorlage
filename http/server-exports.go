@@ -1,16 +1,20 @@
 package http
 
 import (
+	"io"
 	"net/http"
+	"sync"
 	"time"
 )
 import ".."
 
 type Request struct {
-	w http.ResponseWriter
-	r *http.Request
+	w         http.ResponseWriter
+	r         *http.Request
+	docstream io.ReadCloser
 }
 
+var connectionMu sync.Mutex
 var currentConnectionPool map[doccomp.Rid]Request
 
 // returns nil if request
@@ -24,6 +28,11 @@ func GetRequestEditor(rid doccomp.Rid) *Request {
 
 func (r *Request) GetHost() string {
 	return r.r.URL.Host
+}
+
+func (r *Request) Redirect(dest string) {
+	_ = r.docstream.Close()
+	http.Redirect(r.w, r.r, dest, http.StatusSeeOther)
 }
 
 // a definition that's calling this must be before any content is outputted.
